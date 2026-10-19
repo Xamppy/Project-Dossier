@@ -56,7 +56,7 @@ def test_business_signals_detect_italian():
 @pytest.mark.parametrize(
     ("desc", "nombre"),
     [
-        ("Empresa: Acme\nContacto 1: Ana Pérez <ana@acme.test>", "Ana Pérez <ana@acme.test>"),
+        ("Empresa: Acme\nContacto 1: Ana Pérez <ana@acme.test>", "Ana Pérez"),
         ("Contact 1: John Smith", "John Smith"),
         ("Contato 1: João Silva", "João Silva"),
         ("Kontakt 1: Hans Müller", "Hans Müller"),
@@ -178,18 +178,71 @@ def test_numbered_email_with_gmail_is_not_truncated():
     ],
 )
 def test_contact_name_is_not_cut_inside_the_email(desc):
-    """Caso del hallazgo. Se acepta el valor completo o el nombre solo, nunca «Ana <ana@g»."""
+    """Caso del hallazgo: el nombre queda sin el correo y el correo entero, nunca «Ana <ana@g»."""
     correo = desc.split("<", 1)[1].rstrip(">")
     personas = extract_numbered_persons_from_description(desc)
-    assert [p["full_name"] for p in personas][0] in ("Ana", f"Ana <{correo}>")
+    assert [(p["full_name"], p["email"]) for p in personas] == [("Ana", correo)]
 
 
-@pytest.mark.skip(
-    reason="Pendiente de decisión: contradice la prueba de #21 que espera «Ana Pérez <ana@acme.test>»"
-)
 def test_contact_name_is_separated_from_angle_bracket_email():
     personas = extract_numbered_persons_from_description("Contacto 1: Ana <ana@gmail.com>")
     assert [(p["full_name"], p["email"]) for p in personas] == [("Ana", "ana@gmail.com")]
+
+
+# Decisión de FO: «Nombre <correo>» se separa; un nombre con el correo pegado degrada la búsqueda
+# en PDL. El correo entre <> solo se usa si no hay un «Email N:» / «Email:» explícito.
+
+
+@pytest.mark.parametrize(
+    ("desc", "esperado"),
+    [
+        ("Contacto 1: Ana Pérez <ana@acme.test>", [("Ana Pérez", "ana@acme.test")]),
+        ("Contacto 1: Ana Pérez<ana@acme.test>", [("Ana Pérez", "ana@acme.test")]),
+        ("Contacto 1: Ana Pérez <ANA@Acme.Test>", [("Ana Pérez", "ana@acme.test")]),
+        ("Contacto 2 - Luis Soto <luis@acme.test>", [("Luis Soto", "luis@acme.test")]),
+        (
+            "Contacto 1: Ana Pérez <ana@acme.test>\nEmail 1: ana.perez@acme.test",
+            [("Ana Pérez", "ana.perez@acme.test")],
+        ),
+        (
+            "Contacto 1: Ana <ana@acme.test>\nContacto 2: Luis <luis@acme.test>",
+            [("Ana", "ana@acme.test"), ("Luis", "luis@acme.test")],
+        ),
+        ("Contacto 1: Ana Pérez <sin correo>", [("Ana Pérez <sin correo>", None)]),
+        ("Contacto 1: Ana Pérez", [("Ana Pérez", None)]),
+    ],
+)
+def test_numbered_contact_angle_bracket_email_table(desc, esperado):
+    personas = extract_numbered_persons_from_description(desc)
+    assert [(p["full_name"], p["email"]) for p in personas] == esperado
+
+
+@pytest.mark.parametrize(
+    ("desc", "esperado"),
+    [
+        ("Empresa: Acme\nContacto: Ana Pérez <ana@acme.test>", ("Ana Pérez", None, "ana@acme.test")),
+        ("Empresa: Acme\nContacto: Ana Pérez <ana@acme.test>, CEO", ("Ana Pérez", "CEO", "ana@acme.test")),
+        (
+            "Empresa: Acme\nContacto: Ana Pérez <ana@acme.test>\nEmail: otra@acme.test",
+            ("Ana Pérez", None, "otra@acme.test"),
+        ),
+        ("Empresa: Acme\nContacto: Ana Pérez <sin correo>", ("Ana Pérez <sin correo>", None, None)),
+    ],
+)
+def test_single_contact_angle_bracket_email_table(desc, esperado):
+    personas = extract_all_persons_from_description(desc)
+    assert [(p["full_name"], p["job_area"], p["email"]) for p in personas] == [esperado]
+
+
+def test_parsed_event_uses_angle_bracket_email():
+    """Google Calendar entrega la descripción en HTML: el «<» tecleado llega como «&lt;»."""
+    parsed = parse_calendar_event_for_dossiers(
+        {
+            "tema": "Reunión — Acme",
+            "descripcion": "Empresa: Acme<br>Contacto 1: Ana Pérez &lt;ana@acme.test&gt;",
+        }
+    )
+    assert (parsed["person_name"], parsed["person_email"]) == ("Ana Pérez", "ana@acme.test")
 
 
 @pytest.mark.parametrize(

@@ -234,6 +234,25 @@ def _description_signals_person_only(descripcion: str) -> bool:
     return has_person and not has_empresa
 
 
+# «Ana Pérez <ana@acme.test>»: nombre y correo entre <> al final del valor (BUG-2026-10-19-05).
+_NAME_WITH_ANGLE_EMAIL = re.compile(r"^(?P<name>.*?)\s*<\s*(?P<email>[^<>\s@]+@[^<>\s@]+\.[^<>\s@]+)\s*>$")
+
+
+def _split_name_and_email(value: str) -> tuple[str, str | None]:
+    """
+    Separa «Nombre <correo>» en (nombre, correo en minúsculas).
+
+    Un nombre con el correo pegado degrada la búsqueda de la persona (PDL), así que el correo
+    sale del nombre. Si lo que va entre <> no es un correo, o no queda nombre delante, el valor
+    se devuelve tal cual y sin correo.
+    """
+    v = value.strip()
+    m = _NAME_WITH_ANGLE_EMAIL.match(v)
+    if not m or not m.group("name").strip():
+        return v, None
+    return m.group("name").strip(), m.group("email").lower()
+
+
 def _indexed_fields(pattern: re.Pattern[str], text: str) -> dict[int, str]:
     out: dict[int, str] = {}
     for m in pattern.finditer(text):
@@ -272,7 +291,7 @@ def extract_numbered_persons_from_description(descripcion: str) -> list[dict[str
 
     persons: list[dict[str, Any]] = []
     for idx in sorted(names.keys()):
-        name = names[idx].strip()
+        name, angle_email = _split_name_and_email(names[idx])
         if len(name) < 2:
             continue
         job, country = _split_job_and_country(jobs.get(idx), countries.get(idx))
@@ -281,6 +300,8 @@ def extract_numbered_persons_from_description(descripcion: str) -> list[dict[str
             email = email.strip().lower()
             if "@" not in email:
                 email = None
+        # «Email N:» explícito manda; si no hay, vale el correo de «Contacto N: Nombre <correo>».
+        email = email or angle_email
         persons.append(
             {
                 "index": idx,
@@ -302,13 +323,14 @@ def extract_all_persons_from_description(
     if numbered:
         return numbered
 
-    name, job, country = extract_person_from_description(descripcion)
+    name, job, country, angle_email = _extract_person_fields(descripcion)
     if not name:
         name = extract_person_from_subject(tema)
     if not name or len(name) < 2:
         return []
 
-    email = extract_email_from_description(descripcion)
+    # «Email:» explícito manda; si no hay, vale el correo de «Contacto: Nombre <correo>».
+    email = extract_email_from_description(descripcion) or angle_email
     return [
         {
             "index": 1,
@@ -378,10 +400,19 @@ def extract_person_from_description(descripcion: str) -> tuple[str, str | None, 
         Contacto: Elon Musk
         Cargo: CEO
         País (opcional): Estados Unidos
+
+    «Contacto: Ana Pérez <ana@acme.test>» da el nombre sin el correo; el correo lo recoge
+    `extract_all_persons_from_description`.
     """
+    name, job, country, _angle_email = _extract_person_fields(descripcion)
+    return name, job, country
+
+
+def _extract_person_fields(descripcion: str) -> tuple[str, str | None, str | None, str | None]:
+    """(nombre, cargo, país, correo entre <> del contacto) de un único «Contacto:»."""
     d = (descripcion or "").strip()
     if not d:
-        return "", None, None
+        return "", None, None, None
 
     name = ""
     job: str | None = None
@@ -407,6 +438,8 @@ def extract_person_from_description(descripcion: str) -> tuple[str, str | None, 
                 name = chunk
             break
 
+    name, angle_email = _split_name_and_email(name)
+
     if not name:
         em = _EMAIL_IN_DESC.search(d)
         if em:
@@ -419,7 +452,7 @@ def extract_person_from_description(descripcion: str) -> tuple[str, str | None, 
 
     job, country = _split_job_and_country(job, country)
 
-    return name.strip(), job, country
+    return name.strip(), job, country, angle_email
 
 
 def extract_email_from_description(descripcion: str) -> str | None:
