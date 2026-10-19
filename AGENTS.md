@@ -94,6 +94,7 @@ Detalle heredado: [docs/estructura.md](docs/estructura.md)
 | Calendario OAuth | [docs/calendario-oauth-operaciones.md](docs/calendario-oauth-operaciones.md) |
 | Orquestador | [docs/langgraph-dossier.md](docs/langgraph-dossier.md) |
 | Despliegue | [docs/dev/despliegue-vps.md](docs/dev/despliegue-vps.md) (VPS con Docker Compose) · [docs/render-deploy.md](docs/render-deploy.md) · [docs/vercel-frontend.md](docs/vercel-frontend.md) |
+| Copia pública | [docs/dev/repo-publico.md](docs/dev/repo-publico.md) (sincronización con filtro de datos personales) |
 
 ## Definición de Terminado
 
