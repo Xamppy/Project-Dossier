@@ -11,6 +11,7 @@ export const CALENDAR_FIELD_LABELS = {
   ],
   person: [
     "contacto", "contact", "nombre", "name", "nome", "nom", "contatto", "kontakt",
+    "contactos", "contacts", "contato", "contatos", "contatti", "kontakte",
   ],
   job: [
     "cargo", "puesto", "rol", "role", "rolle", "título", "titulo", "title",
@@ -49,13 +50,24 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Detecta campos persona en la descripción (multi-idioma). */
+const PERSON_LABELS_RE = CALENDAR_FIELD_LABELS.person.map(escapeRegex).join("|");
+
+/**
+ * Detecta campos persona en la descripción (multi-idioma). Replica `person_hint_regex_source()`
+ * de calendar_meeting_labels.py, que es la fuente de verdad:
+ * - «Contacto: Ana», «Contacto 1: Ana», «Contactos: …» en cualquier parte;
+ * - «Contacto 2 - Ana» solo a inicio de línea, con espacio tras el guion;
+ * - «Reunión con Ana».
+ * La etiqueta sola, sin nombre ni correo detrás, no cuenta: el backend no extrae nada de ella.
+ */
 const PERSON_HINT_RE = new RegExp(
-  `(?:${CALENDAR_FIELD_LABELS.person.map(escapeRegex).join("|")})\\s*(?:\\d+\\s*)?:|` +
-    `(?:${CALENDAR_FIELD_LABELS.meetingWith.map(escapeRegex).join("|")})\\s+`,
+  `(?:${PERSON_LABELS_RE})\\s*(?:\\d+\\s*)?:\\s*\\S|` +
+    `(?:^|\\n)[ \\t]*(?:${PERSON_LABELS_RE})[ \\t]*(?:\\d+[ \\t]*)?[-–—][ \\t]+\\S|` +
+    `(?:${CALENDAR_FIELD_LABELS.meetingWith.map(escapeRegex).join("|")})\\s+\\S`,
   "i"
 );
 
+/** ¿La descripción trae un contacto que el backend pueda extraer? Decide el aviso del detalle. */
 export function descriptionHasPersonHint(descripcion: string | undefined | null): boolean {
   const d = (descripcion || "").trim();
   if (!d) return false;

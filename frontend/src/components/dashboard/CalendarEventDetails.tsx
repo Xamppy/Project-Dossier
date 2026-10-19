@@ -6,6 +6,7 @@ import DossierJobProgressDetails from "@/components/dossier/DossierJobProgressDe
 import JobOutcomeNotice, { ProgressLiveRegion, progressMilestone } from "@/components/dossier/JobOutcomeNotice";
 import { calendarUiLabels } from "@/i18n/calendar-ui-labels";
 import type { CalendarEventModel } from "@/lib/calendar-events";
+import { descriptionHasPersonHint } from "@/lib/calendar-meeting-format";
 import {
   DossierApiError,
   type CalendarGenerarDossierItem,
@@ -37,10 +38,6 @@ const PROVIDER_COLOR: Record<CalendarProvider, string> = {
 /** Solo un dossier guardado `complete` da enlace: un registro `failed` existe pero no es un informe. */
 function validSaved(ref: CalendarSavedDossierRef | undefined): CalendarSavedDossierRef | undefined {
   return ref?.id && ref.status === "complete" ? ref : undefined;
-}
-
-function descriptionHasPersonHint(text: string): boolean {
-  return /(?:contacto|contact|nombre|name|nome|nom|contatto|kontakt)\s*:/i.test(text);
 }
 
 /** Día completo: fechas civiles; el fin es exclusivo, así que se muestra el día anterior. */

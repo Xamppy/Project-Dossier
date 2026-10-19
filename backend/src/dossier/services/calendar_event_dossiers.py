@@ -51,7 +51,7 @@ from dossier.services.calendar_meeting_labels import (
     EMAIL_IN_DESC,
     EMPRESA_DESC,
     JOB_IN_DESC,
-    NUMBERED_CONTACT,
+    NUMBERED_CONTACT_PATTERNS,
     NUMBERED_COUNTRY,
     NUMBERED_EMAIL,
     NUMBERED_JOB,
@@ -119,7 +119,7 @@ _JOB_IN_DESC = JOB_IN_DESC
 
 _COUNTRY_IN_DESC = COUNTRY_IN_DESC
 
-_NUMBERED_CONTACT = NUMBERED_CONTACT
+_NUMBERED_CONTACT_PATTERNS = NUMBERED_CONTACT_PATTERNS
 _NUMBERED_JOB = NUMBERED_JOB
 _NUMBERED_EMAIL = NUMBERED_EMAIL
 _NUMBERED_COUNTRY = NUMBERED_COUNTRY
@@ -258,7 +258,11 @@ def extract_numbered_persons_from_description(descripcion: str) -> list[dict[str
     if not d:
         return []
 
-    names = _indexed_fields(_NUMBERED_CONTACT, d)
+    # «Contacto 1: Ana» y «Contacto 2 - Luis» pueden convivir; si un número se repite, gana «:».
+    names: dict[int, str] = {}
+    for pattern in _NUMBERED_CONTACT_PATTERNS:
+        for idx, val in _indexed_fields(pattern, d).items():
+            names.setdefault(idx, val)
     if not names:
         return []
 
