@@ -49,6 +49,34 @@ Si tu base se creó con una **versión antigua** del DDL y falla el `INSERT` en 
 
 Tras aplicarlo, puedes desactivar la creación automática de tablas al arrancar la API con **`DATABASE_AUTO_CREATE_TABLES=0`** en `.env` (ver [auth-app.md](auth-app.md)).
 
+## Mantenimiento de datos
+
+Correcciones de datos ya guardados. No cambian el esquema, por eso no están en
+`db/Migracion.md` ni en Alembic: se ejecutan a mano, una vez por ambiente, después de revisar la
+simulación.
+
+### Dossiers con el correo de otro asistente (BUG-2026-10-19-07)
+
+Antes de BUG-2026-10-19-02, en reuniones con varios asistentes, el dossier de quien no tenía
+correo propio se guardaba con el de otro asistente. El script detecta esos dossiers (los de
+persona de un mismo evento y ejecución que comparten correo con nombres distintos), les anula
+`subject_email` y `person_filters.email`, y guarda el valor anterior en
+`dossier_data.correo_sospechoso`. No borra nada y es idempotente. Detalle y límites:
+[specs/proposals/BUG-2026-10-19-07-dossiers-correo-ajeno.md](../specs/proposals/BUG-2026-10-19-07-dossiers-correo-ajeno.md).
+
+Desde `backend/`, con la `DATABASE_URL` del ambiente en `.env`:
+
+```bash
+python scripts/marcar_dossiers_correo_ajeno.py            # simulación: imprime el informe JSON
+python scripts/marcar_dossiers_correo_ajeno.py --dry-run  # lo mismo, explícito
+python scripts/marcar_dossiers_correo_ajeno.py > informe-bug07.json   # guarda el informe para revisarlo
+python scripts/marcar_dossiers_correo_ajeno.py --aplicar  # escribe, en una sola transacción
+```
+
+Revisa `afectados` en la simulación antes de aplicar. Una segunda ejecución con `--aplicar`
+debe devolver `afectados: []`. Para deshacer un caso, el correo anterior está en
+`dossier_data->'correo_sospechoso'->>'correo_anterior'`.
+
 ## Comprobar conexión
 
 Con el backend en marcha:
