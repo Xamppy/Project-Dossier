@@ -715,13 +715,11 @@ def _generate_one_person_dossier(
     person_name = (person.get("full_name") or "").strip()
     person_job = person.get("job_area")
     person_country = person.get("country")
-    person_email = person.get("email")
-    if not person_email:
-        corp_emails = extract_corporate_emails_from_text(
-            parsed.get("descripcion") or "",
-            participantes,
-        )
-        person_email = corp_emails[0] if corp_emails else None
+    # Solo el correo declarado para este contacto. El correo corporativo suelto del
+    # evento ya se asigna en ``parse_calendar_event_for_dossiers`` cuando hay un único
+    # contacto; con varios no se sabe de quién es, y consultar PDL con el de otro
+    # asistente trae (y cobra) un perfil ajeno (BUG-2026-10-19-02).
+    person_email = person.get("email") or None
 
     out: dict[str, Any] = {
         "index": person.get("index"),
@@ -1263,7 +1261,8 @@ def persist_calendar_dossiers(
                 "gemini_google_search_used": p_payload.get("gemini_google_search_used"),
                 "filters_applied": p_payload.get("filters_applied"),
             }
-        person_email_stored = (pentry.get("email") or parsed.get("person_email") or "")[:255] or None
+        # Sin respaldo en ``parsed["person_email"]``: es el del primer contacto, no el de este.
+        person_email_stored = (pentry.get("email") or "")[:255] or None
         dossier_id = uuid.uuid4()
         dossier = Dossier(
             id=dossier_id,
@@ -1297,7 +1296,7 @@ def persist_calendar_dossiers(
                     "job_area": pentry.get("job_area"),
                     "company": parsed.get("company_person"),
                     "country": pentry.get("country"),
-                    "email": pentry.get("email") or parsed.get("person_email"),
+                    "email": pentry.get("email") or None,
                     "research_source": person_research_source,
                     "contact_index": pentry.get("index"),
                 },
