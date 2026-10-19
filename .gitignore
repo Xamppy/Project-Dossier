@@ -55,6 +55,11 @@ out/
 .turbo/
 *.tsbuildinfo
 next-env.d.ts
+# Instrucciones de agente que genera `next dev` 16.3+. Están desactivadas con
+# agentRules: false; esto cubre worktrees donde ya se generaron. La fuente
+# única es AGENTS.md / CLAUDE.md de la raíz.
+frontend/AGENTS.md
+frontend/CLAUDE.md
 
 # Documentos generados localmente (copias de trabajo e informes)(dario)
 /documentacion_local/

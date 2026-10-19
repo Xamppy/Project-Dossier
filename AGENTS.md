@@ -114,4 +114,5 @@ Sin las seis, la tarea no está terminada:
 - **eslint da 0 errores** en el frontend (S1.3).
 - **El esquema se versiona con Alembic** (S1.1, `backend/alembic/versions/`); `db/schema_patches.py` sigue aplicando parches al arrancar y `db/Migracion.md` documenta el esquema. No cambies el esquema sin leer los tres.
 - **ruff y mypy están configurados** en `backend/pyproject.toml` (S1.2).
+- **Next.js 16 cambia APIs y convenciones** respecto de versiones anteriores. Antes de escribir código de frontend, lee la guía correspondiente en `frontend/node_modules/next/dist/docs/` (documentación de la versión instalada). `next dev` no genera `frontend/AGENTS.md` porque `next.config.ts` fija `agentRules: false`.
 - Las tareas de Sprint 2 en adelante **dependen** de que el Sprint 1 esté cerrado.
