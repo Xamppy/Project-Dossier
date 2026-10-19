@@ -3,7 +3,8 @@
 #
 # Qué hace:
 #   1. Clona solo `main` del repo privado en una carpeta temporal (clon desnudo).
-#   2. Reescribe el historial con git-filter-repo y quita los archivos con datos personales.
+#   2. Reescribe el historial con git-filter-repo y quita los archivos con datos personales
+#      y la configuración de Dependabot.
 #   3. Verifica el historial completo: RUT en texto, PDF y DOCX, y secretos con gitleaks si existe.
 #   4. Solo con --push: sube `main` al repo público con push forzado. Sin tags.
 #
@@ -21,8 +22,11 @@ PYTHON="${PYTHON:-python}"
 
 # Archivos que NUNCA deben llegar al público, en ninguna versión del historial.
 # Si aparece otro archivo con datos personales, agrégalo aquí (y bórralo de main).
+# .github/dependabot.yml también se quita: sin él, Dependabot no abre PR en la copia
+# pública. Las dependencias se actualizan en el repo de trabajo.
 RUTAS_EXCLUIDAS=(
   "docs/documentos-capstone/1.5_GuiaEstudiante_Fase 1_Definicion Proyecto APT.docx.pdf"
+  ".github/dependabot.yml"
 )
 
 SUBIR=0

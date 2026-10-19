@@ -23,7 +23,7 @@ Cómo está configurada la copia pública:
 | CI (`ci.yml`) | Activa | El docente ve ejecuciones en verde |
 | Imágenes Docker (`imagenes.yml`) | **Deshabilitado** | Para que no publique imágenes en ghcr desde la copia |
 | Issues, Wiki, Projects | Desactivados | Se gestionan en el privado |
-| Dependabot | Activo (lee `.github/dependabot.yml`) | Abre PR en la copia. **No se mezclan ahí**: se cierran, y la actualización se hace en el privado |
+| Dependabot | **Sin configuración**: el filtro quita `.github/dependabot.yml` de todo el historial | Las dependencias se actualizan en el privado. Si aun así aparece un PR de Dependabot en la copia, se cierra sin mezclar |
 
 ## Cómo sincronizarla
 
@@ -41,8 +41,10 @@ scripts/sincronizar_repo_publico.sh --push   # además hace push forzado de main
 El script automatiza lo que se hizo a mano la primera vez:
 
 1. `git clone --bare --no-local --single-branch --branch main` del privado en una carpeta temporal.
-2. `git filter-repo --path "<archivo con datos personales>" --invert-paths` por cada archivo de
-   la lista `RUTAS_EXCLUIDAS` del script.
+2. `git filter-repo --path "<archivo>" --invert-paths` por cada archivo de la lista
+   `RUTAS_EXCLUIDAS` del script. Hoy son dos: el PDF original de la Guía Fase 1 (tenía los RUT
+   de los integrantes) y `.github/dependabot.yml`. Este último no tiene datos personales; se
+   quita para que Dependabot no abra PR en la copia, que ya recibió uno (el #1, cerrado).
 3. Verificación de **todo** el historial: regex de RUT sobre `git log --all -p` y sobre el texto
    extraído de cada PDF y DOCX de cualquier commit. Si queda un RUT, el script se detiene sin
    subir nada. Después corre gitleaks, si está instalado.
@@ -58,8 +60,8 @@ script se detiene. Ejemplo: `PYTHON=/ruta/a/venv/python scripts/sincronizar_repo
 
 ### Lo que sigue en commits viejos de la copia
 
-El filtro solo quita los archivos de la lista. Algunos commits antiguos todavía traen ejemplos
-con datos de terceros, que se limpiaron de `main` en el PR #30: el correo del User-Agent de la
+El filtro solo quita los archivos de la lista (el PDF con RUT y la configuración de
+Dependabot). Algunos commits antiguos todavía traen ejemplos con datos de terceros, que se limpiaron de `main` en el PR #30: el correo del User-Agent de la
 SEC y nombres de personas y empresas reales en ejemplos y pruebas. Esos datos ya eran públicos en
 el repositorio original del curso, y por eso se aceptó dejarlos. Si alguna vez hay que quitarlos,
 se puede usar `git filter-repo --replace-text`.
