@@ -40,7 +40,8 @@ lo que descubriste y no está escrito en ningún otro lado.
 
 El sistema ya existe y funciona: autenticación, multiempresa, calendarios Google y Microsoft,
 generación asíncrona, dossiers de personas, registros de Reino Unido y Estados Unidos, créditos,
-dashboard en cinco idiomas.
+dashboard en seis idiomas (siete catálogos: `en-gb` es una variante de `en` con opción propia en el
+selector).
 
 **Antes de escribir algo nuevo, búscalo.** Es más probable que exista y no lo hayas encontrado
 a que falte. Lo que sí falta está enumerado en `.harness/fix_plan.md` y en las cinco brechas de
@@ -128,7 +129,7 @@ Ramas: `feat/S2.1-agente-europeo`, `fix/S1.3-analisis-estatico`, `docs/S2.7-cobe
 
 Código, comentarios, documentación, commits y mensajes de interfaz **en español**, salvo:
 identificadores y nombres de API, palabras clave de commit convencional (`feat`, `fix`), y
-cadenas de los otros cuatro idiomas del dashboard.
+cadenas de los demás catálogos del dashboard (`en`, `en-gb`, `pt`, `it`, `fr`, `de`).
 
 ## Límites
 
