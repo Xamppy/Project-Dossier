@@ -14,7 +14,15 @@ from dossier.services.calendar_event_dossiers import (
     parse_calendar_event_for_dossiers,
 )
 from dossier.services.calendar_event_filters import has_business_meeting_signals
-from dossier.services.calendar_meeting_labels import PERSON_LABELS, person_hint_regex_source
+from dossier.services.calendar_meeting_labels import (
+    COMPANY_LABELS,
+    COUNTRY_LABELS,
+    EMAIL_LABELS,
+    EMPRESA_DESC,
+    JOB_LABELS,
+    PERSON_LABELS,
+    person_hint_regex_source,
+)
 
 _FRONTEND_LABELS = (
     Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib" / "calendar-meeting-format.ts"
@@ -295,3 +303,167 @@ def test_person_hint_regex_source_requires_whole_label():
         assert not rx.search(desc), desc
     for desc in ("Nome: João", "Name: Ana", "Contacto 1: Ana <ana@gmail.com>"):
         assert rx.search(desc), desc
+
+
+# --- BUG-2026-10-19-06: lista de contactos y etiqueta vacía ----------------------------------
+# 1. Con etiqueta en plural («Contactos:») la coma o el punto y coma separan personas; con
+#    etiqueta singular («Contacto: Ana, CEO») se mantiene «Nombre, Cargo».
+
+
+@pytest.mark.parametrize(
+    ("desc", "nombres"),
+    [
+        ("Empresa: Acme\nContactos: Ana Pérez, Luis Soto", ["Ana Pérez", "Luis Soto"]),
+        ("Contacts: John Smith, Jane Doe, Bob Ray", ["John Smith", "Jane Doe", "Bob Ray"]),
+        ("Empresa: Acme\nContatos: João Silva; Maria Souza", ["João Silva", "Maria Souza"]),
+        ("Azienda: Acme\nContatti: Edward Dalton, Anna Rossi", ["Edward Dalton", "Anna Rossi"]),
+        ("Unternehmen: Acme\nKontakte: Hans Müller, Eva Weber", ["Hans Müller", "Eva Weber"]),
+        ("Empresa: Acme\nContactos: Ana Pérez, , Luis Soto.", ["Ana Pérez", "Luis Soto"]),
+        ("Empresa: Acme\nContactos - Ana Pérez, Luis Soto", ["Ana Pérez", "Luis Soto"]),
+    ],
+)
+def test_plural_label_comma_separates_people(desc, nombres):
+    personas = extract_all_persons_from_description(desc)
+    assert [(p["index"], p["full_name"]) for p in personas] == list(enumerate(nombres, start=1))
+    assert all(p["job_area"] is None for p in personas)
+
+
+def test_plural_label_first_person_has_no_job_from_comma():
+    assert extract_person_from_description("Contactos: Ana Pérez, Luis Soto") == ("Ana Pérez", None, None)
+
+
+def test_plural_list_does_not_assign_shared_job_to_everyone():
+    """«Cargo:» sin número es ambiguo con varias personas: no se reparte a todas."""
+    desc = "Empresa: Acme\nContactos: Ana Pérez, Luis Soto\nCargo: CEO\nPaís: Chile"
+    personas = extract_all_persons_from_description(desc)
+    assert [(p["full_name"], p["job_area"], p["country"]) for p in personas] == [
+        ("Ana Pérez", None, None),
+        ("Luis Soto", None, None),
+    ]
+
+
+def test_plural_list_parsed_event_has_every_person():
+    parsed = parse_calendar_event_for_dossiers(
+        {"tema": "Reunión — Acme", "descripcion": "Empresa: Acme\nContactos: Ana Pérez, Luis Soto"}
+    )
+    assert [p["full_name"] for p in parsed["persons"]] == ["Ana Pérez", "Luis Soto"]
+    assert (parsed["person_name"], parsed["person_job"]) == ("Ana Pérez", None)
+
+
+@pytest.mark.parametrize(
+    ("desc", "persona"),
+    [
+        ("Empresa: Acme\nContactos: Ana Pérez", ("Ana Pérez", None, None)),
+        ("Empresa: Acme\nContactos: Ana Pérez\nCargo: CEO", ("Ana Pérez", "CEO", None)),
+        ("Empresa: Acme\nContacto: Ana Pérez, CEO", ("Ana Pérez", "CEO", None)),
+        ("Company: Acme\nContact: John Smith, CTO", ("John Smith", "CTO", None)),
+        ("Nombre: Ana Pérez, Gerente", ("Ana Pérez", "Gerente", None)),
+        ("Contacto: Ana Pérez, CEO\nCargo: CTO", ("Ana Pérez, CEO", "CTO", None)),
+    ],
+)
+def test_single_person_keeps_name_comma_job(desc, persona):
+    personas = extract_all_persons_from_description(desc)
+    assert [(p["full_name"], p["job_area"], p["country"]) for p in personas] == [persona]
+
+
+# 2. Una etiqueta vacía no captura la línea siguiente si esa línea es otra etiqueta.
+
+
+@pytest.mark.parametrize(
+    "desc",
+    [
+        "Contacto:\nEmpresa: Acme",
+        "Empresa: Acme\nContacto:\nCargo: CEO",
+        "Empresa: Acme\nContacto:\n  Email: ana@acme.test",
+        "Empresa: Acme\nContacto:\nPaís (opcional): Chile",
+        "Empresa: Acme\nContacto 1:\nCargo 1: CEO",
+        "Empresa: Acme\nContacto: Empresa: Acme",
+        "Empresa: Acme\nContactos:\nCargo: CEO",
+    ],
+)
+def test_empty_person_label_does_not_capture_next_label(desc):
+    assert extract_all_persons_from_description(desc) == []
+
+
+@pytest.mark.parametrize(
+    ("desc", "empresa"),
+    [
+        ("Empresa:\nContacto: Ana Pérez", None),
+        ("Empresa:\nCargo: CEO", None),
+        ("Empresa:\nPaís (opcional): Chile", None),
+        ("Contacto:\nEmpresa: Acme", "Acme"),
+        ("Empresa:\nAcme", "Acme"),
+        ("Empresa:\n\nAcme Corp", "Acme Corp"),
+    ],
+)
+def test_empty_company_label_does_not_capture_next_label(desc, empresa):
+    """
+    Se prueba el campo «Empresa:» en sí. `extract_company_from_description` tiene además un
+    respaldo por línea, heredado, que lee «Contacto: Ana» como asunto «X: Empresa».
+    """
+    m = EMPRESA_DESC.search(desc)
+    assert (m.group(1) if m else None) == empresa
+
+
+def test_empty_job_label_does_not_capture_next_label():
+    assert extract_person_from_description("Contacto: Ana\nCargo:\nPaís: Chile") == ("Ana", None, "Chile")
+
+
+def test_empty_numbered_email_does_not_capture_next_label():
+    desc = "Contacto 1: Ana\nContacto 2: Luis\nEmail 1:\nEmail 2: luis@acme.test"
+    personas = extract_numbered_persons_from_description(desc)
+    assert [(p["full_name"], p["email"]) for p in personas] == [
+        ("Ana", None),
+        ("Luis", "luis@acme.test"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("desc", "nombre"),
+    [
+        ("Contacto:\nAna Pérez", "Ana Pérez"),
+        ("Contacto:\n\nAna Pérez", "Ana Pérez"),
+        ("Contacto:\nClient Services Team", "Client Services Team"),
+        ("Contacto:\nEmpresario Ana Pérez", "Empresario Ana Pérez"),
+    ],
+)
+def test_empty_person_label_still_takes_next_line_value(desc, nombre):
+    assert extract_person_from_description(desc)[0] == nombre
+
+
+@pytest.mark.parametrize(
+    ("desc", "esperado"),
+    [
+        ("Contacto:\nEmpresa: Acme", False),
+        ("Empresa: Acme\nContacto:\nCargo: CEO", False),
+        ("Empresa: Acme\nContacto 1:\nCargo 1: CEO", False),
+        ("Empresa: Acme\nContacto: Empresa: Acme", False),
+        ("Empresa: Acme\nContacto:\n  Email: ana@acme.test", False),
+        ("Empresa: Acme\nContacto:\nPaís (opcional): Chile", False),
+        ("Contacto:\nAna Pérez", True),
+        ("Contacto:\n\nAna Pérez", True),
+        ("Contacto:\nClient Services Team", True),
+        ("Contacto:\nEmpresa: Acme\nContacto 1: Ana", True),
+    ],
+)
+def test_person_hint_regex_source_ignores_empty_label(desc, esperado):
+    rx = re.compile(person_hint_regex_source(), re.IGNORECASE)
+    assert bool(rx.search(desc)) is esperado
+
+
+@pytest.mark.parametrize(
+    ("grupo", "backend"),
+    [
+        ("company", COMPANY_LABELS),
+        ("person", PERSON_LABELS),
+        ("job", JOB_LABELS),
+        ("country", COUNTRY_LABELS),
+        ("email", EMAIL_LABELS),
+    ],
+)
+def test_frontend_label_groups_match_backend(grupo, backend):
+    """El aviso del frontend reconoce «otra etiqueta» con las mismas listas que el backend."""
+    text = _FRONTEND_LABELS.read_text(encoding="utf-8")
+    bloque = re.search(rf"\b{grupo}:\s*\[(.*?)\]", text, flags=re.DOTALL)
+    assert bloque, f"No se encontró CALENDAR_FIELD_LABELS.{grupo} en el frontend"
+    assert tuple(re.findall(r'"([^"]+)"', bloque.group(1))) == backend

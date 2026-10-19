@@ -55,6 +55,7 @@ from dossier.services.calendar_meeting_labels import (
     NUMBERED_COUNTRY,
     NUMBERED_EMAIL,
     NUMBERED_JOB,
+    PERSON_LIST_LABEL,
     PERSON_PATTERNS,
     SUBJECT_CON,
 )
@@ -318,10 +319,25 @@ def extract_all_persons_from_description(
     descripcion: str,
     tema: str = "",
 ) -> list[dict[str, Any]]:
-    """Lista de contactos: numerados (Contacto N) o un único «Contacto:»."""
+    """
+    Lista de contactos, en este orden de preferencia:
+
+    1. Numerados («Contacto 1:», «Contacto 2:»), cada uno con su «Cargo N:», «Email N:», «País N:».
+    2. Una lista con etiqueta en plural («Contactos: Ana Pérez, Luis Soto»): la coma o el punto y
+       coma separan personas. Con dos o más, nadie hereda «Cargo:», «País:» ni «Email:» sin
+       número, porque no se sabe de quién son; con una sola, se comporta como «Contacto:».
+    3. Un único «Contacto:» (ver `extract_person_from_description`).
+    """
     numbered = extract_numbered_persons_from_description(descripcion)
     if numbered:
         return numbered
+
+    names = extract_person_list_from_description(descripcion)
+    if len(names) > 1:
+        return [
+            {"index": idx, "full_name": name, "job_area": None, "country": None, "email": None}
+            for idx, name in enumerate(names, start=1)
+        ]
 
     name, job, country, angle_email = _extract_person_fields(descripcion)
     if not name:
@@ -390,6 +406,47 @@ def _split_job_and_country(job_raw: str | None, country: str | None) -> tuple[st
     return job, country
 
 
+_PERSON_LIST_SEPARATOR = re.compile(r"[,;]")
+
+
+def _first_person_match(descripcion: str) -> re.Match[str] | None:
+    """Primer campo persona según el orden de `PERSON_PATTERNS`."""
+    for pat in _PERSON_PATTERNS:
+        m = pat.search(descripcion)
+        if m:
+            return m
+    return None
+
+
+def _is_person_list_match(match: re.Match[str]) -> bool:
+    return bool(PERSON_LIST_LABEL.match(match.group(0)))
+
+
+def _split_person_list(chunk: str) -> list[str]:
+    """«Ana Pérez, , Luis Soto.» → ["Ana Pérez", "Luis Soto"]; descarta trozos de menos de 2 letras."""
+    names: list[str] = []
+    for part in _PERSON_LIST_SEPARATOR.split(chunk):
+        name = part.strip().rstrip(".").strip()
+        if len(name) >= 2:
+            names.append(name)
+    return names
+
+
+def extract_person_list_from_description(descripcion: str) -> list[str]:
+    """
+    Nombres de una lista con etiqueta en plural: «Contactos: Ana Pérez, Luis Soto».
+
+    Devuelve [] si el campo persona no usa una etiqueta en plural (`PERSON_LIST_LABELS`).
+    """
+    d = (descripcion or "").strip()
+    if not d:
+        return []
+    m = _first_person_match(d)
+    if not m or not _is_person_list_match(m):
+        return []
+    return _split_person_list(m.group(1).strip())
+
+
 def extract_person_from_description(descripcion: str) -> tuple[str, str | None, str | None]:
     """
     Contacto, cargo y país opcional en la descripción.
@@ -403,6 +460,18 @@ def extract_person_from_description(descripcion: str) -> tuple[str, str | None, 
 
     «Contacto: Ana Pérez <ana@acme.test>» da el nombre sin el correo; el correo lo recoge
     `extract_all_persons_from_description`.
+
+    Reglas de la coma en el valor del contacto (BUG-2026-10-19-06):
+
+    - Etiqueta singular («Contacto:», «Nombre:», «Contact:»): «Nombre, Cargo». «Contacto: Ana
+      Pérez, CEO» da nombre «Ana Pérez» y cargo «CEO», salvo que ya haya un «Cargo:»; entonces
+      la coma se queda en el nombre.
+    - Etiqueta plural («Contactos:», «Contacts:», «Contatos:», «Contatti:», «Kontakte:»): la coma
+      o el punto y coma separan personas; aquí se devuelve la primera, sin cargo sacado de la
+      coma. La lista completa la da `extract_all_persons_from_description`.
+
+    Una etiqueta vacía no toma como valor la línea siguiente si esa línea es otra etiqueta
+    («Contacto:\\nCargo: CEO» no tiene contacto).
     """
     name, job, country, _angle_email = _extract_person_fields(descripcion)
     return name, job, country
@@ -426,17 +495,18 @@ def _extract_person_fields(descripcion: str) -> tuple[str, str | None, str | Non
     if cm:
         country = _clean_optional_field(cm.group(1))
 
-    for pat in _PERSON_PATTERNS:
-        m = pat.search(d)
-        if m:
-            chunk = m.group(1).strip().rstrip(".")
-            if "," in chunk and not job:
-                name, rest = chunk.split(",", 1)
-                name = name.strip()
-                job = _clean_optional_field(rest)
-            else:
-                name = chunk
-            break
+    m = _first_person_match(d)
+    if m:
+        chunk = m.group(1).strip().rstrip(".")
+        if _is_person_list_match(m):
+            names = _split_person_list(chunk)
+            name = names[0] if names else ""
+        elif "," in chunk and not job:
+            name, rest = chunk.split(",", 1)
+            name = name.strip()
+            job = _clean_optional_field(rest)
+        else:
+            name = chunk
 
     name, angle_email = _split_name_and_email(name)
 
