@@ -128,6 +128,22 @@ def _alt(*terms: str) -> str:
     return "|".join(unique)
 
 
+# Una etiqueta solo cuenta como palabra completa (BUG-2026-10-19-05): no puede ir pegada a una
+# letra, un dígito, «_», «@», «.» ni «-». Así «mail» no es etiqueta dentro de «gmail.com»,
+# «ana@mail.com» ni «e-mail» (que ya es etiqueta por sí misma), y «nome» no lo es en «genome».
+# El frontend replica esta regla en `frontend/src/lib/calendar-meeting-format.ts`.
+_LABEL_START = r"(?<![\w@.\-])"
+
+# El punto como separador («Email. ana@x») exige espacio o fin detrás; si no, «nombre.apellido@»
+# o «correo.ana@» dentro de una dirección parecerían un campo nuevo.
+_DOT_SEPARATOR = r"\.(?=\s|\Z)"
+
+
+def _labels(*terms: str) -> str:
+    """Alternativa de etiquetas anclada a inicio de palabra."""
+    return rf"{_LABEL_START}(?:{_alt(*terms)})"
+
+
 def _field_value_boundary() -> str:
     """
     Fin del valor de un campo: salto de línea u otra etiqueta conocida.
@@ -135,19 +151,19 @@ def _field_value_boundary() -> str:
     Outlook/Google a veces dejan «Azienda: X Contatto: Y» en una sola línea;
     sin esto la empresa captura también el contacto.
     """
-    labels = _alt(*ALL_STRUCTURED_FIELD_LABELS)
-    return rf"(?=\s*(?:\n|(?:{labels})\s*(?:\d+\s*)?[:.]|\Z))"
+    labels = _labels(*ALL_STRUCTURED_FIELD_LABELS)
+    return rf"(?=\s*(?:\n|{labels}\s*(?:\d+\s*)?(?::|{_DOT_SEPARATOR})|\Z))"
 
 
 def labeled_field_pattern(labels: tuple[str, ...]) -> re.Pattern[str]:
     return re.compile(
-        rf"(?i)(?:{_alt(*labels)})\s*:\s*(.+?){_field_value_boundary()}"
+        rf"(?i){_labels(*labels)}\s*:\s*(.+?){_field_value_boundary()}"
     )
 
 
 def numbered_field_pattern(labels: tuple[str, ...]) -> re.Pattern[str]:
     return re.compile(
-        rf"(?i)(?:{_alt(*labels)})\s*(\d+)\s*:\s*(.+?){_field_value_boundary()}"
+        rf"(?i){_labels(*labels)}\s*(\d+)\s*:\s*(.+?){_field_value_boundary()}"
     )
 
 
@@ -175,25 +191,25 @@ def numbered_person_dash_field_pattern() -> re.Pattern[str]:
 
 def country_field_pattern() -> re.Pattern[str]:
     return re.compile(
-        rf"(?i)(?:{_alt(*COUNTRY_LABELS)})(?:\s*\([^)]*\))?\s*:\s*(.+?){_field_value_boundary()}"
+        rf"(?i){_labels(*COUNTRY_LABELS)}(?:\s*\([^)]*\))?\s*:\s*(.+?){_field_value_boundary()}"
     )
 
 
 def numbered_country_field_pattern() -> re.Pattern[str]:
     return re.compile(
-        rf"(?i)(?:{_alt(*COUNTRY_LABELS)})(?:\s*\([^)]*\))?\s*(\d+)\s*:\s*(.+?){_field_value_boundary()}"
+        rf"(?i){_labels(*COUNTRY_LABELS)}(?:\s*\([^)]*\))?\s*(\d+)\s*:\s*(.+?){_field_value_boundary()}"
     )
 
 
 def email_field_pattern() -> re.Pattern[str]:
     return re.compile(
-        rf"(?i)(?:{_alt(*EMAIL_LABELS)})\s*[:.]\s*(.+?){_field_value_boundary()}"
+        rf"(?i){_labels(*EMAIL_LABELS)}\s*(?::|{_DOT_SEPARATOR})\s*(.+?){_field_value_boundary()}"
     )
 
 
 def numbered_email_field_pattern() -> re.Pattern[str]:
     return re.compile(
-        rf"(?i)(?:{_alt(*EMAIL_LABELS)})\s*(\d+)\s*[:.]\s*(.+?){_field_value_boundary()}"
+        rf"(?i){_labels(*EMAIL_LABELS)}\s*(\d+)\s*(?::|{_DOT_SEPARATOR})\s*(.+?){_field_value_boundary()}"
     )
 
 
@@ -225,14 +241,14 @@ def numbered_person_patterns() -> tuple[re.Pattern[str], ...]:
 def _person_label_source() -> str:
     """Etiqueta persona declarada: «Contacto:», «Contacto 1:» o «Contacto 2 - » a inicio de línea."""
     labels = _alt(*PERSON_LABELS)
-    colon = rf"(?:{labels})\s*(?:\d+\s*)?:"
+    colon = rf"{_LABEL_START}(?:{labels})\s*(?:\d+\s*)?:"
     dash = rf"{_LINE_START}(?:{labels})[ \t]*(?:\d+[ \t]*)?[-–—](?=[ \t])"
     return rf"(?:{colon}|{dash})"
 
 
 def business_signal_patterns() -> tuple[re.Pattern[str], ...]:
     return (
-        re.compile(rf"(?i)(?:{_alt(*COMPANY_LABELS)})\s*:"),
+        re.compile(rf"(?i){_labels(*COMPANY_LABELS)}\s*:"),
         re.compile(rf"(?i){_person_label_source()}"),
     )
 
@@ -245,7 +261,7 @@ def person_hint_regex_source() -> str:
     (`descriptionHasPersonHint` en `frontend/src/lib/calendar-meeting-format.ts`).
     """
     labels = _alt(*PERSON_LABELS)
-    colon = rf"(?:{labels})\s*(?:\d+\s*)?:\s*\S"
+    colon = rf"{_LABEL_START}(?:{labels})\s*(?:\d+\s*)?:\s*\S"
     dash = rf"{_LINE_START}(?:{labels})[ \t]*(?:\d+[ \t]*)?[-–—][ \t]+\S"
     phrases = "|".join(re.escape(p) for p in MEETING_WITH_SUBJECT_PHRASES)
     return rf"(?:{colon}|{dash}|(?:{phrases})\s+\S)"

@@ -8,6 +8,7 @@ import pytest
 from dossier.services.calendar_event_dossiers import (
     extract_all_persons_from_description,
     extract_company_from_description,
+    extract_email_from_description,
     extract_numbered_persons_from_description,
     extract_person_from_description,
     parse_calendar_event_for_dossiers,
@@ -139,3 +140,105 @@ def test_frontend_person_labels_match_backend():
     assert bloque, "No se encontró CALENDAR_FIELD_LABELS.person en el frontend"
     frontend = tuple(re.findall(r'"([^"]+)"', bloque.group(1)))
     assert frontend == PERSON_LABELS
+
+
+# --- BUG-2026-10-19-05: una etiqueta solo cuenta como palabra completa ----------------------
+# «mail» coincidía dentro de «gmail.» y cortaba el valor en «ana@g»; «nome» dentro de «genome».
+
+
+@pytest.mark.parametrize(
+    ("desc", "correo"),
+    [
+        ("Email: ana@gmail.com", "ana@gmail.com"),
+        ("E-mail: ana@gmail.com", "ana@gmail.com"),
+        ("Mail: ana@gmail.com", "ana@gmail.com"),
+        ("Correo: ana@hotmail.com", "ana@hotmail.com"),
+        ("Email: ana@mail.acme.test", "ana@mail.acme.test"),
+        ("Email: nombre.apellido@acme.test", "nombre.apellido@acme.test"),
+        ("Email. ana@gmail.com", "ana@gmail.com"),
+    ],
+)
+def test_email_with_label_inside_domain_is_not_truncated(desc, correo):
+    assert extract_email_from_description(desc) == correo
+
+
+def test_numbered_email_with_gmail_is_not_truncated():
+    desc = "Empresa: Acme\nContacto 1: Ana Gómez\nEmail 1: ana@gmail.com"
+    personas = extract_numbered_persons_from_description(desc)
+    assert [(p["full_name"], p["email"]) for p in personas] == [("Ana Gómez", "ana@gmail.com")]
+
+
+@pytest.mark.parametrize(
+    "desc",
+    [
+        "Empresa: Acme\nContacto 1: Ana <ana@gmail.com>",
+        "Empresa: Acme\nContacto 1: Ana <ana@mail.acme.test>",
+        "Empresa: Acme\nContacto 1: Ana <correo.ana@acme.test>",
+        "Empresa: Acme\nContacto 1: Ana <nombre.ana@acme.test>",
+    ],
+)
+def test_contact_name_is_not_cut_inside_the_email(desc):
+    """Caso del hallazgo. Se acepta el valor completo o el nombre solo, nunca «Ana <ana@g»."""
+    correo = desc.split("<", 1)[1].rstrip(">")
+    personas = extract_numbered_persons_from_description(desc)
+    assert [p["full_name"] for p in personas][0] in ("Ana", f"Ana <{correo}>")
+
+
+@pytest.mark.skip(
+    reason="Pendiente de decisión: contradice la prueba de #21 que espera «Ana Pérez <ana@acme.test>»"
+)
+def test_contact_name_is_separated_from_angle_bracket_email():
+    personas = extract_numbered_persons_from_description("Contacto 1: Ana <ana@gmail.com>")
+    assert [(p["full_name"], p["email"]) for p in personas] == [("Ana", "ana@gmail.com")]
+
+
+@pytest.mark.parametrize(
+    ("desc", "empresa"),
+    [
+        ("Empresa: Acme Corp Username: ana", "Acme Corp Username: ana"),
+        ("Empresa: Laboratorio Genome: análisis", "Laboratorio Genome: análisis"),
+        ("Empresa: Acme Corp Contacto: Ana", "Acme Corp"),
+        ("Empresa: Acme Corp Email: ana@acme.test", "Acme Corp"),
+    ],
+)
+def test_label_inside_a_word_does_not_cut_the_value(desc, empresa):
+    assert extract_company_from_description(desc) == empresa
+
+
+@pytest.mark.parametrize(
+    "desc",
+    [
+        "Empresa: Acme\nSecuenciación del genome: análisis",
+        "Empresa: Acme\nUsername: ana",
+        "Empresa: Acme\nNickname: ana",
+    ],
+)
+def test_person_label_inside_a_word_is_not_a_contact(desc):
+    assert extract_all_persons_from_description(desc) == []
+
+
+def test_job_label_inside_a_word_is_not_a_job():
+    assert extract_person_from_description("Contacto: Ana\nControl: semanal") == ("Ana", None, None)
+
+
+@pytest.mark.parametrize(
+    ("desc", "esperado"),
+    [
+        ("Confirma: asistencia", False),
+        ("Secuenciación del genome: análisis", False),
+        ("Username: ana", False),
+        ("Empresa: Acme", True),
+        ("Firma: Acme", True),
+        ("Contacto: Ana", True),
+    ],
+)
+def test_business_signals_require_whole_label(desc, esperado):
+    assert has_business_meeting_signals({"tema": "Revisión", "descripcion": desc}) is esperado
+
+
+def test_person_hint_regex_source_requires_whole_label():
+    rx = re.compile(person_hint_regex_source(), re.IGNORECASE)
+    for desc in ("Secuenciación del genome: análisis", "Username: ana", "Nickname: ana"):
+        assert not rx.search(desc), desc
+    for desc in ("Nome: João", "Name: Ana", "Contacto 1: Ana <ana@gmail.com>"):
+        assert rx.search(desc), desc
