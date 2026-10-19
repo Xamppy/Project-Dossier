@@ -334,10 +334,14 @@ def extract_all_persons_from_description(
 
     names = extract_person_list_from_description(descripcion)
     if len(names) > 1:
-        return [
-            {"index": idx, "full_name": name, "job_area": None, "country": None, "email": None}
-            for idx, name in enumerate(names, start=1)
-        ]
+        # Cada «Nombre <correo>» de la lista conserva su propio correo; «Email:» suelto no se reparte.
+        persons: list[dict[str, Any]] = []
+        for idx, raw in enumerate(names, start=1):
+            name, angle_email = _split_name_and_email(raw)
+            persons.append(
+                {"index": idx, "full_name": name, "job_area": None, "country": None, "email": angle_email}
+            )
+        return persons
 
     name, job, country, angle_email = _extract_person_fields(descripcion)
     if not name:

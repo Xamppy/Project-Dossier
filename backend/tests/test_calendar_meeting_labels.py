@@ -328,6 +328,29 @@ def test_plural_label_comma_separates_people(desc, nombres):
     assert all(p["job_area"] is None for p in personas)
 
 
+@pytest.mark.parametrize(
+    ("desc", "esperado"),
+    [
+        (
+            "Empresa: Acme\nContactos: Ana Pérez <ana@acme.test>, Luis Soto <luis@acme.test>",
+            [("Ana Pérez", "ana@acme.test"), ("Luis Soto", "luis@acme.test")],
+        ),
+        (
+            "Empresa: Acme\nContactos: Ana Pérez <ana@acme.test>; Luis Soto",
+            [("Ana Pérez", "ana@acme.test"), ("Luis Soto", None)],
+        ),
+        (
+            "Empresa: Acme\nContactos: Ana Pérez, Luis Soto\nEmail: equipo@acme.test",
+            [("Ana Pérez", None), ("Luis Soto", None)],
+        ),
+    ],
+)
+def test_plural_list_separates_each_angle_bracket_email(desc, esperado):
+    """El correo entre <> es de esa persona (decisión de FO en BUG-05); «Email:» suelto, de nadie."""
+    personas = extract_all_persons_from_description(desc)
+    assert [(p["full_name"], p["email"]) for p in personas] == esperado
+
+
 def test_plural_label_first_person_has_no_job_from_comma():
     assert extract_person_from_description("Contactos: Ana Pérez, Luis Soto") == ("Ana Pérez", None, None)
 
