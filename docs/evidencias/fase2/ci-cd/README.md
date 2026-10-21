@@ -46,6 +46,7 @@ flowchart LR
 | [04-imagenes-docker-9-fallida.txt](04-imagenes-docker-9-fallida.txt) · [png](04-imagenes-docker-9-fallida.png) | La única falla de la ventana: Imágenes Docker #9 (id `39279047309`). |
 | [05-imagenes-docker-10-exitosa.txt](05-imagenes-docker-10-exitosa.txt) · [png](05-imagenes-docker-10-exitosa.png) | Imágenes Docker #10 (id `39281671569`) en verde, y `git diff --stat 29eb532 7d9c38b -- .github/workflows/imagenes.yml` vacío: el workflow no cambió entre #9 y #10. |
 | [06-workflows.txt](06-workflows.txt) · [png](06-workflows.png) | Contenido de `ci.yml` e `imagenes.yml`. |
+| [07-dokploy-monitoreo-vps.png](07-dokploy-monitoreo-vps.png) | Panel de monitoreo de Dokploy en el VPS (memoria usada 1,26 GiB de 1,87 GiB). Captura aportada por DG para el informe de la Fase 2; el correo de la cuenta se tapó antes de versionarla. Sin `.txt`: no es salida de un comando. |
 
 **Cómo se mide la duración.** La herramienta
 [`_herramientas/tabla_ejecuciones.py`](../_herramientas/tabla_ejecuciones.py) toma, por ejecución, el

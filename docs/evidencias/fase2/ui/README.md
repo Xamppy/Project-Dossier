@@ -71,6 +71,7 @@ Todas son de hoy (2026-10-19) y del SHA `9f6c692`.
 | [`15-calendario-semana-ingles.png`](15-calendario-semana-ingles.png) | Calendario en inglés. La semana empieza en domingo y las horas van en formato de 12 h | `/dashboard/automation` |
 | [`16-resumen-tema-claro.png`](16-resumen-tema-claro.png) | Resumen en **tema claro**; las capturas 01 a 15 están en tema oscuro | `/dashboard` |
 | [`17-calendario-mes-tema-claro.png`](17-calendario-mes-tema-claro.png) | Calendario, vista Mes, en tema claro | `/dashboard/automation` |
+| [`18-selector-pais.png`](18-selector-pais.png) | Selector de país de Personas (BUG-2026-09-26-01). Captura aportada por DG para el informe de la Fase 2, fuera del ambiente de esta tabla | `/dashboard/person-research` |
 
 ### Consultas por intervalo registradas
 
