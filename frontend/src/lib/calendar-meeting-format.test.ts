@@ -97,3 +97,25 @@ describe("etiquetas como palabra completa", () => {
     expect(descriptionHasCompanyHint(descripcion)).toBe(esperado);
   });
 });
+
+// BUG-2026-10-19-06: una etiqueta vacía no toma como valor la línea siguiente si esa línea es
+// otra etiqueta. El backend ya no extrae nada ahí, así que el aviso debe seguir saliendo.
+describe("etiqueta persona vacía seguida de otra etiqueta", () => {
+  const CASOS: [string, string, boolean][] = [
+    ["«Contacto:» y luego «Empresa:»", "Contacto:\nEmpresa: Acme", false],
+    ["«Contacto:» y luego «Cargo:»", "Empresa: Acme\nContacto:\nCargo: CEO", false],
+    ["«Contacto 1:» y luego «Cargo 1:»", "Empresa: Acme\nContacto 1:\nCargo 1: CEO", false],
+    ["«Contacto:» y otra etiqueta en la misma línea", "Empresa: Acme\nContacto: Empresa: Acme", false],
+    ["«Contacto:» y luego «Email:» con sangría", "Empresa: Acme\nContacto:\n  Email: ana@acme.test", false],
+    ["«Contacto:» y luego «País (opcional):»", "Empresa: Acme\nContacto:\nPaís (opcional): Chile", false],
+    ["«Contactos:» y luego «Cargo:»", "Empresa: Acme\nContactos:\nCargo: CEO", false],
+    ["valor en la línea siguiente", "Contacto:\nAna Pérez", true],
+    ["valor tras una línea en blanco", "Contacto:\n\nAna Pérez", true],
+    ["valor que empieza por una palabra de etiqueta sin dos puntos", "Contacto:\nClient Services Team", true],
+    ["otro contacto con valor más abajo", "Contacto:\nEmpresa: Acme\nContacto 1: Ana", true],
+  ];
+
+  it.each(CASOS)("%s", (_caso, descripcion, esperado) => {
+    expect(descriptionHasPersonHint(descripcion)).toBe(esperado);
+  });
+});
