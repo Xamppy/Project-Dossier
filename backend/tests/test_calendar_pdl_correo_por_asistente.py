@@ -21,7 +21,7 @@ from dossier.services import calendar_event_dossiers as cal
 from dossier.services import pdl_research, person_research_service
 
 CORREO_ANA = "ana@example.com"
-CORREO_BETO = "beto@ejemplo-ficticio.com"
+CORREO_BETO = "beto@ejemplo-ficticio.test"
 
 
 def _reunion(descripcion: str, participantes: str = "") -> dict[str, Any]:
@@ -145,3 +145,15 @@ def test_un_solo_asistente_sigue_usando_el_correo_corporativo_del_evento(pdl):
     _generar(reunion)
 
     assert _correos_en_enrich(pdl, "Ana Prueba") == {CORREO_ANA}
+
+
+def test_un_solo_contacto_numerado_usa_el_email_sin_numero_de_la_descripcion(pdl):
+    """Con un único contacto, «Email:» sin número es suyo aunque el contacto venga numerado."""
+    reunion = _reunion(
+        f"Empresa: Empresa de Prueba SA\nContacto 1: Ana Prueba\nCargo 1: Directora general\nEmail: {CORREO_ANA}"
+    )
+
+    item = _generar(reunion)
+
+    assert _correos_en_enrich(pdl, "Ana Prueba") == {CORREO_ANA}
+    assert item["dossier_personas"][0]["email"] == CORREO_ANA

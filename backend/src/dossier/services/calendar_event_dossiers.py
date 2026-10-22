@@ -482,10 +482,12 @@ def parse_calendar_event_for_dossiers(reunion: dict[str, Any]) -> dict[str, Any]
         person_name = extract_person_from_subject(tema)
     if person_email is None:
         person_email = extract_email_from_description(descripcion)
-    if not person_email and len(persons) == 1:
-        corp_emails = extract_corporate_emails_from_text(descripcion, participantes)
-        if corp_emails:
-            person_email = corp_emails[0]
+    # Con un único contacto, el «Email:» sin número o el correo corporativo del evento es suyo.
+    if len(persons) == 1 and not persons[0].get("email"):
+        if not person_email:
+            corp_emails = extract_corporate_emails_from_text(descripcion, participantes)
+            person_email = corp_emails[0] if corp_emails else None
+        if person_email:
             persons[0]["email"] = person_email
     if not persons and not person_name and descripcion:
         logger.info(
