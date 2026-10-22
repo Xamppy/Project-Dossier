@@ -18,6 +18,9 @@ const LEGACY_API_MESSAGES: Record<string, TranslationKey> = {
     "settings.members.error_invites_workspace_only",
 };
 
+// Campos que fijan una contraseña nueva (registro y cambio); el backend aplica el límite de bcrypt.
+const BCRYPT_PASSWORD_FIELDS = new Set<unknown>(["password", "new_password"]);
+
 function extractDetail(body: unknown): ApiErrorDetail | null {
   if (!body || typeof body !== "object") return null;
   const detail = (body as { detail?: unknown }).detail;
@@ -39,7 +42,7 @@ export function translateApiError(err: DossierApiError, t: TranslateFn): string 
       && Array.isArray(field.loc)
       && field.loc.length === 2
       && field.loc[0] === "body"
-      && field.loc[1] === "password";
+      && BCRYPT_PASSWORD_FIELDS.has(field.loc[1]);
   })) {
     return t("auth.error.password_max_bytes");
   }

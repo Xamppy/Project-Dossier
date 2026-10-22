@@ -32,6 +32,24 @@ y devuelve **HTTP 422** con `loc: ["body", "password"]`,
 que debe usarse una contraseña más corta. El intento inválido no crea cuenta,
 organización ni membresía. Este cambio no modifica los hashes existentes ni el login.
 
+### Límite de contraseña al cambiarla
+
+`PATCH /auth/me/password` aplica el mismo contrato a `new_password` (tipo compartido
+`NewPassword` en `backend/src/dossier/schemas/auth.py`): ocho caracteres como mínimo y
+72 bytes UTF-8 como máximo, sin recortar. Un exceso devuelve **HTTP 422** con
+`loc: ["body", "new_password"]`, `type: "password_too_long_bytes"` y
+`ctx: {"max_bytes": 72}`, antes de verificar la contraseña actual y sin tocar el hash
+guardado. Antes de este cambio, bcrypt 5 lanzaba `ValueError` y la ruta respondía 500.
+El panel de cuenta muestra el mismo mensaje traducido que el registro.
+
+Los campos que solo **verifican** (`current_password` en cambio de contraseña, de correo y
+eliminación de cuenta, y `password` en login) no llevan este límite: `verify_password`
+captura el `ValueError` de bcrypt y la respuesta es la de contraseña incorrecta (401).
+Hoy no existen otros puntos que fijen contraseña: el restablecimiento
+(`/auth/forgot-password`) aún no envía enlaces, las invitaciones pasan por el registro y
+el alta con Google no guarda contraseña. Cualquier punto nuevo que la fije debe usar
+`NewPassword`.
+
 ## Variables de entorno
 
 - **`JWT_SECRET`**: obligatoria para firmar tokens (mínimo 16 caracteres; en producción, 32+ aleatorios).

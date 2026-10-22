@@ -21,6 +21,7 @@ Abrir http://localhost:3000.
 - `npm run build`: compilar para producción; las fuentes Inter y Space Mono requieren acceso a Google Fonts.
 - `npm start`: servir la compilación de producción.
 - `npm run lint`: revisar el código con ESLint.
+- `npm test`: correr las pruebas con Vitest. Funciona en Node 20, 22 y 26 sin variables de entorno; en Node 25+ `vitest.config.mts` desactiva el `localStorage` nativo de Node para que no tape al de jsdom.
 - `node scripts/export-missing-i18n.mjs`: exportar traducciones faltantes.
 - `node scripts/sync-i18n-keys.mjs`: sincronizar claves de traducción.
 - `node scripts/apply-i18n-overlays.mjs`: aplicar overlays de traducciones.

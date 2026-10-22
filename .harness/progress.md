@@ -6,6 +6,197 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-10-19 (tarde) · Retroalimentación docente, repo público y tareas nuevas · FO (agente)
+
+**Hecho.**
+- **PR #25–#29 abiertos.** Sus cinco tareas pasaron a `review`, con el PR en `evidence`:
+  - PR #28 · BUG-2026-10-19-05, apilado sobre #21.
+  - PR #29 · BUG-2026-10-19-06, apilado sobre #28.
+  - PR #27 · BUG-2026-10-19-07, apilado sobre #17.
+  - PR #25 · CHORE-2026-10-19-03.
+  - PR #26 · DOC-2026-10-19-01.
+- **PR #30 mezclado** (datos personales): el PDF de la Guía Fase 1 sin RUT, `SEC_USER_AGENT` sin
+  correo real y ejemplos con datos ficticios.
+- **Copia pública** [`Xamppy/Project-Dossier-public`](https://github.com/Xamppy/Project-Dossier-public):
+  0 RUT en todo el historial, gitleaks solo con falsos positivos y la CI pública en verde.
+- **Evidencias de la Fase 2** en `docs/evidencias/fase2/`: #31 (interfaz), #32 (técnicas) y #35
+  (GitHub), los tres mezclados.
+- **Informe v2** en `docs/documentos-capstone/` (PR #34).
+- **Tareas nuevas** (`pending`, sprint 2, vencen el 2026-11-01 salvo DOC-2026-10-19-02, que
+  vence el 2026-10-26):
+  - SEC-2026-10-19-01 (FD): actualizar `pyjwt` y `next` por vulnerabilidades conocidas.
+  - CHORE-2026-10-19-04 (FO, y FD para la protección de rama): redespliegue en Dokploy,
+    PostgreSQL en la CI y protección de `main`.
+  - BUG-2026-10-19-08 (FO): `credit_ledger.balance_after` repetido con dos dossiers en la misma
+    sentencia.
+  - BUG-2026-10-19-09 (DG): el aviso flotante de generación muestra la hora en UTC.
+  - BUG-2026-10-19-10 (FO): el saneador HTML borra un `<correo>` escrito tal cual.
+  - CHORE-2026-10-19-05 (FO): el script de sincronización del repo público falla en Git Bash.
+  - DOC-2026-10-19-02 (FD): validar el texto sobre su avance en el informe de la Fase 2.
+- **«cinco idiomas» en `.harness/`:** corregido en `PROMPT.md` y en el título de S3.7, a «seis
+  idiomas (siete catálogos, con en-gb como variante)».
+- **`AGENTS.md` no se tocó:** el PR #33 ya añade la fila «Copia pública» en la tabla de temas.
+- **Estados:** antes había 49 `done`, 43 `pending` y 6 `review` (98 tareas). Ahora hay 49 `done`,
+  45 `pending` y 11 `review` (105 tareas). `next.py --check` da OK.
+
+**Sin terminar.**
+- Revisión del segundo integrante de los PR #17–#19, #21–#23 y #25–#29. Ninguno se mezcló.
+- El PR #33 (procedimiento de la copia pública) sigue sin mezclar.
+- Faltan respuestas del equipo sobre la fecha de corte, el plazo de S0.15, el texto de FD en el
+  informe e ISO 25010.
+
+**Lo que hay que saber.**
+- **Por qué existe la copia pública:** el PDF original de la Guía Fase 1, con los RUT de los
+  integrantes, quedó en el historial del repo privado. Además, GitHub guarda los `refs/pull/*`,
+  que no se pueden borrar sin el soporte de GitHub. Por eso se publica una copia con el
+  historial reescrito en lugar de limpiar el privado.
+- **Cómo sincronizarla:** `scripts/sincronizar_repo_publico.sh` clona `main` del privado, lo
+  filtra con `git filter-repo`, revisa RUT en todo el historial (también dentro de PDF y DOCX) y
+  corre gitleaks. Con `--push` hace push forzado al público. Los SHA cambian en cada
+  sincronización. El procedimiento está en `docs/dev/repo-publico.md` (PR #33). En Git Bash el
+  script falla hoy (CHORE-2026-10-19-05).
+- **GitHub cuenta a «claude» como contribuidor** por los `Co-Authored-By` de los commits.
+- **gitleaks marca `ClaveFicticia-2026`** en
+  `docs/evidencias/fase2/_herramientas/registrar_usuario_ficticio.py`. Es un falso positivo: es
+  la contraseña de una cuenta ficticia de prueba.
+- **Vitest con cobertura en Windows** necesita un `testTimeout` mayor que el de omisión.
+- **Una prueba de estrés falla si la máquina está cargada.** Antes de tratarla como regresión,
+  hay que repetirla con la máquina libre.
+- **Agentes en worktrees aislados:** usan junctions a `node_modules` y a `backend/.venv` del
+  worktree `mako`.
+- **PR apilados:** #28→#21, #29→#28 y #27→#17. Hay que mezclarlos en orden. Al mezclar la base,
+  hay que cambiar la base del PR siguiente a `main`.
+
+**Siguiente paso concreto.** Revisar en este orden: #18, #23, #17→#27, #21→#28→#29 y después el
+resto. Luego sincronizar la copia pública.
+
+**Rama.** `chore/harness-traspaso-2026-10-19-b` · **Estado.** 5 tareas más en `review` y 7
+nuevas en `pending`
+
+---
+
+### 2026-10-19 · Correcciones en paralelo (6 PR) · FO (agente)
+
+**Hecho.** Las seis tareas abiertas en la entrada anterior tienen PR y pasaron a `review`, con el
+PR en `evidence`. Cada una la trabajó un agente en su propio worktree.
+
+- PR #19 · BUG-2026-10-19-01: límite de 72 bytes de bcrypt al cambiar la contraseña.
+- PR #17 · BUG-2026-10-19-02: PDL se consulta con el correo de cada asistente.
+- PR #22 · BUG-2026-10-19-03: armazón del dashboard adaptable a 375 px, con menú lateral en móvil.
+- PR #21 · BUG-2026-10-19-04: «Contacto 1:» ya no da el falso «sin contacto».
+- PR #23 · CHORE-2026-10-19-01: `agentRules: false` y `.gitignore` para lo que genera `next dev`.
+  Se rebasó sobre `main`: chocaba en `AGENTS.md` con el #20 y se conservaron ambas partes.
+- PR #18 · CHORE-2026-10-19-02: Vitest compatible con Node 26.
+- **Tareas nuevas** (`pending`, sprint 2, vencen el 2026-11-01): BUG-2026-10-19-05, -06 y -07
+  (FO), CHORE-2026-10-19-03 (FD) y DOC-2026-10-19-01 (EQ). BUG-2026-10-19-07 depende de -02.
+- **Estados:** antes había 49 `done`, 38 `pending` y 6 `in_progress` (93 tareas). Ahora hay
+  49 `done`, 43 `pending` y 6 `review` (98 tareas). `next.py --check` da OK.
+
+**Sin terminar.** Los seis PR esperan la revisión del segundo integrante; ninguno se mezcló. La
+CI de los PR quedó en cola: hay que confirmarla en Actions.
+
+**Lo que hay que saber.**
+- **#19:** `NewPassword`, en `backend/src/dossier/schemas/auth.py`, es el único sitio del límite
+  de 72 bytes. Todo campo futuro que fije contraseña, como el restablecimiento, debe usarlo.
+  - Dentro del `Annotated`, `Field` va antes de `BeforeValidator`, o el mínimo cambia el `type`
+    del error.
+  - bcrypt 5 rechaza más de 72 bytes también al verificar, y `verify_password` lo convierte en
+    `False`. Una cuenta antigua con contraseña larga, hasheada cuando se truncaba, no podría
+    entrar. Es un riesgo latente que no se observó.
+  - Las pruebas de ruta de `/auth/me/*` corren sin Postgres sustituyendo `get_current_user` y
+    `get_db_if_configured`.
+- **#17:** la causa estaba en `calendar_event_dossiers.py`. Al asistente sin correo se le asignaba
+  el primer correo corporativo del evento, y el guardado usaba `parsed["person_email"]`. Ahora,
+  con varios asistentes, quien no declara `Email N:` se busca solo por nombre, empresa y país:
+  puede haber menos aciertos, pero los de antes eran de otra persona. Los dossiers ya guardados no
+  se corrigen (BUG-2026-10-19-07).
+- **#21:** la fuente de verdad es el backend (`calendar_meeting_labels.py`), y hay una prueba de
+  paridad de etiquetas entre el frontend y el backend. `NUMBERED_CONTACT` pasó a llamarse
+  `NUMBERED_CONTACT_PATTERNS`, una tupla. `business_signal_patterns` ahora reconoce «Contacto 1:».
+  Los defectos de etiquetas que siguen abiertos están en BUG-2026-10-19-05 y -06.
+- **#22:** no animar `visibility` al abrir el cajón, o `focus()` falla; jsdom no lo detecta. La
+  campana de notificaciones (`fixed z-50`) queda por encima del fondo del cajón en móvil.
+- **#18:** `execArgv` solo aplica con `pool: "forks"`; si se cambia a `threads`, vuelve el fallo.
+  La opción es condicional porque Node 20 la rechaza, y la CI usa Node 20. `npm ci` con el npm de
+  Node 26 no ejecuta los scripts de instalación de las dependencias.
+- **#23:** `next dev` solo genera `AGENTS.md`/`CLAUDE.md` si detecta un agente en el entorno
+  (`CLAUDECODE`, `AI_AGENT`). Hasta que entre el #18, la suite de esa rama necesita
+  `NODE_OPTIONS=--no-experimental-webstorage`.
+- **Agentes en worktrees aislados:** no tienen `backend/.venv` ni `node_modules`. Se usaron
+  junctions hacia los del worktree `mako`, o `npm ci`. `qa.py` hay que correrlo con el Python
+  del venv.
+
+**Siguiente paso concreto.** Revisar y mezclar en este orden: #18 primero (desbloquea Vitest en
+Node 26), después #23 y luego los demás. Los PR #17 y #21 tocan el mismo archivo sin conflicto.
+
+**Rama.** `chore/harness-traspaso-2026-10-19` · **Estado.** 6 tareas en `review` y 5 nuevas en
+`pending`
+
+---
+
+### 2026-10-19 · Cierre de revisiones y hallazgos (harness) · FO (agente)
+
+**Hecho.** Se actualizó el harness por indicación de FO, que informó que las revisiones del
+segundo integrante ya se hicieron y quedaron aprobadas. Se trabajó sobre `main` en `4e55155`.
+
+- **Integrado hoy en `main`:** PR #13 (S5.1), #14 (S5.10), #15 (S5.4) y #16 (BUG-2026-10-14-01).
+  Las cuatro tareas quedaron `done`, con su PR en `evidence`.
+- **Revisión aprobada, de `review` a `done` (18):** S1.6, S1.8, S1.9, S2.1, S2.2, S2.3, S3.1,
+  S3.2, S4.1–S4.7, BUG-2026-10-05-01, UX-AUTH-01 y UX-CAL-02. No había otras en `review`.
+- **Abandonadas, verificadas en `main` y cerradas (5):**
+  - UX-CAL-01: los tres documentos de `evidence` existen, y UX-CAL-02 ya está en `main`.
+  - UX-KPI-01: `GET /dashboard/summary` y sus tarjetas están en `main`. Backend: 73 passed y 36
+    skipped (integración sin Postgres). Frontend: 47 en verde.
+  - BUG-2026-09-24-01: `TimezoneSelect` está en `main`, con 2 pruebas en verde.
+  - BUG-2026-09-26-01: `CountrySelect` está en `main`, con 3 pruebas en verde.
+  - DOC-2026-10-04-01: el `.docx` de `evidence` está en `main`.
+- **Tareas nuevas** (sprint 2, responsable FO, vencen el 2026-10-26, `in_progress`). Sus ramas
+  las trabajan otros agentes:
+  - BUG-2026-10-19-01: bcrypt al cambiar la contraseña.
+  - BUG-2026-10-19-02: PDL consultado con el correo de otro asistente.
+  - BUG-2026-10-19-03: armazón del dashboard a 375 px.
+  - BUG-2026-10-19-04: falso «sin contacto» con «Contacto 1:».
+  - CHORE-2026-10-19-01: `AGENTS.md` y `CLAUDE.md` que genera `next dev`.
+  - CHORE-2026-10-19-02: Vitest con Node 26.
+- **Estados:** antes había 22 `done`, 39 `pending`, 18 `review` y 8 `in_progress` (87 tareas).
+  Ahora hay 49 `done`, 38 `pending` y 6 `in_progress` (93 tareas).
+- **`next.py --check` da OK.** Fallaba por «DG (agente)» con tres tareas a la vez; al cerrarlas,
+  se resolvió sin tocar el script.
+- **`CLAUDE.md` y `AGENTS.md`:** se corrigió lo que había dejado de ser cierto, que era la CI,
+  Alembic, ruff y mypy, eslint, los conteos de pruebas, `gemini/` y `dossier_data`.
+
+**Sin terminar.** S0.15 no se tocó, porque exige un acuerdo por escrito con el docente guía.
+No quedó ninguna tarea abandonada sin cerrar.
+
+**Lo que hay que saber.**
+- **El espejo de Trello no se actualizó.** Hay que reflejar a mano los 27 cierres y las seis
+  tareas nuevas en el tablero.
+- **La CI de los PR #13–16 quedó en cola al mezclar.** Hay que comprobar en Actions que pasó
+  sobre `main`.
+- **Cada tarea nueva lleva su propio `owner_session`** («FO (agente, BUG-2026-10-19-01)», etc.).
+  Con «FO (agente)» en las seis, `--check` falla de nuevo, porque cuenta las `claimed`/`in_progress`
+  por sesión. Se siguió el mismo criterio que DG en S5.4 y S5.10.
+- **Las pruebas de integración de UX-KPI-01 no se corrieron con Postgres.** Las 36 se omiten sin
+  `TEST_DATABASE_URL`, así que el cierre se apoya en las unitarias, de estrés y de seguridad.
+- **Conteos verificados hoy en `main`:**
+  - Backend: 659 passed y 121 skipped sin Postgres. De las omitidas, 109 piden
+    `TEST_DATABASE_URL` y 12 esperan S2.4, S3.9, S4.10, S5.8, S6.5, S6.6 y S6.7.
+  - Frontend: 522 pruebas en 40 archivos.
+  - ruff, mypy y eslint: 0 errores. eslint deja 1 advertencia en `register/page.test.tsx`.
+- **Vitest con Node 26 falla sin `NODE_OPTIONS=--no-experimental-webstorage`.** Se comprobó con
+  `localStorage.clear` indefinido. La CI usa Node 20 y no lo sufre.
+- **El dashboard tiene siete idiomas, no cinco** (`it` y `pt` en `frontend/src/i18n/messages/`).
+  `CLAUDE.md` («dashboard en cinco idiomas») y la tabla de `AGENTS.md` aún dicen cinco. No se
+  corrigió porque queda fuera de «Estado real del repositorio».
+
+**Siguiente paso concreto.** Reflejar los cambios en Trello, revisar la CI de `main` en Actions
+y revisar los PR de las seis tareas nuevas a medida que se abran.
+
+**Rama.** `chore/harness-cierre-revisiones` · **Estado.** 27 tareas `done` y 6 nuevas en
+`in_progress`
+
+---
+
 ### 2026-10-16 · S5.4 (frontend) · DG (agente Claude, S5.4)
 
 **Hecho.** Avance real y resultados parciales en Calendario (Google/Outlook) y Personas (Registros PDL y Web pública), consumiendo el ADR 0009 y los 8 ejemplos de S5.10 sin pedir cambios de contrato.
