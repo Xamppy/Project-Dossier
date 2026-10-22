@@ -164,7 +164,7 @@ def test_misma_persona_con_acentos_y_mayusculas_distintas_no_colisiona():
 def test_correo_se_compara_sin_mayusculas_ni_espacios():
     afectados = detectar_afectados(
         [
-            _fila("ana", "Ana Pérez", "Ana.Perez@Acme.com"),
+            _fila("ana", "Ana Pérez", "Ana.Perez@Acme.test"),
             _fila("beto", "Beto Soto", " ana.perez@acme.test "),
         ]
     )
