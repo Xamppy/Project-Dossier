@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CALENDAR_FIELD_LABELS,
+  CALENDAR_MEETING_FORMAT_EXAMPLE,
   descriptionHasCompanyHint,
   descriptionHasPersonHint,
 } from "./calendar-meeting-format";
@@ -11,7 +12,7 @@ import {
 
 const POSITIVOS: [string, string][] = [
   ["caso del hallazgo: «Contacto 1: Nombre <correo>»", "Empresa: Acme\nContacto 1: Ana Pérez <ana@acme.test>"],
-  ["«Contacto 1:» con varios contactos", "Contacto 1: James Girling\nCargo 1: CEO\nContacto 2: María López"],
+  ["«Contacto 1:» con varios contactos", "Contacto 1: Valeria Ruiz Prueba\nCargo 1: CEO\nContacto 2: María López"],
   ["«Contacto:» sin número", "Empresa: Acme\nContacto: Ana Pérez"],
   ["«Contacto 2 -» con guion", "Empresa: Acme\nContacto 2 - María López"],
   ["«Contacto 2 –» con raya", "Contacto 2 – María López"],
@@ -117,5 +118,20 @@ describe("etiqueta persona vacía seguida de otra etiqueta", () => {
 
   it.each(CASOS)("%s", (_caso, descripcion, esperado) => {
     expect(descriptionHasPersonHint(descripcion)).toBe(esperado);
+  });
+});
+
+describe("plantilla de ejemplo del formato de reunión", () => {
+  it("la reconocen los detectores de empresa y de persona", () => {
+    expect(descriptionHasCompanyHint(CALENDAR_MEETING_FORMAT_EXAMPLE)).toBe(true);
+    expect(descriptionHasPersonHint(CALENDAR_MEETING_FORMAT_EXAMPLE)).toBe(true);
+  });
+
+  it("solo usa datos ficticios: todos los correos son de example.com", () => {
+    const correos = CALENDAR_MEETING_FORMAT_EXAMPLE.match(/[\w.+-]+@[\w.-]+/g) ?? [];
+    expect(correos.length).toBeGreaterThan(0);
+    for (const correo of correos) {
+      expect(correo.endsWith("@example.com")).toBe(true);
+    }
   });
 });

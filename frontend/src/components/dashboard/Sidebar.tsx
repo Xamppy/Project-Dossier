@@ -144,7 +144,22 @@ function buildFooterDetail(
   return profile.company_name?.trim() || profile.email;
 }
 
-export default function Sidebar() {
+type SidebarProps = {
+  id?: string;
+  /** Solo por debajo de `md`: la barra se muestra como cajón modal. */
+  mobileOpen?: boolean;
+  /** Botón de cerrar del cajón móvil. */
+  onClose?: () => void;
+  /** Se llama al seguir cualquier enlace de la barra (cierra el cajón móvil). */
+  onNavigate?: () => void;
+};
+
+export default function Sidebar({
+  id,
+  mobileOpen = false,
+  onClose,
+  onNavigate,
+}: SidebarProps = {}) {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useTranslation();
@@ -154,6 +169,12 @@ export default function Sidebar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Al abrir el cajón móvil, el foco entra en él.
+  useEffect(() => {
+    if (mobileOpen) closeButtonRef.current?.focus();
+  }, [mobileOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -248,7 +269,20 @@ export default function Sidebar() {
 
   return (
     <aside
-      className="fixed inset-y-0 left-0 z-40 flex w-64 flex-col"
+      id={id}
+      role={mobileOpen ? "dialog" : undefined}
+      aria-modal={mobileOpen ? true : undefined}
+      aria-label={t("nav.sidebar_label")}
+      className={[
+        "fixed inset-y-0 left-0 z-40 flex w-64 flex-col",
+        // Al abrir, `visibility` cambia al instante (si se animara, el cajón seguiría
+        // oculto cuando recibe el foco). Al cerrar, cambia tras el deslizamiento.
+        "transition-transform duration-200 ease-out motion-reduce:transition-none",
+        "md:visible md:translate-x-0",
+        mobileOpen
+          ? "visible translate-x-0"
+          : "max-md:invisible max-md:-translate-x-full max-md:[transition:transform_200ms_ease-out,visibility_0s_linear_200ms]",
+      ].join(" ")}
       style={{
         backgroundImage:
           "linear-gradient(180deg, var(--bg-sidebar-start) 0%, var(--bg-sidebar-end) 100%)",
@@ -256,10 +290,38 @@ export default function Sidebar() {
       }}
     >
       <div
-        className="flex w-full items-center justify-center px-4 py-6"
+        className="relative flex w-full items-center justify-center px-4 py-6"
         style={{ borderBottom: "1px solid var(--border-subtle)" }}
       >
-        <Link href="/dashboard" className="brand-logo-link flex w-full justify-center">
+        {mobileOpen ? (
+          <button
+            ref={closeButtonRef}
+            type="button"
+            className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-lg transition ui-hover-surface md:hidden"
+            style={{ color: "var(--text-muted)" }}
+            aria-label={t("nav.close_menu")}
+            onClick={() => onClose?.()}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-5 w-5"
+              aria-hidden
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        ) : null}
+        <Link
+          href="/dashboard"
+          className="brand-logo-link flex w-full justify-center"
+          onClick={() => onNavigate?.()}
+        >
           <BrandLogo size="md" />
         </Link>
       </div>
@@ -277,6 +339,7 @@ export default function Sidebar() {
                 <Link
                   href={item.href}
                   aria-current={active ? "page" : undefined}
+                  onClick={() => onNavigate?.()}
                   className={[
                     "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium leading-snug",
                     "transition-all duration-200 ease-out",

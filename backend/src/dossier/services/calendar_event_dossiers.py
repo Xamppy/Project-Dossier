@@ -268,9 +268,9 @@ def extract_numbered_persons_from_description(descripcion: str) -> list[dict[str
     """
     Varios contactos numerados en la descripción::
 
-        Contacto 1: James Girling
+        Contacto 1: Valeria Ruiz Prueba
         Cargo 1: CEO
-        Email 1: james@oxccu.com
+        Email 1: valeria.ruiz@example.com
         Contacto 2: María López
         Cargo 2: CTO
     """
@@ -457,8 +457,8 @@ def extract_person_from_description(descripcion: str) -> tuple[str, str | None, 
 
     Formato recomendado (una línea por campo)::
 
-        Empresa: SpaceX
-        Contacto: Elon Musk
+        Empresa: Empresa Ejemplo SpA
+        Contacto: Valeria Ruiz Prueba
         Cargo: CEO
         País (opcional): Estados Unidos
 
@@ -593,10 +593,12 @@ def parse_calendar_event_for_dossiers(reunion: dict[str, Any]) -> dict[str, Any]
         person_name = extract_person_from_subject(tema)
     if person_email is None:
         person_email = extract_email_from_description(descripcion)
-    if not person_email and len(persons) == 1:
-        corp_emails = extract_corporate_emails_from_text(descripcion, participantes)
-        if corp_emails:
-            person_email = corp_emails[0]
+    # Con un único contacto, el «Email:» sin número o el correo corporativo del evento es suyo.
+    if len(persons) == 1 and not persons[0].get("email"):
+        if not person_email:
+            corp_emails = extract_corporate_emails_from_text(descripcion, participantes)
+            person_email = corp_emails[0] if corp_emails else None
+        if person_email:
             persons[0]["email"] = person_email
     if not persons and not person_name and descripcion:
         logger.info(
@@ -826,13 +828,11 @@ def _generate_one_person_dossier(
     person_name = (person.get("full_name") or "").strip()
     person_job = person.get("job_area")
     person_country = person.get("country")
-    person_email = person.get("email")
-    if not person_email:
-        corp_emails = extract_corporate_emails_from_text(
-            parsed.get("descripcion") or "",
-            participantes,
-        )
-        person_email = corp_emails[0] if corp_emails else None
+    # Solo el correo declarado para este contacto. El correo corporativo suelto del
+    # evento ya se asigna en ``parse_calendar_event_for_dossiers`` cuando hay un único
+    # contacto; con varios no se sabe de quién es, y consultar PDL con el de otro
+    # asistente trae (y cobra) un perfil ajeno (BUG-2026-10-19-02).
+    person_email = person.get("email") or None
 
     out: dict[str, Any] = {
         "index": person.get("index"),
@@ -905,6 +905,21 @@ def _generate_one_person_dossier(
         out["error"] = str(e)
         out["md"] = f"# Error en dossier persona\n\n{e}"
     return out
+
+
+# Ayuda que ve el usuario cuando no se pudo generar ningún dossier. Datos ficticios.
+MENSAJE_FORMATO_SIN_DOSSIER = (
+    "No se pudo generar ningún dossier. "
+    "Usa este formato en la descripción del evento:\n\n"
+    "**Asunto:** Kick-off proyecto Q3\n\n"
+    "**Descripción:**\n"
+    "Empresa: Empresa Ejemplo SpA\n"
+    "Contacto 1: Valeria Ruiz Prueba\n"
+    "Cargo 1: CEO\n"
+    "País 1: Estados Unidos\n"
+    "Contacto 2: Andrea Soto Ejemplo\n"
+    "Cargo 2: Presidenta"
+)
 
 
 def generate_dossiers_from_calendar_event(
@@ -1017,18 +1032,7 @@ def generate_dossiers_from_calendar_event(
             person_cache_key = one.get("cache_key")
 
     if not corporate_md and not any(p.get("md") for p in dossier_personas):
-        corporate_md = (
-            "No se pudo generar ningún dossier. "
-            "Usa este formato en la descripción del evento:\n\n"
-            "**Asunto:** Kick-off proyecto Q3\n\n"
-            "**Descripción:**\n"
-            "Empresa: SpaceX\n"
-            "Contacto 1: Elon Musk\n"
-            "Cargo 1: CEO\n"
-            "País 1: Estados Unidos\n"
-            "Contacto 2: Gwynne Shotwell\n"
-            "Cargo 2: Presidenta"
-        )
+        corporate_md = MENSAJE_FORMATO_SIN_DOSSIER
 
     return {
         "reunion": reunion,
@@ -1374,7 +1378,8 @@ def persist_calendar_dossiers(
                 "gemini_google_search_used": p_payload.get("gemini_google_search_used"),
                 "filters_applied": p_payload.get("filters_applied"),
             }
-        person_email_stored = (pentry.get("email") or parsed.get("person_email") or "")[:255] or None
+        # Sin respaldo en ``parsed["person_email"]``: es el del primer contacto, no el de este.
+        person_email_stored = (pentry.get("email") or "")[:255] or None
         dossier_id = uuid.uuid4()
         dossier = Dossier(
             id=dossier_id,
@@ -1408,7 +1413,7 @@ def persist_calendar_dossiers(
                     "job_area": pentry.get("job_area"),
                     "company": parsed.get("company_person"),
                     "country": pentry.get("country"),
-                    "email": pentry.get("email") or parsed.get("person_email"),
+                    "email": pentry.get("email") or None,
                     "research_source": person_research_source,
                     "contact_index": pentry.get("index"),
                 },
