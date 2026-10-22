@@ -1,22 +1,47 @@
 """Esquemas Pydantic para registro, login y respuestas públicas de usuario."""
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+from pydantic import BaseModel, BeforeValidator, EmailStr, Field, field_validator, model_validator
 from pydantic_core import PydanticCustomError
+
+# bcrypt solo procesa 72 bytes; la versión 5 lanza ValueError por encima en vez de truncar.
+BCRYPT_MAX_BYTES = 72
+
+
+def _password_fits_bcrypt(value: Any) -> Any:
+    # Corre antes del límite de caracteres para que todo exceso tenga el mismo error.
+    if isinstance(value, str) and len(value.encode("utf-8")) > BCRYPT_MAX_BYTES:
+        raise PydanticCustomError(
+            "password_too_long_bytes",
+            "La contraseña supera el máximo de {max_bytes} bytes. Usa una más corta; "
+            "las tildes y los emojis pueden ocupar varios bytes.",
+            {"max_bytes": BCRYPT_MAX_BYTES},
+        )
+    return value
+
+
+# Toda contraseña que se vaya a hashear (registro, cambio). No usar en campos que solo verifican.
+# El orden importa: `Field` primero deja los límites dentro de `str` (errores `string_too_*`)
+# y `BeforeValidator` después los envuelve, así que el límite de bytes se evalúa antes.
+NewPassword = Annotated[
+    str,
+    Field(
+        min_length=8,
+        max_length=128,
+        description="Entre 8 caracteres y 72 bytes UTF-8; no se trunca la contraseña.",
+    ),
+    BeforeValidator(_password_fits_bcrypt),
+]
 
 
 class RegisterRequest(BaseModel):
     """Cuerpo POST /auth/register — coincide con los campos del formulario Next.js."""
 
     email: EmailStr
-    password: str = Field(
-        min_length=8,
-        max_length=128,
-        description="Entre 8 caracteres y 72 bytes UTF-8; no se trunca la contraseña.",
-    )
+    password: NewPassword
     full_name: str = Field(min_length=1, max_length=255)
     company_name: str | None = Field(default=None, max_length=255)
     workspace_kind: Literal["personal", "work"] = "work"
@@ -26,19 +51,6 @@ class RegisterRequest(BaseModel):
         max_length=16,
         description="Idioma de interfaz (en, es, pt, it, fr, de, en-gb).",
     )
-
-    @field_validator("password", mode="before")
-    @classmethod
-    def password_fits_bcrypt(cls, value: Any) -> Any:
-        # Antes del límite de caracteres para que todo exceso tenga el mismo error.
-        if isinstance(value, str) and len(value.encode("utf-8")) > 72:
-            raise PydanticCustomError(
-                "password_too_long_bytes",
-                "La contraseña supera el máximo de {max_bytes} bytes. Usa una más corta; "
-                "las tildes y los emojis pueden ocupar varios bytes.",
-                {"max_bytes": 72},
-            )
-        return value
 
     @model_validator(mode="before")
     @classmethod
@@ -131,7 +143,7 @@ class ForgotPasswordResponse(BaseModel):
 
 class ChangePasswordRequest(BaseModel):
     current_password: str = Field(min_length=1, max_length=128)
-    new_password: str = Field(min_length=8, max_length=128)
+    new_password: NewPassword
 
 
 class ChangeEmailRequest(BaseModel):
