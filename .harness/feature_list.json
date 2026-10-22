@@ -3,7 +3,7 @@
   "project": "Project Dossier - Continuidad (Proyecto APT)",
   "plan": "docs/documentos-capstone/Plan_de_Trabajo_Detallado_Dossier.pdf",
   "board": "https://trello.com/b/XTSgfWKi/capstone-dossier-plan-de-sprints",
-  "updated": "2026-10-19",
+  "updated": "2026-10-22",
   "status_values": [
     "pending",
     "claimed",
@@ -2107,7 +2107,7 @@
       "id": "BUG-2026-10-19-01",
       "sprint": 2,
       "title": "Validar el límite de 72 bytes de bcrypt al cambiar la contraseña",
-      "status": "review",
+      "status": "done",
       "owner": "FO",
       "area": "auth",
       "activity": "A3",
@@ -2121,14 +2121,14 @@
       "evidence": [
         "https://github.com/Xamppy/Project-Dossier/pull/19"
       ],
-      "notes": "Defecto ad hoc registrado el 2026-10-19. El arreglo de BUG-2026-10-14-01 (PR #16) cubrió solo el registro: new_password en backend/src/dossier/schemas/auth.py sigue aceptando 128 caracteres, así que una contraseña de más de 72 bytes UTF-8 llega a bcrypt al cambiarla. Reutilizar la validación del registro. PR #19 abierto; pendiente de revisión del segundo integrante.",
+      "notes": "Defecto ad hoc registrado el 2026-10-19. El arreglo de BUG-2026-10-14-01 (PR #16) cubrió solo el registro: new_password en backend/src/dossier/schemas/auth.py sigue aceptando 128 caracteres, así que una contraseña de más de 72 bytes UTF-8 llega a bcrypt al cambiarla. Reutilizar la validación del registro. PR #19 abierto; pendiente de revisión del segundo integrante. Validada el 2026-10-22 por indicación de FO: revisión independiente de agente (aprobada) y suite completa sobre la integración de los 12 PR del 2026-10-19 (backend 851 passed, frontend 606 passed, eslint 0 errores, tsc limpio), CI en verde y mezclada en main. Menor pendiente: AccountPanel solo valida en el navegador que tenga 8 caracteres; el límite de 72 bytes lo informa el backend, ya traducido.",
       "owner_session": "FO (agente, BUG-2026-10-19-01)"
     },
     {
       "id": "BUG-2026-10-19-02",
       "sprint": 2,
       "title": "Calendario consulta PDL con el correo de otro asistente",
-      "status": "review",
+      "status": "done",
       "owner": "FO",
       "area": "backend",
       "activity": "A9",
@@ -2144,14 +2144,14 @@
       "evidence": [
         "https://github.com/Xamppy/Project-Dossier/pull/17"
       ],
-      "notes": "Defecto ad hoc registrado el 2026-10-19. Hallazgo de DG en S5.4: en Calendario con varios asistentes, PDL se consultó para el segundo con el correo del primer participante. Con PDL real puede traer el perfil de otra persona y cobrarlo. PR #17 abierto; pendiente de revisión del segundo integrante.",
+      "notes": "Defecto ad hoc registrado el 2026-10-19. Hallazgo de DG en S5.4: en Calendario con varios asistentes, PDL se consultó para el segundo con el correo del primer participante. Con PDL real puede traer el perfil de otra persona y cobrarlo. PR #17 abierto; pendiente de revisión del segundo integrante. Validada el 2026-10-22 por indicación de FO: revisión independiente de agente (aprobada) y suite completa sobre la integración de los 12 PR del 2026-10-19 (backend 851 passed, frontend 606 passed, eslint 0 errores, tsc limpio), CI en verde y mezclada en main. En la revisión se corrigió una regresión: con un único «Contacto 1:» y un «Email:» sin número el correo se perdía (commit 2db0559, con prueba).",
       "owner_session": "FO (agente, BUG-2026-10-19-02)"
     },
     {
       "id": "BUG-2026-10-19-03",
       "sprint": 2,
       "title": "El armazón del dashboard no se adapta a pantallas de 375 px",
-      "status": "review",
+      "status": "done",
       "owner": "FO",
       "area": "frontend",
       "activity": "A9",
@@ -2165,14 +2165,14 @@
       "evidence": [
         "https://github.com/Xamppy/Project-Dossier/pull/22"
       ],
-      "notes": "Defecto ad hoc registrado el 2026-10-19. main tiene ml-64 fijo en el armazón del dashboard y a 375 px hay desplazamiento horizontal. Visto en S5.4 y en UX-CAL-02 (H2). PR #22 abierto; pendiente de revisión del segundo integrante.",
+      "notes": "Defecto ad hoc registrado el 2026-10-19. main tiene ml-64 fijo en el armazón del dashboard y a 375 px hay desplazamiento horizontal. Visto en S5.4 y en UX-CAL-02 (H2). PR #22 abierto; pendiente de revisión del segundo integrante. Validada el 2026-10-22 por indicación de FO: revisión independiente de agente (aprobada) y suite completa sobre la integración de los 12 PR del 2026-10-19 (backend 851 passed, frontend 606 passed, eslint 0 errores, tsc limpio), CI en verde y mezclada en main. Menores pendientes: la campana de notificaciones (z-50) queda clicable sobre el menú modal abierto; no hay prueba de la trampa de foco con Tab.",
       "owner_session": "FO (agente, BUG-2026-10-19-03)"
     },
     {
       "id": "BUG-2026-10-19-04",
       "sprint": 2,
       "title": "Falso positivo de “sin contacto” en el detalle de la reunión",
-      "status": "review",
+      "status": "done",
       "owner": "FO",
       "area": "frontend",
       "activity": "A9",
@@ -2186,14 +2186,14 @@
       "evidence": [
         "https://github.com/Xamppy/Project-Dossier/pull/21"
       ],
-      "notes": "Defecto ad hoc registrado el 2026-10-19. La expresión regular de CalendarEventDetails no reconoce «Contacto 1:» y muestra «No se detecta contacto en la descripción». Visto en S5.4. PR #21 abierto; pendiente de revisión del segundo integrante.",
+      "notes": "Defecto ad hoc registrado el 2026-10-19. La expresión regular de CalendarEventDetails no reconoce «Contacto 1:» y muestra «No se detecta contacto en la descripción». Visto en S5.4. PR #21 abierto; pendiente de revisión del segundo integrante. Validada el 2026-10-22 por indicación de FO: revisión independiente de agente (aprobada) y suite completa sobre la integración de los 12 PR del 2026-10-19 (backend 851 passed, frontend 606 passed, eslint 0 errores, tsc limpio), CI en verde y mezclada en main. Al resolver el conflicto con main se reemplazó un nombre real reintroducido en la prueba del frontend por «Valeria Ruiz Prueba» (commit b4ecd86). Menor: «Contacto: -» oculta el aviso sin extraer persona.",
       "owner_session": "FO (agente, BUG-2026-10-19-04)"
     },
     {
       "id": "CHORE-2026-10-19-01",
       "sprint": 2,
       "title": "Decidir qué hacer con frontend/AGENTS.md y CLAUDE.md que genera next dev",
-      "status": "review",
+      "status": "done",
       "owner": "FO",
       "area": "frontend",
       "activity": "A3",
@@ -2207,14 +2207,14 @@
       "evidence": [
         "https://github.com/Xamppy/Project-Dossier/pull/23"
       ],
-      "notes": "Registrada el 2026-10-19. next dev 16.3 escribe frontend/AGENTS.md y frontend/CLAUDE.md al arrancar (agentRules) y pide commitearlos. Opciones vistas en S5.4: gitignore, agentRules: false o versionarlos. PR #23 abierto; pendiente de revisión del segundo integrante.",
+      "notes": "Registrada el 2026-10-19. next dev 16.3 escribe frontend/AGENTS.md y frontend/CLAUDE.md al arrancar (agentRules) y pide commitearlos. Opciones vistas en S5.4: gitignore, agentRules: false o versionarlos. PR #23 abierto; pendiente de revisión del segundo integrante. Validada el 2026-10-22 por indicación de FO: revisión independiente de agente (aprobada) y suite completa sobre la integración de los 12 PR del 2026-10-19 (backend 851 passed, frontend 606 passed, eslint 0 errores, tsc limpio), CI en verde y mezclada en main.",
       "owner_session": "FO (agente, CHORE-2026-10-19-01)"
     },
     {
       "id": "CHORE-2026-10-19-02",
       "sprint": 2,
       "title": "Vitest falla con Node 26 por el localStorage nativo",
-      "status": "review",
+      "status": "done",
       "owner": "FO",
       "area": "quality",
       "activity": "A3",
@@ -2228,14 +2228,14 @@
       "evidence": [
         "https://github.com/Xamppy/Project-Dossier/pull/18"
       ],
-      "notes": "Registrada el 2026-10-19. Con Node 26 el localStorage experimental del propio Node tapa el de jsdom y las pruebas que lo usan fallan (localStorage.clear indefinido). Hasta cerrarla, correr Vitest con NODE_OPTIONS=--no-experimental-webstorage. PR #18 abierto; pendiente de revisión del segundo integrante.",
+      "notes": "Registrada el 2026-10-19. Con Node 26 el localStorage experimental del propio Node tapa el de jsdom y las pruebas que lo usan fallan (localStorage.clear indefinido). Hasta cerrarla, correr Vitest con NODE_OPTIONS=--no-experimental-webstorage. PR #18 abierto; pendiente de revisión del segundo integrante. Validada el 2026-10-22 por indicación de FO: revisión independiente de agente (aprobada) y suite completa sobre la integración de los 12 PR del 2026-10-19 (backend 851 passed, frontend 606 passed, eslint 0 errores, tsc limpio), CI en verde y mezclada en main.",
       "owner_session": "FO (agente, CHORE-2026-10-19-02)"
     },
     {
       "id": "BUG-2026-10-19-05",
       "sprint": 2,
       "title": "La etiqueta «mail» trunca el nombre del contacto dentro de «gmail.»",
-      "status": "review",
+      "status": "done",
       "owner": "FO",
       "area": "backend",
       "activity": "A9",
@@ -2249,14 +2249,14 @@
       "evidence": [
         "https://github.com/Xamppy/Project-Dossier/pull/28"
       ],
-      "notes": "Defecto ad hoc registrado el 2026-10-19 (revisión del PR #21). Con «Contacto 1: Ana <ana@gmail.com>», calendar_meeting_labels.py y calendar_event_dossiers.py extraen el nombre «Ana <ana@g»: la etiqueta «mail» coincide dentro de «gmail.». Las etiquetas no tienen límite de palabra; «nome» dentro de «genome» también cuenta. PR #28 abierto, apilado sobre #21; pendiente de revisión del segundo integrante.",
+      "notes": "Defecto ad hoc registrado el 2026-10-19 (revisión del PR #21). Con «Contacto 1: Ana <ana@gmail.com>», calendar_meeting_labels.py y calendar_event_dossiers.py extraen el nombre «Ana <ana@g»: la etiqueta «mail» coincide dentro de «gmail.». Las etiquetas no tienen límite de palabra; «nome» dentro de «genome» también cuenta. PR #28 abierto, apilado sobre #21; pendiente de revisión del segundo integrante. Validada el 2026-10-22 por indicación de FO: revisión independiente de agente (aprobada) y suite completa sobre la integración de los 12 PR del 2026-10-19 (backend 851 passed, frontend 606 passed, eslint 0 errores, tsc limpio), CI en verde y mezclada en main. Menor: «-Contacto 1:» pegado a un guion ya no se reconoce (main sí lo extraía); el aviso del frontend coincide.",
       "owner_session": null
     },
     {
       "id": "BUG-2026-10-19-06",
       "sprint": 2,
       "title": "«Contactos: Ana, Luis» toma a Luis como cargo, y una etiqueta vacía captura la línea siguiente",
-      "status": "review",
+      "status": "done",
       "owner": "FO",
       "area": "backend",
       "activity": "A9",
@@ -2270,14 +2270,14 @@
       "evidence": [
         "https://github.com/Xamppy/Project-Dossier/pull/29"
       ],
-      "notes": "Defecto ad hoc registrado el 2026-10-19 (revisión del PR #21). Al separar por coma se asume «Nombre, Cargo», así que con «Contactos: Ana, Luis» Luis queda como cargo de Ana. Con «Contacto:» sin valor, se captura el campo de la línea siguiente. PR #29 abierto, apilado sobre #28; pendiente de revisión del segundo integrante.",
+      "notes": "Defecto ad hoc registrado el 2026-10-19 (revisión del PR #21). Al separar por coma se asume «Nombre, Cargo», así que con «Contactos: Ana, Luis» Luis queda como cargo de Ana. Con «Contacto:» sin valor, se captura el campo de la línea siguiente. PR #29 abierto, apilado sobre #28; pendiente de revisión del segundo integrante. Validada el 2026-10-22 por indicación de FO: revisión independiente de agente (aprobada) y suite completa sobre la integración de los 12 PR del 2026-10-19 (backend 851 passed, frontend 606 passed, eslint 0 errores, tsc limpio), CI en verde y mezclada en main. Seguimiento recomendado: «Contactos: Ana Pérez, CEO; Luis Soto, CTO» crea las personas «CEO» y «CTO», que pueden disparar consultas a PDL.",
       "owner_session": null
     },
     {
       "id": "CHORE-2026-10-19-03",
       "sprint": 2,
       "title": "Alinear setup-buildx-action a v4 y fijar ci.yml por SHA",
-      "status": "review",
+      "status": "done",
       "owner": "FD",
       "area": "ci",
       "activity": "A3",
@@ -2291,14 +2291,14 @@
       "evidence": [
         "https://github.com/Xamppy/Project-Dossier/pull/25"
       ],
-      "notes": "Registrada el 2026-10-19. imagenes.yml usa docker/setup-buildx-action v3.12.0 junto a login-action v4 y build-push-action v7 (PR #6–#10 de Dependabot, mezclados hoy). ci.yml referencia las acciones por tag y no por SHA. PR #25 abierto; pendiente de revisión del segundo integrante.",
+      "notes": "Registrada el 2026-10-19. imagenes.yml usa docker/setup-buildx-action v3.12.0 junto a login-action v4 y build-push-action v7 (PR #6–#10 de Dependabot, mezclados hoy). ci.yml referencia las acciones por tag y no por SHA. PR #25 abierto; pendiente de revisión del segundo integrante. Validada el 2026-10-22 por indicación de FO: revisión independiente de agente (aprobada) y suite completa sobre la integración de los 12 PR del 2026-10-19 (backend 851 passed, frontend 606 passed, eslint 0 errores, tsc limpio), CI en verde y mezclada en main.",
       "owner_session": null
     },
     {
       "id": "DOC-2026-10-19-01",
       "sprint": 2,
       "title": "Corregir «cinco idiomas» en CLAUDE.md y AGENTS.md",
-      "status": "review",
+      "status": "done",
       "owner": "EQ",
       "area": "docs",
       "activity": "A3",
@@ -2312,14 +2312,14 @@
       "evidence": [
         "https://github.com/Xamppy/Project-Dossier/pull/26"
       ],
-      "notes": "Registrada el 2026-10-19. CLAUDE.md («dashboard en cinco idiomas») y la tabla de AGENTS.md dicen cinco, pero frontend/src/i18n/messages/ tiene siete catálogos: es, en, en-gb, pt, it, fr y de. PR #26 abierto; pendiente de revisión del segundo integrante.",
+      "notes": "Registrada el 2026-10-19. CLAUDE.md («dashboard en cinco idiomas») y la tabla de AGENTS.md dicen cinco, pero frontend/src/i18n/messages/ tiene siete catálogos: es, en, en-gb, pt, it, fr y de. PR #26 abierto; pendiente de revisión del segundo integrante. Validada el 2026-10-22 por indicación de FO: revisión independiente de agente (aprobada) y suite completa sobre la integración de los 12 PR del 2026-10-19 (backend 851 passed, frontend 606 passed, eslint 0 errores, tsc limpio), CI en verde y mezclada en main.",
       "owner_session": null
     },
     {
       "id": "BUG-2026-10-19-07",
       "sprint": 2,
       "title": "Dossiers de calendario ya guardados con el subject_email de otro asistente",
-      "status": "review",
+      "status": "done",
       "owner": "FO",
       "area": "backend",
       "activity": "A9",
@@ -2335,7 +2335,7 @@
       "evidence": [
         "https://github.com/Xamppy/Project-Dossier/pull/27"
       ],
-      "notes": "Defecto ad hoc registrado el 2026-10-19. El PR #17 (BUG-2026-10-19-02) corrige los dossiers nuevos, pero no migra los existentes: los guardados antes del arreglo pueden tener el subject_email de otro asistente. Evaluar si se corrigen o se marcan. PR #27 abierto, apilado sobre #17; pendiente de revisión del segundo integrante.",
+      "notes": "Defecto ad hoc registrado el 2026-10-19. El PR #17 (BUG-2026-10-19-02) corrige los dossiers nuevos, pero no migra los existentes: los guardados antes del arreglo pueden tener el subject_email de otro asistente. Evaluar si se corrigen o se marcan. PR #27 abierto, apilado sobre #17; pendiente de revisión del segundo integrante. Validada el 2026-10-22 por indicación de FO: revisión independiente de agente (aprobada) y suite completa sobre la integración de los 12 PR del 2026-10-19 (backend 851 passed, frontend 606 passed, eslint 0 errores, tsc limpio), CI en verde y mezclada en main. En la revisión: pruebas con acme.test en lugar de acme.com y guía de deshacer con los dos campos (correo_anterior y person_filters_email_anterior). Menores: la coincidencia por subcadena de 3 letras puede marcar a Juana por Ana; --aplicar carga y bloquea todos los dossiers de calendario en una transacción; la marca aún no se muestra en la interfaz (seguimiento propuesto en la spec).",
       "owner_session": null
     },
     {

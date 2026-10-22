@@ -6,6 +6,36 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-10-22 · Validación de los PR del 2026-10-19 · FO (agente)
+
+**Hecho.** Se validaron y mezclaron en main los 12 PR abiertos (#17–#19, #21–#23, #25–#29, #33)
+y se cerraron las 11 tareas ad hoc que estaban en `review` (BUG-2026-10-19-01 a 07,
+CHORE-2026-10-19-01 a 03, DOC-2026-10-19-01). Por indicación de FO, la revisión la hicieron
+agentes independientes en lugar del segundo integrante. Además, se corrió la suite completa
+sobre la integración de los 12: backend 851 passed, frontend 606 passed, eslint sin errores y
+tsc limpio. La CI quedó en verde en cada PR hacia main.
+
+**Lo que hay que saber.**
+- Correcciones hechas durante la revisión, con su prueba:
+  - #17: regresión con un único «Contacto 1:» y un «Email:» sin número (commit `2db0559`).
+  - #27: dominios de prueba `acme.test` y guía para deshacer con los dos campos.
+  - #21: el conflicto add/add de `calendar-meeting-format.test.ts` con el PR #30 se resolvió
+    conservando las dos suites.
+- #21 reintroducía en una prueba el nombre de una persona real que el PR #30 había quitado. Se
+  reemplazó por «Valeria Ruiz Prueba». Revisa los nombres de las pruebas antes de abrir un PR.
+- Las pilas (#17→#27 y #21→#28→#29) se mezclaron desde la cima hacia main. Ninguna rama se
+  borró.
+- Hallazgos menores que quedan anotados en `notes` de cada tarea. Los que conviene tomar
+  primero:
+  - BUG-2026-10-19-06: «Contactos: Ana Pérez, CEO» crea una persona «CEO», que puede consumir
+    créditos de PDL.
+  - BUG-2026-10-19-07: la marca de correo ajeno todavía no se muestra en la interfaz.
+
+**Siguiente paso concreto.** Registrar como tareas los dos seguimientos de arriba, si el equipo
+los acepta. Sincronizar la copia pública con `scripts/sincronizar_repo_publico.sh --push`.
+
+**Rama.** `chore/harness-validacion-2026-10-22` · **Estado.** done (11 tareas)
+
 ### 2026-10-19 (tarde) · Retroalimentación docente, repo público y tareas nuevas · FO (agente)
 
 **Hecho.**
