@@ -121,10 +121,11 @@ dossier sin prensa.
 Las únicas apariciones de «WebSocket» en el código son cadenas de interfaz que anuncian la
 brecha. En `frontend/src/i18n/messages/es.ts`:
 
-- línea 104 — `"phase.4": "Generar dossier (mock WebSocket)"`
-- línea 108 — `"phase.8": "WebSocket real y estados en vivo"`
+- línea 106 — `"phase.4": "Generar dossier (mock WebSocket)"`
+- línea 110 — `"phase.8": "WebSocket real y estados en vivo"`
 
-Están traducidas a los cinco idiomas. **S3.7** debe actualizarlas cuando el canal exista.
+Están en los siete catálogos (seis idiomas, con `en-gb` como variante de `en`). **S3.7** debe
+actualizarlas cuando el canal exista.
 
 ### Riesgo al migrar
 

@@ -215,7 +215,8 @@ Módulos sin ninguna prueba hoy, por orden de riesgo (de `fix_plan.md`):
 Automatizar todo lo automatizable deja fuera exactamente tres cosas. Estas sí se revisan a mano,
 y solo estas:
 
-1. **Lo visual.** Que el dashboard se vea bien en pantalla real, en los cinco idiomas, en móvil.
+1. **Lo visual.** Que el dashboard se vea bien en pantalla real, en las siete opciones de
+   idioma del selector (seis idiomas, con `en-gb` como variante), en móvil.
    Ninguna prueba automática juzga si algo se ve mal.
 2. **Lo exploratorio.** Buscar lo que nadie previó. Es lo que mejor hace una persona y peor hace
    una máquina, y necesita tiempo libre — que es justo lo que le devuelve todo lo anterior.
