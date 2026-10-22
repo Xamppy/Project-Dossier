@@ -74,8 +74,10 @@ python scripts/marcar_dossiers_correo_ajeno.py --aplicar  # escribe, en una sola
 ```
 
 Revisa `afectados` en la simulación antes de aplicar. Una segunda ejecución con `--aplicar`
-debe devolver `afectados: []`. Para deshacer un caso, el correo anterior está en
-`dossier_data->'correo_sospechoso'->>'correo_anterior'`.
+debe devolver `afectados: []`. Para deshacer un caso, los valores anteriores están en
+`dossier_data->'correo_sospechoso'`: `correo_anterior` (era `subject_email`) y
+`person_filters_email_anterior` (era `person_filters.email`). Uno de los dos puede ser null si
+el correo ajeno solo estaba en el otro campo.
 
 ## Comprobar conexión
 

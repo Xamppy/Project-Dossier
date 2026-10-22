@@ -71,23 +71,23 @@ def sembrado(pg_vacia, alembic_cfg):
                 carpeta=reunion_afectada, rol="corporate",
             ),
             "ana": _insertar(
-                conn, org_id, user_id, nombre="Ana Pérez", correo="ana.perez@acme.com",
+                conn, org_id, user_id, nombre="Ana Pérez", correo="ana.perez@acme.test",
                 carpeta=reunion_afectada, indice=1,
             ),
             "beto": _insertar(
-                conn, org_id, user_id, nombre="Beto Soto", correo="ana.perez@acme.com",
+                conn, org_id, user_id, nombre="Beto Soto", correo="ana.perez@acme.test",
                 carpeta=reunion_afectada, indice=2,
             ),
             "carla": _insertar(
-                conn, org_id, user_id, nombre="Carla Ruiz", correo="carla.ruiz@acme.com",
+                conn, org_id, user_id, nombre="Carla Ruiz", correo="carla.ruiz@acme.test",
                 carpeta=reunion_limpia, indice=1,
             ),
             "dario": _insertar(
-                conn, org_id, user_id, nombre="Darío Vega", correo="dario.vega@acme.com",
+                conn, org_id, user_id, nombre="Darío Vega", correo="dario.vega@acme.test",
                 carpeta=reunion_limpia, indice=2,
             ),
             "elena": _insertar(
-                conn, org_id, user_id, nombre="Elena Mora", correo="ventas@acme.com",
+                conn, org_id, user_id, nombre="Elena Mora", correo="ventas@acme.test",
                 carpeta=reunion_unica, indice=1,
             ),
         }
@@ -109,7 +109,7 @@ def test_simulacion_informa_y_no_cambia_nada(sembrado):
 
     assert informe["modo"] == "simulacion"
     assert [a["dossier_id"] for a in informe["afectados"]] == [str(ids["beto"])]
-    assert informe["afectados"][0]["correo_anterior"] == "ana.perez@acme.com"
+    assert informe["afectados"][0]["correo_anterior"] == "ana.perez@acme.test"
     assert informe["afectados"][0]["presunto_dueno"]["dossier_id"] == str(ids["ana"])
     assert informe["revisados"] == 5
     assert _foto(engine) == antes
@@ -144,7 +144,7 @@ def test_aplicar_marca_solo_los_afectados(sembrado, capsys):
     marca = beto["dossier_data"]["correo_sospechoso"]
     assert marca["tarea"] == "BUG-2026-10-19-07"
     assert marca["motivo"] == "correo_de_otro_asistente"
-    assert marca["correo_anterior"] == "ana.perez@acme.com"
+    assert marca["correo_anterior"] == "ana.perez@acme.test"
     assert marca["presunto_dueno"] == {"dossier_id": str(ids["ana"]), "subject_name": "Ana Pérez"}
     assert beto["dossier_data"]["body"] == "# Informe de Beto Soto"
     assert beto["dossier_data"]["billing"] == "none"
