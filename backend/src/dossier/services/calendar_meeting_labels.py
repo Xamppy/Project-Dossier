@@ -38,6 +38,23 @@ PERSON_LABELS: tuple[str, ...] = (
     "nom",
     "contatto",
     "kontakt",
+    # Plurales y portugués («Contactos:», «Contato 1:»); BUG-2026-10-19-04.
+    "contactos",
+    "contacts",
+    "contato",
+    "contatos",
+    "contatti",
+    "kontakte",
+)
+
+# Etiquetas persona en plural: su valor es una lista de personas separadas por coma o punto y
+# coma («Contactos: Ana, Luis»); BUG-2026-10-19-06. Subconjunto de PERSON_LABELS.
+PERSON_LIST_LABELS: tuple[str, ...] = (
+    "contactos",
+    "contacts",
+    "contatos",
+    "contatti",
+    "kontakte",
 )
 
 JOB_LABELS: tuple[str, ...] = (
@@ -121,6 +138,22 @@ def _alt(*terms: str) -> str:
     return "|".join(unique)
 
 
+# Una etiqueta solo cuenta como palabra completa (BUG-2026-10-19-05): no puede ir pegada a una
+# letra, un dígito, «_», «@», «.» ni «-». Así «mail» no es etiqueta dentro de «gmail.com»,
+# «ana@mail.com» ni «e-mail» (que ya es etiqueta por sí misma), y «nome» no lo es en «genome».
+# El frontend replica esta regla en `frontend/src/lib/calendar-meeting-format.ts`.
+_LABEL_START = r"(?<![\w@.\-])"
+
+# El punto como separador («Email. ana@x») exige espacio o fin detrás; si no, «nombre.apellido@»
+# o «correo.ana@» dentro de una dirección parecerían un campo nuevo.
+_DOT_SEPARATOR = r"\.(?=\s|\Z)"
+
+
+def _labels(*terms: str) -> str:
+    """Alternativa de etiquetas anclada a inicio de palabra."""
+    return rf"{_LABEL_START}(?:{_alt(*terms)})"
+
+
 def _field_value_boundary() -> str:
     """
     Fin del valor de un campo: salto de línea u otra etiqueta conocida.
@@ -128,43 +161,82 @@ def _field_value_boundary() -> str:
     Outlook/Google a veces dejan «Azienda: X Contatto: Y» en una sola línea;
     sin esto la empresa captura también el contacto.
     """
-    labels = _alt(*ALL_STRUCTURED_FIELD_LABELS)
-    return rf"(?=\s*(?:\n|(?:{labels})\s*(?:\d+\s*)?[:.]|\Z))"
+    labels = _labels(*ALL_STRUCTURED_FIELD_LABELS)
+    return rf"(?=\s*(?:\n|{labels}\s*(?:\d+\s*)?(?::|{_DOT_SEPARATOR})|\Z))"
+
+
+def _no_label_ahead() -> str:
+    """
+    Tras «Etiqueta:», el valor no puede ser otra etiqueta (BUG-2026-10-19-06).
+
+    El valor puede ir en la línea siguiente («Contacto:\\nAna»), pero si esa línea es otro campo
+    («Contacto:\\nEmpresa: X»), la etiqueta está vacía y no captura nada. Admite el número y el
+    paréntesis de «País (opcional):». El frontend replica la regla en `descriptionHasPersonHint`.
+    No hace falta `_LABEL_START`: lo que precede a la etiqueta aquí es «:» o un espacio.
+    """
+    labels = rf"(?:{_alt(*ALL_STRUCTURED_FIELD_LABELS)})"
+    return rf"(?!\s*{labels}\s*(?:\([^)\n]*\)\s*)?(?:\d+\s*)?(?::|{_DOT_SEPARATOR}))"
 
 
 def labeled_field_pattern(labels: tuple[str, ...]) -> re.Pattern[str]:
     return re.compile(
-        rf"(?i)(?:{_alt(*labels)})\s*:\s*(.+?){_field_value_boundary()}"
+        rf"(?i){_labels(*labels)}\s*:{_no_label_ahead()}\s*(.+?){_field_value_boundary()}"
     )
 
 
 def numbered_field_pattern(labels: tuple[str, ...]) -> re.Pattern[str]:
     return re.compile(
-        rf"(?i)(?:{_alt(*labels)})\s*(\d+)\s*:\s*(.+?){_field_value_boundary()}"
+        rf"(?i){_labels(*labels)}\s*(\d+)\s*:{_no_label_ahead()}\s*(.+?){_field_value_boundary()}"
+    )
+
+
+# Guion como separador de un campo persona («Contacto 2 - Ana»): solo a inicio de línea y con
+# espacio detrás, para no confundirlo con un guion dentro de una frase («genome - análisis»).
+# El frontend replica esta regla en `frontend/src/lib/calendar-meeting-format.ts`.
+_LINE_START = r"(?<![^\n])[ \t]*"
+_DASH_SEPARATOR = r"[ \t]*[-–—][ \t]+"
+
+
+def person_dash_field_pattern() -> re.Pattern[str]:
+    """«Contacto - Ana» a inicio de línea; el valor empieza por un carácter visible."""
+    return re.compile(
+        rf"(?i){_LINE_START}(?:{_alt(*PERSON_LABELS)}){_DASH_SEPARATOR}(\S.*?){_field_value_boundary()}"
+    )
+
+
+def numbered_person_dash_field_pattern() -> re.Pattern[str]:
+    """«Contacto 2 - Ana» a inicio de línea; grupos: (número, valor) como `numbered_field_pattern`."""
+    return re.compile(
+        rf"(?i){_LINE_START}(?:{_alt(*PERSON_LABELS)})[ \t]*(\d+){_DASH_SEPARATOR}(\S.*?)"
+        rf"{_field_value_boundary()}"
     )
 
 
 def country_field_pattern() -> re.Pattern[str]:
     return re.compile(
-        rf"(?i)(?:{_alt(*COUNTRY_LABELS)})(?:\s*\([^)]*\))?\s*:\s*(.+?){_field_value_boundary()}"
+        rf"(?i){_labels(*COUNTRY_LABELS)}(?:\s*\([^)]*\))?\s*:{_no_label_ahead()}\s*(.+?)"
+        rf"{_field_value_boundary()}"
     )
 
 
 def numbered_country_field_pattern() -> re.Pattern[str]:
     return re.compile(
-        rf"(?i)(?:{_alt(*COUNTRY_LABELS)})(?:\s*\([^)]*\))?\s*(\d+)\s*:\s*(.+?){_field_value_boundary()}"
+        rf"(?i){_labels(*COUNTRY_LABELS)}(?:\s*\([^)]*\))?\s*(\d+)\s*:{_no_label_ahead()}\s*(.+?)"
+        rf"{_field_value_boundary()}"
     )
 
 
 def email_field_pattern() -> re.Pattern[str]:
     return re.compile(
-        rf"(?i)(?:{_alt(*EMAIL_LABELS)})\s*[:.]\s*(.+?){_field_value_boundary()}"
+        rf"(?i){_labels(*EMAIL_LABELS)}\s*(?::|{_DOT_SEPARATOR}){_no_label_ahead()}\s*(.+?)"
+        rf"{_field_value_boundary()}"
     )
 
 
 def numbered_email_field_pattern() -> re.Pattern[str]:
     return re.compile(
-        rf"(?i)(?:{_alt(*EMAIL_LABELS)})\s*(\d+)\s*[:.]\s*(.+?){_field_value_boundary()}"
+        rf"(?i){_labels(*EMAIL_LABELS)}\s*(\d+)\s*(?::|{_DOT_SEPARATOR}){_no_label_ahead()}\s*(.+?)"
+        rf"{_field_value_boundary()}"
     )
 
 
@@ -180,6 +252,7 @@ def subject_meeting_with_pattern() -> re.Pattern[str]:
 def person_hint_patterns() -> tuple[re.Pattern[str], ...]:
     return (
         labeled_field_pattern(PERSON_LABELS),
+        person_dash_field_pattern(),
         *(
             re.compile(rf"(?i){re.escape(phrase)}\s+(.+?)(?:\n|$)")
             for phrase in MEETING_WITH_SUBJECT_PHRASES
@@ -187,27 +260,53 @@ def person_hint_patterns() -> tuple[re.Pattern[str], ...]:
     )
 
 
+def numbered_person_patterns() -> tuple[re.Pattern[str], ...]:
+    """Contactos numerados: «Contacto 1: Ana» en cualquier parte, «Contacto 2 - Luis» a inicio de línea."""
+    return (numbered_field_pattern(PERSON_LABELS), numbered_person_dash_field_pattern())
+
+
+def person_list_label_pattern() -> re.Pattern[str]:
+    """¿El campo persona empieza por una etiqueta en plural? Se aplica al texto de la coincidencia."""
+    return re.compile(rf"(?i)[ \t]*(?:{_alt(*PERSON_LIST_LABELS)})(?:\s*:|[ \t]*[-–—])")
+
+
+def _person_label_source() -> str:
+    """Etiqueta persona declarada: «Contacto:», «Contacto 1:» o «Contacto 2 - » a inicio de línea."""
+    labels = _alt(*PERSON_LABELS)
+    colon = rf"{_LABEL_START}(?:{labels})\s*(?:\d+\s*)?:"
+    dash = rf"{_LINE_START}(?:{labels})[ \t]*(?:\d+[ \t]*)?[-–—](?=[ \t])"
+    return rf"(?:{colon}|{dash})"
+
+
 def business_signal_patterns() -> tuple[re.Pattern[str], ...]:
     return (
-        re.compile(rf"(?i)(?:{_alt(*COMPANY_LABELS)})\s*:"),
-        re.compile(rf"(?i)(?:{_alt(*PERSON_LABELS)})\s*:"),
+        re.compile(rf"(?i){_labels(*COMPANY_LABELS)}\s*:"),
+        re.compile(rf"(?i){_person_label_source()}"),
     )
 
 
 def person_hint_regex_source() -> str:
-    """Fragmento regex para detectar campos persona (p. ej. tests o frontend)."""
-    numbered = rf"(?:{_alt(*PERSON_LABELS)})\s*(?:\d+\s*)?:"
+    """
+    Regla de «hay contacto en la descripción»: etiqueta persona seguida de un valor visible.
+
+    Es la fuente de verdad del aviso «No se detecta contacto» del frontend
+    (`descriptionHasPersonHint` en `frontend/src/lib/calendar-meeting-format.ts`).
+    """
+    labels = _alt(*PERSON_LABELS)
+    colon = rf"{_LABEL_START}(?:{labels})\s*(?:\d+\s*)?:{_no_label_ahead()}\s*\S"
+    dash = rf"{_LINE_START}(?:{labels})[ \t]*(?:\d+[ \t]*)?[-–—][ \t]+\S"
     phrases = "|".join(re.escape(p) for p in MEETING_WITH_SUBJECT_PHRASES)
-    return rf"(?:{numbered}|(?:{phrases})\s+)"
+    return rf"(?:{colon}|{dash}|(?:{phrases})\s+\S)"
 
 
 # Patrones compilados (uso en calendar_event_dossiers / filters).
 EMPRESA_DESC = labeled_field_pattern(COMPANY_LABELS)
 PERSON_PATTERNS = person_hint_patterns()
+PERSON_LIST_LABEL = person_list_label_pattern()
 EMAIL_IN_DESC = email_field_pattern()
 JOB_IN_DESC = labeled_field_pattern(JOB_LABELS)
 COUNTRY_IN_DESC = country_field_pattern()
-NUMBERED_CONTACT = numbered_field_pattern(PERSON_LABELS)
+NUMBERED_CONTACT_PATTERNS = numbered_person_patterns()
 NUMBERED_JOB = numbered_field_pattern(JOB_LABELS)
 NUMBERED_EMAIL = numbered_email_field_pattern()
 NUMBERED_COUNTRY = numbered_country_field_pattern()

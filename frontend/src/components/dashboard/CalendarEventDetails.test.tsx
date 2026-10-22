@@ -95,6 +95,31 @@ describe("CalendarEventDetails · contenido", () => {
   });
 });
 
+describe("CalendarEventDetails · aviso de contacto (BUG-2026-10-19-04)", () => {
+  const avisoSinContacto = createTranslator("es")("overview.calendar_description_no_contact");
+
+  it("con «Contacto 1: Nombre <correo>» no avisa de que falta el contacto", () => {
+    setup(evento({ descripcion: "Empresa: Acme\nContacto 1: Ana Pérez <ana@acme.test>" }));
+    expect(screen.getByText(/Contacto 1: Ana Pérez/)).toBeInTheDocument();
+    expect(screen.queryByText(avisoSinContacto)).toBeNull();
+  });
+
+  it("con «Contacto 2 - Nombre» no avisa de que falta el contacto", () => {
+    setup(evento({ descripcion: "Empresa: Acme\nContacto 2 - María López" }));
+    expect(screen.queryByText(avisoSinContacto)).toBeNull();
+  });
+
+  it("sin contacto en la descripción sigue avisando", () => {
+    setup(evento({ descripcion: "Empresa: Acme" }));
+    expect(screen.getByText(avisoSinContacto)).toBeInTheDocument();
+  });
+
+  it("con la etiqueta «Contacto 1:» pero sin nombre ni correo sigue avisando", () => {
+    setup(evento({ descripcion: "Empresa: Acme\nContacto 1:" }));
+    expect(screen.getByText(avisoSinContacto)).toBeInTheDocument();
+  });
+});
+
 describe("CalendarEventDetails · generación (CA7)", () => {
   it("abrir la reunión no genera ni cobra nada", () => {
     setup();
