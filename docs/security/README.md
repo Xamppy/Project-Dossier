@@ -32,22 +32,6 @@ el token de acceso es el que queda fuera de esa política.
 
 **Cierra en:** S3.9 — vida corta más renovación.
 
-### CORS con métodos abiertos
-
-`backend/src/dossier/api/app.py:211-215`
-
-```python
-CORSMiddleware,
-allow_origins=_cors_origins,
-allow_credentials=True,
-allow_methods=["*"],
-```
-
-`allow_methods=["*"]` junto a `allow_credentials=True`. El parseo de orígenes sí está bien
-resuelto (`_parse_cors_origins`, línea 102: limpia BOM, comillas tipográficas y barra final).
-
-**Cierra en:** S3.8 — lista explícita de métodos.
-
 ### Retención por debajo de lo exigido
 
 `backend/src/dossier/services/dossier_retention.py`
@@ -77,6 +61,26 @@ por `DOSSIER_ENABLE_LEGACY_OPEN_ROUTES`. Están bien acotadas y hay prueba
 (`test_legacy_routes.py`), pero deben retirarse.
 
 **Cierra en:** S1.6. Mantén la variable apagada mientras tanto.
+
+## Hallazgos cerrados
+
+### CORS con métodos abiertos — cerrado en S3.8
+
+Antes, `app.py` registraba `CORSMiddleware` con `allow_methods=["*"]`, `allow_headers=["*"]` y
+`allow_credentials=True`, y aceptaba por omisión cualquier origen `https://*.vercel.app`, incluido
+el de un tercero.
+
+La política vive ahora en `backend/src/dossier/api/cors_config.py`:
+
+- Métodos explícitos: `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`.
+- Cabeceras explícitas: `Authorization`, `Content-Type`, `Accept`, `Accept-Language`,
+  `Last-Event-ID` (reanudación del canal SSE).
+- `allow_credentials=False`: el dashboard autentica con `Authorization: Bearer`, no con cookies.
+- `*.vercel.app` solo con `CORS_ALLOW_VERCEL_APP_REGEX=1` y con un patrón acotado
+  (`https://[a-z0-9-]+\.vercel\.app`).
+
+Pruebas: `tests/test_cors_config.py`, `tests/integration/test_cors_politica.py`,
+`tests/security/test_cors_seguridad.py` y `tests/stress/test_cors_estres.py`.
 
 ## Reglas permanentes
 
