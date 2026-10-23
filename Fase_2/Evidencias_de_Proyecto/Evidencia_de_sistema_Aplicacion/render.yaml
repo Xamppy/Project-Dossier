@@ -1,0 +1,36 @@
+# Blueprint Render — API FastAPI (Sistema Dossier)
+# https://render.com/docs/blueprint-spec
+#
+# Uso: Render Dashboard → New → Blueprint → conectar repo → aplicar.
+# Los secretos (JWT, OAuth, DATABASE_URL) se definen en el panel, no en este archivo.
+
+services:
+  - type: web
+    name: sistemadossier-api
+    runtime: python
+    rootDir: Fase_2/Evidencias_de_Proyecto/Evidencia_de_sistema_Aplicacion/backend
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn dossier.api.app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      - key: PYTHONPATH
+        value: src
+      - key: DATABASE_AUTO_CREATE_TABLES
+        value: "0"
+      # Enlazar la BD de Neon (o pegar DATABASE_URL a mano en el panel):
+      # - key: DATABASE_URL
+      #   fromDatabase:
+      #     name: sistemadossier-db
+      #     property: connectionString
+
+# Postgres en Render ya no tiene tier gratis estable; usad Neon (ver docs/render-deploy.md).
+# Si más adelante pagáis Postgres en Render, descomentad:
+# databases:
+#   - name: sistemadossier-db
+#     plan: basic-256mb
+#     region: oregon

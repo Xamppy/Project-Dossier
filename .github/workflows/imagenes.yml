@@ -2,7 +2,7 @@ name: Imágenes Docker
 
 # Construye las imágenes del backend y del frontend fuera del VPS y las publica en
 # GitHub Container Registry. Solo corre cuando la CI terminó en verde sobre main, y al
-# final pide a Dokploy que redespliegue. Guía: docs/dev/despliegue-vps.md §7.
+# final pide a Dokploy que redespliegue. Guía: Fase_2/Evidencias_de_Proyecto/Evidencia_de_sistema_Aplicacion/docs/dev/despliegue-vps.md §7.
 
 on:
   workflow_run:
@@ -56,7 +56,8 @@ jobs:
 
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
-          context: ${{ matrix.servicio }}
+          # El proyecto vive en Fase_2/Evidencias_de_Proyecto/Evidencia_de_sistema_Aplicacion/ (estructura por fases del Capstone).
+          context: Fase_2/Evidencias_de_Proyecto/Evidencia_de_sistema_Aplicacion/${{ matrix.servicio }}
           push: true
           # Relativa a propósito: frontend y API comparten dominio, así la imagen no
           # depende del dominio del servidor. El backend ignora este argumento.
