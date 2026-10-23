@@ -971,7 +971,7 @@
       "id": "S3.8",
       "sprint": 3,
       "title": "Endurecer la politica de origenes permitidos (CORS)",
-      "status": "pending",
+      "status": "claimed",
       "owner": "FD",
       "area": "security",
       "activity": "A8",
@@ -983,9 +983,10 @@
         "S6.8"
       ],
       "trello": "https://trello.com/c/yxFNmUet",
-      "branch": null,
+      "branch": "docmac",
       "evidence": [],
-      "notes": ""
+      "notes": "",
+      "owner_session": "FD"
     },
     {
       "id": "S3.9",
