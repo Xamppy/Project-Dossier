@@ -2343,7 +2343,7 @@
       "id": "SEC-2026-10-19-01",
       "sprint": 2,
       "title": "Actualizar pyjwt y next por vulnerabilidades conocidas",
-      "status": "pending",
+      "status": "claimed",
       "owner": "FD",
       "area": "security",
       "activity": "A8",
@@ -2353,10 +2353,10 @@
       "depends_on": [],
       "blocks": [],
       "trello": null,
-      "branch": null,
+      "branch": "docmac",
       "evidence": [],
       "notes": "Registrada el 2026-10-19. pip-audit informa 2 avisos en pyjwt 2.14.0, corregidos en 2.15.0. npm audit --omit=dev informa 6 (5 altas y 1 moderada), entre ellas next 16.3.6. Evidencia: docs/evidencias/fase2/calidad/05-pip-audit.txt y 06-npm-audit.txt. El informe de la Fase 2 lo declara como deuda con plazo el 2026-11-01.",
-      "owner_session": null
+      "owner_session": "FD"
     },
     {
       "id": "CHORE-2026-10-19-04",
