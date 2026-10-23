@@ -4,7 +4,7 @@ python-dotenv==1.2.3
 sqlalchemy==2.0.54
 psycopg[binary]==3.3.6
 bcrypt==5.0.0
-PyJWT==2.14.0
+PyJWT==2.15.0
 email-validator==2.3.0
 openai==3.19.0
 msal==1.39.0
