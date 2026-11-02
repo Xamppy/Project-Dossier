@@ -1259,7 +1259,7 @@
       "id": "S4.10",
       "sprint": 4,
       "title": "Implementar la tabla y el servicio de registro de auditoria",
-      "status": "pending",
+      "status": "claimed",
       "owner": "FD",
       "area": "db",
       "activity": "A8",
@@ -1274,9 +1274,10 @@
         "S6.7"
       ],
       "trello": "https://trello.com/c/3wVUVam1",
-      "branch": null,
+      "branch": "docmac",
       "evidence": [],
-      "notes": "Migracion.md:821-824 ya define el diseño de campos de auditoría (verbo HTTP + recurso, tipo de recurso: dossier/contact/user/billing/api_key). Partir de ese diseño en vez de diseñar de cero."
+      "notes": "Migracion.md:821-824 ya define el diseño de campos de auditoría (verbo HTTP + recurso, tipo de recurso: dossier/contact/user/billing/api_key). Partir de ese diseño en vez de diseñar de cero.",
+      "owner_session": "FD"
     },
     {
       "id": "S5.1",
