@@ -142,7 +142,66 @@ REFRESH_TOKEN_PATCHES = (
 )
 
 
+# S4.10: `audit_logs` viene de la línea base (Migracion.md, sección 13) y nadie la usaba.
+# Su comentario exige "NUNCA actualizar ni eliminar"; Migracion.md lo dejaba a permisos de
+# roles de la base, que el despliegue no configura. Esta regla lo hace cumplir en la base.
+# Única excepción: que la base deje en NULL el usuario o la organización al borrarlos
+# (ON DELETE SET NULL), para no impedir el borrado de cuentas. El CREATE TABLE cubre bases
+# sin la línea base; lo reutiliza la migración e8b1f4a6c2d9.
+AUDIT_LOG_PATCHES = (
+    """
+    CREATE TABLE IF NOT EXISTS audit_logs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        user_role_at_time VARCHAR(20),
+        organization_id UUID REFERENCES organizations(id) ON DELETE SET NULL,
+        action VARCHAR(100) NOT NULL,
+        resource_type VARCHAR(50),
+        resource_id UUID,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        ip_address INET,
+        user_agent TEXT,
+        http_status SMALLINT,
+        success BOOLEAN NOT NULL DEFAULT TRUE,
+        error_message TEXT,
+        request_data JSONB,
+        duration_ms INTEGER,
+        log_hash VARCHAR(64)
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_logs (user_id, created_at DESC);",
+    "CREATE INDEX IF NOT EXISTS idx_audit_org ON audit_logs (organization_id, created_at DESC);",
+    "CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_logs (resource_type, resource_id);",
+    """
+    CREATE OR REPLACE FUNCTION audit_logs_inmutable() RETURNS trigger AS $$
+    BEGIN
+        IF TG_OP = 'UPDATE'
+           AND (NEW.user_id IS NOT DISTINCT FROM OLD.user_id OR NEW.user_id IS NULL)
+           AND (NEW.organization_id IS NOT DISTINCT FROM OLD.organization_id OR NEW.organization_id IS NULL)
+           AND (to_jsonb(NEW) - 'user_id' - 'organization_id')
+               = (to_jsonb(OLD) - 'user_id' - 'organization_id') THEN
+            RETURN NEW;
+        END IF;
+        RAISE EXCEPTION 'audit_logs es de solo inserción (S4.10): % no permitido', TG_OP;
+    END;
+    $$ LANGUAGE plpgsql;
+    """,
+    "DROP TRIGGER IF EXISTS trg_audit_logs_inmutable ON audit_logs;",
+    """
+    CREATE TRIGGER trg_audit_logs_inmutable
+        BEFORE UPDATE OR DELETE ON audit_logs
+        FOR EACH ROW EXECUTE FUNCTION audit_logs_inmutable();
+    """,
+)
+
+
 def apply_schema_patches(engine: Engine) -> None:
     with engine.begin() as conn:
-        for sql in _PATCHES + DOSSIER_ENTITIES_PATCHES + JOB_QUEUE_PATCHES + REFRESH_TOKEN_PATCHES:
+        for sql in (
+            _PATCHES
+            + DOSSIER_ENTITIES_PATCHES
+            + JOB_QUEUE_PATCHES
+            + REFRESH_TOKEN_PATCHES
+            + AUDIT_LOG_PATCHES
+        ):
             conn.execute(text(sql))

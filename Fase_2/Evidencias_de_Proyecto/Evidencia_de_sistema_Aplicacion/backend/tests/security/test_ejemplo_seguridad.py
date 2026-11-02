@@ -132,10 +132,62 @@ def test_pasada_la_ventana_la_api_vuelve_a_aceptar():
 # Auditoría — S4.10 y S6.6
 # --------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="Se habilita con S4.10 — registro de auditoría")
 def test_leer_un_dossier_deja_registro_de_auditoria():
-    """Con actor, organización, recurso e instante."""
-    raise NotImplementedError
+    """Con actor, organización, recurso e instante. Habilitada con S4.10.
+
+    Sin Postgres: una sesión falsa recoge lo que el middleware registra. El flujo
+    completo contra la base está en tests/integration/test_audit_log_flujo.py.
+    """
+    import uuid
+
+    from fastapi.testclient import TestClient
+
+    from dossier.api.app import app
+    from dossier.api.auth_routes import get_db_if_configured
+    from dossier.db.models import AuditLog
+
+    registrados: list = []
+
+    class SesionQueRecoge:
+        def add(self, obj):
+            registrados.append(obj)
+
+        def flush(self):
+            pass
+
+        def commit(self):
+            pass
+
+        def rollback(self):
+            pass
+
+        def close(self):
+            pass
+
+        def get(self, *_args, **_kwargs):
+            return None
+
+    def _db():
+        yield SesionQueRecoge()
+
+    usuario, organizacion, dossier = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    token = create_access_token(
+        user_id=str(usuario), email="persona@ejemplo.cl", organization_id=str(organizacion), role="user"
+    )
+    app.dependency_overrides[get_db_if_configured] = _db
+    try:
+        TestClient(app, raise_server_exceptions=False).get(
+            f"/dossiers/{dossier}", headers={"Authorization": f"Bearer {token}"}
+        )
+    finally:
+        app.dependency_overrides.pop(get_db_if_configured, None)
+
+    auditoria = [r for r in registrados if isinstance(r, AuditLog)]
+    assert len(auditoria) == 1
+    fila = auditoria[0]
+    assert (fila.user_id, fila.organization_id) == (usuario, organizacion)
+    assert (fila.resource_type, fila.resource_id) == ("dossier", dossier)
+    assert fila.created_at is not None
 
 
 @pytest.mark.skip(reason="Se habilita con S6.6")

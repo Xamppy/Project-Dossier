@@ -124,6 +124,7 @@ Copia `.env.example` a `.env` en `backend/`. Las que necesitas para trabajar:
 |---|---|
 | `DATABASE_URL` | PostgreSQL |
 | `JWT_SECRET` | Firma de tokens. Mínimo 16 caracteres o la API no arranca |
+| `AUDIT_LOG_HMAC_KEY` | Firma de `audit_logs.log_hash` (S4.10). Opcional: si falta usa `JWT_SECRET` |
 | `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | Vigencia del token de acceso. Por omisión 15 (S3.9) |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | Vigencia de una sesión con «Recuérdame» (1 a 90; 30 por omisión). Cookie HttpOnly `dossier_refresh` (S3.9) |
 | `AUTH_REFRESH_COOKIE_SECURE` · `AUTH_REFRESH_COOKIE_SAMESITE` | Atributos de esa cookie: `1` y `strict` por omisión (S3.9) |

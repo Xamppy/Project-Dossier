@@ -23,6 +23,7 @@ from sqlalchemy import (
     Index,
     Integer,
     Numeric,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -145,6 +146,50 @@ class RefreshToken(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class AuditLog(Base):
+    """Registro de auditoría de solo inserción (S4.10). Diseño: Migracion.md, sección 13.
+
+    La tabla viene de la línea base; aquí solo se describe. Una regla en la base
+    (``trg_audit_logs_inmutable``) impide modificar o borrar filas, salvo que la base
+    deje en NULL el usuario o la organización al borrarlos (``ON DELETE SET NULL``).
+    """
+
+    __tablename__ = "audit_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    # WHO
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    user_role_at_time: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True
+    )
+    # WHAT
+    action: Mapped[str] = mapped_column(String(100), nullable=False)
+    resource_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    resource_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    # WHEN
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    # WHERE
+    ip_address: Mapped[str | None] = mapped_column(INET, nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # RESULT
+    http_status: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    success: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Datos adicionales
+    request_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    log_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class OrgMembership(Base):

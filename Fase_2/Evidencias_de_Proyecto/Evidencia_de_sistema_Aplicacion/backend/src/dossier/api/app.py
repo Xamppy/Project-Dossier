@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from starlette.requests import Request
 
 from dossier.api.admin_routes import router as admin_router
+from dossier.api.audit_middleware import AuditMiddleware
 from dossier.api.auth_routes import (
     OrgAuthContext,
     auth_payload_and_user,
@@ -162,6 +163,8 @@ _cors_settings = build_cors_settings(os.environ)
 _cors_origins = _cors_settings.origins
 _cors_origin_regex = _cors_settings.origin_regex
 app.add_middleware(CORSMiddleware, **_cors_settings.middleware_kwargs())
+# S4.10: toda lectura y generación de dossier queda en audit_logs (api/audit_middleware.py).
+app.add_middleware(AuditMiddleware)
 
 app.include_router(auth_router)
 app.include_router(admin_router)

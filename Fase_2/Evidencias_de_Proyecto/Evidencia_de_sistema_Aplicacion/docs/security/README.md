@@ -5,13 +5,13 @@ objetivo OE8 se van cerrando.
 
 ## Estado de los cuatro controles comprometidos
 
-El objetivo específico 8 compromete cuatro controles. **Solo uno existe.**
+El objetivo específico 8 compromete cuatro controles. Existen dos (control de acceso y auditoría).
 
 | Control | Estado | Tarea | Evidencia |
 |---|---|---|---|
 | Control de acceso | **implementado** | — | JWT firmado, RBAC con roles admin/user/viewer, aislamiento por organización, pruebas en `test_rbac.py` |
 | Limitación de tasa | **ausente** | S5.8 | No hay slowapi ni middleware equivalente |
-| Registro de auditoría | **ausente** | S4.10, S6.6 | No hay tabla ni servicio |
+| Registro de auditoría | **implementado** (lectura y generación) | S4.10; S6.6 suma correos y borrados por retención | `audit_logs` de solo inserción y firmada; ver «Sin rastro de acceso a datos personales» |
 | Retención de 24 h con borrado verificado | **diverge** | S6.5 | Hoy 7 a 90 días, sin verificación de borrado |
 
 ## Hallazgos abiertos
@@ -30,14 +30,6 @@ verificado**. Hoy el mínimo es 7 días y el borrado no se verifica: solo se eje
 
 **Cierra en:** S6.5.
 
-### Sin rastro de acceso a datos personales
-
-El sistema trata datos de personas identificables (PDL, Lusha, registros corporativos, prensa)
-y no registra quién accedió a qué. Las coincidencias de «audit» en el código son texto de
-instrucciones al modelo y un comentario.
-
-**Cierra en:** S4.10, y se extiende en S6.6 a envíos de correo y borrados por retención.
-
 ### Rutas legadas
 
 `backend/src/dossier/security/legacy_routes.py` con `assert_legacy_route_allowed()`, controlado
@@ -47,6 +39,36 @@ por `DOSSIER_ENABLE_LEGACY_OPEN_ROUTES`. Están bien acotadas y hay prueba
 **Cierra en:** S1.6. Mantén la variable apagada mientras tanto.
 
 ## Hallazgos cerrados
+
+### Sin rastro de acceso a datos personales — cerrado en S4.10 (S6.6 lo extiende)
+
+Antes, el sistema trataba datos de personas identificables (PDL, Lusha, registros
+corporativos, prensa) sin registrar quién accedía a qué. La tabla `audit_logs` existía desde
+la línea base (Migracion.md, sección 13) pero nadie la usaba.
+
+Ahora, con el diseño de Migracion.md (WHO, WHAT, WHEN, WHERE, RESULT):
+
+- **Toda lectura y generación de dossier** queda registrada por el middleware
+  `api/audit_middleware.py`: listar y ver dossiers y carpetas, compartir, borrar, generar
+  (corporativo, personas y calendario) y consultar los jobs. Acción = verbo + plantilla de la
+  ruta (`GET /dossiers/{dossier_id}`); recurso = el id. **También los intentos fallidos**
+  (401, 403, 404, 500), por ejemplo leer un dossier de otra organización.
+- La generación en segundo plano también: el trabajador de la cola (`JOB person_manual`,
+  `JOB calendar_manual`) y la automatización del calendario (`AUTO calendar_automation`).
+- **Solo inserción**: el trigger `trg_audit_logs_inmutable` rechaza UPDATE y DELETE. Única
+  excepción: la base deja en NULL el usuario o la organización al borrarlos (`ON DELETE SET
+  NULL`), para no impedir el borrado de cuentas.
+- **Firma**: `log_hash` es un HMAC-SHA256 con `AUDIT_LOG_HMAC_KEY` (o `JWT_SECRET`); una fila
+  alterada sin la clave no verifica (`services/audit_log.verify_log_hash`).
+- **Sin datos personales**: `request_data` guarda solo parámetros de consulta, con correos,
+  nombres, teléfonos y tokens ocultos, e ids de los dossiers generados; nunca su contenido.
+- Si escribir el registro falla, la respuesta al usuario no cambia (queda en el log).
+
+Pruebas: `tests/test_audit_log.py`, `tests/integration/test_audit_log_flujo.py`,
+`tests/integration/test_audit_log_migracion.py`, `tests/security/test_audit_log_seguridad.py`
+y `tests/stress/test_audit_log_estres.py`.
+
+**Pendiente en S6.6:** envíos de correo (depende de S6.1) y borrados por retención (S6.5).
 
 ### Token de acceso de 7 días en `localStorage` — cerrado en S3.9
 
