@@ -333,3 +333,105 @@ def progreso():
     finally:
         registro.removeHandler(descartes)
     assert descartes.registros == [], f"el coordinador descartó cambios: {descartes.registros}"
+
+
+@pytest.fixture
+def servidor_smtp(monkeypatch):
+    """Servidor SMTP mínimo en loopback (S5.6): sin TLS ni login, como Mailpit.
+
+    Deja las variables ``SMTP_*`` apuntando a él y guarda cada mensaje recibido:
+
+        servidor_smtp.mensajes[0]["Subject"]
+        servidor_smtp.mensajes[0].get_body(("html",)).get_content()
+
+    ``servidor_smtp.mudo = True`` acepta la conexión y no responde nunca (tiempo agotado);
+    ``servidor_smtp.rechazar = True`` responde 550 al destinatario.
+    """
+    import email
+    import socketserver
+    import threading
+    import time
+    from email import policy
+
+    class Estado:
+        def __init__(self):
+            self.mensajes: list = []
+            self.sobres: list[dict] = []
+            self.conexiones = 0
+            self.mudo = False
+            self.rechazar = False
+            self.lock = threading.Lock()
+
+    estado = Estado()
+
+    class Manejador(socketserver.StreamRequestHandler):
+        def _enviar(self, linea: str) -> None:
+            self.wfile.write(linea.encode() + b"\r\n")
+
+        def handle(self):
+            with estado.lock:
+                estado.conexiones += 1
+            if estado.mudo:
+                time.sleep(3)
+                return
+            self._enviar("220 localhost ESMTP pruebas")
+            sobre: dict = {"from": None, "to": []}
+            while True:
+                linea = self.rfile.readline()
+                if not linea:
+                    return
+                orden = linea.decode(errors="replace").strip()
+                verbo = orden.split(" ", 1)[0].upper()
+                if verbo == "EHLO":
+                    self._enviar("250-localhost")
+                    self._enviar("250 8BITMIME")
+                elif verbo == "HELO":
+                    self._enviar("250 localhost")
+                elif verbo == "MAIL":
+                    sobre = {"from": orden[10:].strip("<> "), "to": []}
+                    self._enviar("250 OK")
+                elif verbo == "RCPT":
+                    if estado.rechazar:
+                        self._enviar("550 buzón inexistente")
+                        continue
+                    sobre["to"].append(orden[8:].strip("<> "))
+                    self._enviar("250 OK")
+                elif verbo == "DATA":
+                    self._enviar("354 fin con <CRLF>.<CRLF>")
+                    crudo = []
+                    while True:
+                        parte = self.rfile.readline()
+                        if parte in (b".\r\n", b".\n", b""):
+                            break
+                        crudo.append(parte[1:] if parte.startswith(b"..") else parte)
+                    with estado.lock:
+                        estado.mensajes.append(
+                            email.message_from_bytes(b"".join(crudo), policy=policy.default)
+                        )
+                        estado.sobres.append(sobre)
+                    self._enviar("250 OK en cola")
+                elif verbo == "QUIT":
+                    self._enviar("221 adiós")
+                    return
+                else:
+                    self._enviar("250 OK")
+
+    class Servidor(socketserver.ThreadingTCPServer):
+        daemon_threads = True
+        allow_reuse_address = True
+
+    servidor = Servidor(("127.0.0.1", 0), Manejador)
+    hilo = threading.Thread(target=servidor.serve_forever, daemon=True)
+    hilo.start()
+    monkeypatch.setenv("SMTP_HOST", "127.0.0.1")
+    monkeypatch.setenv("SMTP_PORT", str(servidor.server_address[1]))
+    monkeypatch.setenv("SMTP_SECURITY", "none")
+    monkeypatch.setenv("SMTP_FROM_EMAIL", "dossier@example.com")
+    monkeypatch.setenv("SMTP_TIMEOUT_SECONDS", "5")
+    monkeypatch.delenv("SMTP_USERNAME", raising=False)
+    monkeypatch.delenv("SMTP_PASSWORD", raising=False)
+    try:
+        yield estado
+    finally:
+        servidor.shutdown()
+        servidor.server_close()
