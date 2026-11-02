@@ -264,3 +264,46 @@ def test_fraccion_de_segundo_redondea_hacia_arriba():
     d.email_sent_at = datetime(2026, 11, 2, 12, 0, 0, tzinfo=UTC)
 
     assert dossier_email.resend_wait_seconds(d, now=datetime(2026, 11, 2, 12, 0, 59, 500_000, tzinfo=UTC)) == 1
+
+
+# --- S6.1 · PDF adjunto (CA26) ---
+
+
+def test_el_correo_adjunta_el_pdf_y_lo_menciona():
+    correo = build_dossier_email(_dossier(), language=None, dossier_url=URL)
+
+    (adjunto,) = correo.attachments
+    assert adjunto.filename == "dossier-ana-prueba.pdf"
+    assert adjunto.mime_type == "application/pdf"
+    assert adjunto.content.startswith(b"%PDF-")
+    nota = "Adjuntamos el dossier en PDF para que lo consultes sin entrar a la plataforma."
+    assert nota in correo.html
+    assert nota in correo.text
+
+
+def test_la_nota_del_adjunto_va_en_el_idioma_del_dossier():
+    correo = build_dossier_email(_dossier(), language="en", dossier_url=URL)
+
+    assert "The dossier is attached as a PDF so you can read it without signing in." in correo.html
+
+
+def test_si_el_pdf_falla_el_correo_sale_igual_sin_adjunto_ni_nota(monkeypatch, caplog):
+    def falla(*_a, **_k):
+        raise RuntimeError("ReportLab caído")
+
+    monkeypatch.setattr(dossier_email, "render_dossier_pdf", falla)
+
+    with caplog.at_level("WARNING", logger="dossier.services.dossier_email"):
+        correo = build_dossier_email(_dossier(), language=None, dossier_url=URL)
+
+    assert correo.attachments == ()
+    assert "Adjuntamos" not in correo.html
+    assert "<h2>Resumen ejecutivo</h2>" in correo.html
+    assert any("PDF" in r.getMessage() for r in caplog.records)
+
+
+def test_send_dossier_email_entrega_el_pdf(enviados):
+    send_dossier_email(_dossier(), recipient="ana@example.com")
+
+    (adjunto,) = enviados[0]["attachments"]
+    assert adjunto.filename == "dossier-ana-prueba.pdf"

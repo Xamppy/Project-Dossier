@@ -23,7 +23,16 @@ logger = logging.getLogger(__name__)
 
 ASUNTO_MAXIMO = 200
 ASUNTO_POR_OMISION = "Project Dossier"
+# Gmail rechaza mensajes de más de 25 MB, y base64 suma un tercio: 18 MB de adjuntos es el techo.
+ADJUNTOS_MAXIMO_BYTES = 18 * 1024 * 1024
 _SEGURIDADES = ("starttls", "ssl", "none")
+
+
+@dataclass(frozen=True)
+class EmailAttachment:
+    filename: str
+    content: bytes
+    mime_type: str
 
 
 class EmailNotConfiguredError(RuntimeError):
@@ -105,7 +114,29 @@ def _validar_destinatarios(to: list[str]) -> list[str]:
     return validos
 
 
-def _armar_mensaje(cfg: _SmtpConfig, to: list[str], subject: str, text: str, html: str) -> EmailMessage:
+def _validar_adjuntos(adjuntos: list[EmailAttachment]) -> None:
+    if sum(len(a.content) for a in adjuntos) > ADJUNTOS_MAXIMO_BYTES:
+        raise ValueError("Los adjuntos superan el tamaño máximo del correo.")
+    for a in adjuntos:
+        tipo, _, subtipo = a.mime_type.partition("/")
+        if not tipo or not subtipo:
+            raise ValueError("Tipo de adjunto inválido.")
+
+
+def _nombre_adjunto(nombre: str) -> str:
+    """Solo el nombre, en una línea: un cliente de correo no debe ver rutas ni cabeceras."""
+    base = nombre.replace("\\", "/").rsplit("/", 1)[-1]
+    return " ".join(_limpiar_asunto(base).split()) if base.strip() else "adjunto"
+
+
+def _armar_mensaje(
+    cfg: _SmtpConfig,
+    to: list[str],
+    subject: str,
+    text: str,
+    html: str,
+    adjuntos: list[EmailAttachment],
+) -> EmailMessage:
     msg = EmailMessage()
     msg["Subject"] = _limpiar_asunto(subject)
     msg["From"] = formataddr((cfg.from_name, cfg.from_email))
@@ -114,16 +145,29 @@ def _armar_mensaje(cfg: _SmtpConfig, to: list[str], subject: str, text: str, htm
     msg["Message-ID"] = make_msgid(domain=cfg.from_email.rpartition("@")[2] or None)
     msg.set_content(text)
     msg.add_alternative(html, subtype="html")
+    for a in adjuntos:
+        tipo, _, subtipo = a.mime_type.partition("/")
+        msg.add_attachment(a.content, maintype=tipo, subtype=subtipo, filename=_nombre_adjunto(a.filename))
     return msg
 
 
-def send_email(*, to: list[str], subject: str, text: str, html: str) -> None:
-    """Entrega un mensaje ``multipart/alternative`` (texto + HTML) o lanza un error claro."""
+def send_email(
+    *,
+    to: list[str],
+    subject: str,
+    text: str,
+    html: str,
+    attachments: list[EmailAttachment] | None = None,
+) -> None:
+    """Entrega texto + HTML (``multipart/alternative``) y, si hay adjuntos, los suma en un
+    ``multipart/mixed``. Lanza un error claro si no puede."""
     destinatarios = _validar_destinatarios(to)
+    adjuntos = list(attachments or [])
+    _validar_adjuntos(adjuntos)
     cfg = _config()
     if not _configurada(cfg):
         raise EmailNotConfiguredError("El envío por correo no está configurado (SMTP_USERNAME / SMTP_PASSWORD).")
-    msg = _armar_mensaje(cfg, destinatarios, subject, text, html)
+    msg = _armar_mensaje(cfg, destinatarios, subject, text, html, adjuntos)
 
     conexion: smtplib.SMTP
     try:

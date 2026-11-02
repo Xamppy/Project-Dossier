@@ -2,7 +2,7 @@
 Correo del dossier (S5.7) y su envío con registro en ``dossiers`` (S6.1).
 
 El correo lleva el informe **completo** (``dossier_data.body``) convertido de Markdown a HTML,
-más una versión en texto plano. El HTML crudo del informe se escapa: viene del LLM y de fuentes
+más una versión en texto plano y el PDF del dossier adjunto (``dossier_pdf``). El HTML crudo del informe se escapa: viene del LLM y de fuentes
 externas, y en un correo no hay CSP que lo contenga.
 """
 from __future__ import annotations
@@ -19,7 +19,8 @@ from markdown_it import MarkdownIt
 from sqlalchemy.orm import Session
 
 from dossier.db.models import Dossier
-from dossier.services.email_service import send_email
+from dossier.services.dossier_pdf import dossier_pdf_filename, render_dossier_pdf
+from dossier.services.email_service import EmailAttachment, send_email
 from dossier.services.output_language import normalize_output_language
 from dossier.utils.html_text import strip_html_to_plain_line
 
@@ -38,6 +39,7 @@ _TEXTOS: dict[str, dict[str, str]] = {
         "ready": "Tu dossier está listo",
         "intro": "Este es el dossier completo de {name} generado en Project Dossier.",
         "open": "Abrir en Project Dossier",
+        "attached": "Adjuntamos el dossier en PDF para que lo consultes sin entrar a la plataforma.",
         "footer": (
             "Este correo contiene información confidencial sobre una persona. "
             "No lo reenvíes fuera de tu organización."
@@ -48,6 +50,7 @@ _TEXTOS: dict[str, dict[str, str]] = {
         "ready": "Your dossier is ready",
         "intro": "This is the complete dossier on {name} generated in Project Dossier.",
         "open": "Open in Project Dossier",
+        "attached": "The dossier is attached as a PDF so you can read it without signing in.",
         "footer": (
             "This email contains confidential information about a person. "
             "Do not forward it outside your organization."
@@ -58,6 +61,7 @@ _TEXTOS: dict[str, dict[str, str]] = {
         "ready": "O seu dossiê está pronto",
         "intro": "Este é o dossiê completo de {name} gerado no Project Dossier.",
         "open": "Abrir no Project Dossier",
+        "attached": "Segue em anexo o dossiê em PDF para o consultar sem entrar na plataforma.",
         "footer": (
             "Este e-mail contém informação confidencial sobre uma pessoa. "
             "Não o reencaminhe para fora da sua organização."
@@ -68,6 +72,7 @@ _TEXTOS: dict[str, dict[str, str]] = {
         "ready": "Il tuo dossier è pronto",
         "intro": "Questo è il dossier completo su {name} generato in Project Dossier.",
         "open": "Apri in Project Dossier",
+        "attached": "In allegato trovi il dossier in PDF da consultare senza accedere alla piattaforma.",
         "footer": (
             "Questa email contiene informazioni riservate su una persona. "
             "Non inoltrarla al di fuori della tua organizzazione."
@@ -78,6 +83,7 @@ _TEXTOS: dict[str, dict[str, str]] = {
         "ready": "Votre dossier est prêt",
         "intro": "Voici le dossier complet sur {name} généré dans Project Dossier.",
         "open": "Ouvrir dans Project Dossier",
+        "attached": "Le dossier est joint en PDF pour le consulter sans vous connecter.",
         "footer": (
             "Cet e-mail contient des informations confidentielles sur une personne. "
             "Ne le transférez pas en dehors de votre organisation."
@@ -88,6 +94,7 @@ _TEXTOS: dict[str, dict[str, str]] = {
         "ready": "Ihr Dossier ist fertig",
         "intro": "Dies ist das vollständige Dossier zu {name}, erstellt in Project Dossier.",
         "open": "In Project Dossier öffnen",
+        "attached": "Das Dossier ist als PDF angehängt, damit Sie es ohne Anmeldung lesen können.",
         "footer": (
             "Diese E-Mail enthält vertrauliche Informationen über eine Person. "
             "Leiten Sie sie nicht außerhalb Ihrer Organisation weiter."
@@ -117,6 +124,7 @@ class DossierEmail:
     subject: str
     text: str
     html: str
+    attachments: tuple[EmailAttachment, ...] = ()
 
 
 def _frontend_base_url() -> str:
@@ -147,10 +155,13 @@ def build_dossier_email(dossier: Dossier, *, language: str | None, dossier_url: 
     t = _TEXTOS[lang]
     nombre = strip_html_to_plain_line(dossier.subject_name, max_len=255) or t["untitled"]
     intro = t["intro"].format(name=nombre)
+    adjuntos = _pdf_adjunto(dossier, lang)
+    nota = [t["attached"]] if adjuntos else []
 
     text = "\n\n".join(
-        [t["ready"], intro, f"{t['open']}: {dossier_url}", "-" * 40, body, "-" * 40, t["footer"]]
+        [t["ready"], intro, *nota, f"{t['open']}: {dossier_url}", "-" * 40, body, "-" * 40, t["footer"]]
     )
+    nota_html = f'<p style="margin:0 0 16px;">{html.escape(nota[0])}</p>\n' if nota else ""
     html_doc = f"""<!DOCTYPE html>
 <html lang="{lang}">
 <head>
@@ -164,7 +175,7 @@ def build_dossier_email(dossier: Dossier, *, language: str | None, dossier_url: 
 <div class="tarjeta">
 <p style="font-size:18px;font-weight:bold;margin:0 0 8px;">{html.escape(t["ready"])}</p>
 <p style="margin:0 0 16px;">{html.escape(intro)}</p>
-<p style="margin:0 0 24px;"><a class="boton" href="{html.escape(dossier_url, quote=True)}">{html.escape(t["open"])}</a></p>
+{nota_html}<p style="margin:0 0 24px;"><a class="boton" href="{html.escape(dossier_url, quote=True)}">{html.escape(t["open"])}</a></p>
 <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 16px;">
 <div class="informe">
 {_MARKDOWN.render(body)}
@@ -175,7 +186,18 @@ def build_dossier_email(dossier: Dossier, *, language: str | None, dossier_url: 
 </body>
 </html>
 """
-    return DossierEmail(subject=f"Dossier: {nombre}", text=text, html=html_doc)
+    return DossierEmail(subject=f"Dossier: {nombre}", text=text, html=html_doc, attachments=adjuntos)
+
+
+def _pdf_adjunto(dossier: Dossier, lang: str) -> tuple[EmailAttachment, ...]:
+    """El PDF del dossier, o nada si no se pudo generar: el correo sale igual con el informe
+    completo en el cuerpo."""
+    try:
+        pdf = render_dossier_pdf(dossier, language=lang)
+    except Exception as exc:  # noqa: BLE001 - el PDF es accesorio: nunca impide el correo
+        logger.warning("No se pudo generar el PDF del dossier %s: %s", dossier.id, exc)
+        return ()
+    return (EmailAttachment(dossier_pdf_filename(dossier), pdf, "application/pdf"),)
 
 
 def resend_wait_seconds(dossier: Dossier, *, now: datetime) -> int:
@@ -194,7 +216,13 @@ def send_dossier_email(dossier: Dossier, *, recipient: str, language: str | None
     if dossier.status != "complete":
         raise ValueError("Solo se envían dossiers completos.")
     correo = build_dossier_email(dossier, language=language, dossier_url=dossier_detail_url(dossier.id))
-    send_email(to=[recipient], subject=correo.subject, text=correo.text, html=correo.html)
+    send_email(
+        to=[recipient],
+        subject=correo.subject,
+        text=correo.text,
+        html=correo.html,
+        attachments=list(correo.attachments),
+    )
     dossier.email_sent = True
     dossier.email_sent_at = datetime.now(UTC)
     dossier.email_recipients = list(dict.fromkeys([*(dossier.email_recipients or []), recipient]))

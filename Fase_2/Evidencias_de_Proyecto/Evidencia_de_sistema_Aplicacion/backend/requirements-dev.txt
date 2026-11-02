@@ -2,6 +2,8 @@
 pytest==9.1.1
 pytest-cov==7.1.0
 httpx==0.28.1
+# Leer de vuelta el PDF del dossier en las pruebas (S6.1)
+pypdf==6.20.1
 
 # Análisis estático (tarea S1.2)
 ruff==0.16.8

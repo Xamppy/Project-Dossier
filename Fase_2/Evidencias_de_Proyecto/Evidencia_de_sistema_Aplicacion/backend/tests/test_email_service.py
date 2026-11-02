@@ -12,6 +12,7 @@ import pytest
 
 from dossier.services import email_service
 from dossier.services.email_service import (
+    EmailAttachment,
     EmailDeliveryError,
     EmailNotConfiguredError,
     email_delivery_available,
@@ -278,4 +279,45 @@ def test_asunto_vacio_usa_uno_por_omision(gmail, smtp):
 def test_destinatarios_invalidos_no_abren_conexion(gmail, smtp, destino):
     with pytest.raises(ValueError):
         _enviar(to=destino)
+    assert smtp.instancias == []
+
+
+# --- S6.1 · Adjuntos (CA26) ---
+
+
+def test_adjunto_convierte_el_mensaje_en_mixed_y_conserva_texto_y_html(gmail, smtp):
+    _enviar(attachments=[EmailAttachment("dossier-ana.pdf", b"%PDF-1.4 contenido", "application/pdf")])
+
+    msg = smtp.instancias[0].mensajes[0]
+    assert msg.get_content_type() == "multipart/mixed"
+    assert msg.get_body(("html",)).get_content().strip() == "<p>Informe en HTML</p>"
+    assert msg.get_body(("plain",)).get_content().strip() == "Informe en texto"
+    (adjunto,) = list(msg.iter_attachments())
+    assert adjunto.get_content_type() == "application/pdf"
+    assert adjunto.get_filename() == "dossier-ana.pdf"
+    assert adjunto.get_content() == b"%PDF-1.4 contenido"
+
+
+@pytest.mark.parametrize(
+    ("nombre", "limpio"),
+    [("../../etc/passwd.pdf", "passwd.pdf"), ("a\r\nb.pdf", "a b.pdf"), ("", "adjunto"), ("   ", "adjunto")],
+)
+def test_nombre_del_adjunto_sin_rutas_ni_saltos(gmail, smtp, nombre, limpio):
+    _enviar(attachments=[EmailAttachment(nombre, b"x", "application/pdf")])
+
+    (adjunto,) = list(smtp.instancias[0].mensajes[0].iter_attachments())
+    assert adjunto.get_filename() == limpio
+
+
+def test_adjuntos_que_pasan_el_limite_no_abren_conexion(gmail, smtp):
+    grande = EmailAttachment("grande.pdf", b"0" * (email_service.ADJUNTOS_MAXIMO_BYTES + 1), "application/pdf")
+
+    with pytest.raises(ValueError):
+        _enviar(attachments=[grande])
+    assert smtp.instancias == []
+
+
+def test_tipo_de_adjunto_invalido_se_rechaza(gmail, smtp):
+    with pytest.raises(ValueError):
+        _enviar(attachments=[EmailAttachment("x.pdf", b"x", "pdf")])
     assert smtp.instancias == []
