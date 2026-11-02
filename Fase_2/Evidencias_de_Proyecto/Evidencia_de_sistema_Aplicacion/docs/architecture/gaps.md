@@ -165,6 +165,18 @@ El modelo de datos está preparado desde el principio y el comportamiento no exi
 Se diseñó y nunca se implementó. **S0.8** debería revisar ese diseño antes de elegir proveedor:
 puede que la decisión ya esté tomada y solo falte ejecutarla.
 
+### Avance (2026-11-02)
+
+S5.6, S5.7 y S6.1 están implementadas en `feat/S6.1-envio-dossier-correo`, a la espera de
+revisión:
+
+- Gmail SMTP con contraseña de aplicación (`services/email_service.py`).
+- Plantilla con el dossier completo (`services/dossier_email.py`).
+- Envío automático al terminar un job de Personas y envío manual con `POST /dossiers/{id}/email`.
+
+Siguen abiertas S6.2 a S6.4 (enlace de un solo uso, automatización desde el calendario,
+reintentos). Detalle en `specs/proposals/S6.1-envio-dossier-correo.md`.
+
 ---
 
 ## Resumen
