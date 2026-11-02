@@ -26,7 +26,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
 
@@ -39,6 +39,8 @@ _CLAVES_PERSONALES = ("email", "name", "phone", "password", "token", "secret", "
 _CLAVES_EXACTAS = frozenset({"q", "query", "search", "company", "subject", "nombre", "empresa", "correo"})
 
 _CAMPOS_FIRMADOS = (
+    # El id ata la firma a la fila: copiar un registro válido como fila nueva no verifica.
+    "id",
     "action",
     "resource_type",
     "resource_id",
@@ -103,7 +105,7 @@ def _normalizar(campo: str, valor: Any) -> Any:
         return None
     if campo == "created_at" and isinstance(valor, datetime):
         return valor.astimezone(UTC).isoformat(timespec="microseconds")
-    if campo in ("resource_id", "ip_address"):
+    if campo in ("id", "resource_id", "ip_address"):
         return str(valor)
     return valor
 
@@ -127,6 +129,7 @@ def _corto(texto: str | None, limite: int) -> str | None:
 def record(db: Session, event: AuditEvent, *, now: datetime | None = None) -> AuditLog:
     """Agrega un registro firmado. No hace commit (lo decide quien llama)."""
     fila = AuditLog(
+        id=uuid4(),  # antes de firmar: el id entra en la firma
         user_id=event.user_id,
         user_role_at_time=_corto(event.user_role, 20),
         organization_id=event.organization_id,

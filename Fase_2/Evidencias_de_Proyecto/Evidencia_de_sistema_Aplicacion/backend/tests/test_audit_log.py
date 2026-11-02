@@ -202,3 +202,15 @@ def test_ids_de_dossiers_guardados_sin_la_carpeta():
     }
     assert al.saved_dossier_ids(guardados) == ["a", "b", "c"]
     assert al.saved_dossier_ids(None) == []
+
+
+def test_la_firma_incluye_el_id_de_la_fila():
+    """Dos eventos idénticos en el mismo instante (reloj grueso de Windows) firman distinto,
+    y una copia de un registro válido con otro id no verifica."""
+    a = _campos(id=uuid.uuid4())
+    b = _campos(id=uuid.uuid4())
+    assert al.compute_log_hash(a) != al.compute_log_hash(b)
+
+    a["log_hash"] = al.compute_log_hash(a)
+    copia = {**a, "id": uuid.uuid4()}
+    assert al.verify_log_hash(copia) is False
