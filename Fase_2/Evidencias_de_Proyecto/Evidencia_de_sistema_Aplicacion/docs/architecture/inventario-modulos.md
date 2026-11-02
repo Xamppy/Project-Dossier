@@ -14,7 +14,7 @@
 | `api/app.py` | FastAPI application, middleware CORS, ciclo de vida (workers) | Funcional; CORS excesivamente permisivo en desarrollo (`*`) | Corregir CORS en S3.8; registrar rutas SSE en S4.8. |
 | `api/routes/auth_routes.py` | Registro, login, cambio de contraseña, me | Funcional; token 7 días en localStorage | Reducir expiración de access token a 15m con refresh token en S3.9. |
 | `api/routes/dossier_routes.py` | CRUD de dossiers, reintento, exportación | Funcional; opera con JSONB sin validar | Conectar validador Pydantic en S4.1 y stream en S4.8. |
-| `api/routes/organization_routes.py` | Gestión de orgs, miembros e invitaciones | Funcional con aislamiento multi-tenant | Mantener; agregar pruebas negativas de seguridad en S6.7. |
+| `api/routes/organization_routes.py` | Gestión de orgs, miembros e invitaciones | Funcional con aislamiento multi-tenant | Mantener; pruebas negativas de aislamiento en `tests/security/test_aislamiento_organizaciones.py` (S6.7). |
 | `services/person_research_pipeline.py` | Pipeline de investigación de personas (PDL + LLM) | Persiste Markdown bajo clave `gemini_analysis_markdown` | Desacoplar shim Gemini (S1.6), emitir JSON estructurado (S4.2). |
 | `services/calendar_automation_worker.py` | Worker en segundo plano de sincronización de eventos | Funcional; busca reuniones cada 60s | Conectar generación automática de dossiers y envío de correo (S6.1). |
 | `services/dossier_generation_worker.py` | Worker asíncrono que procesa la cola de dossiers | Funcional; procesa tareas pendientes | Emitir eventos progresivos a Redis/SSE en S4.8. |

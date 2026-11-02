@@ -20,7 +20,6 @@ from dossier.security.jwt_tokens import (
     decode_access_token,
 )
 
-
 # --------------------------------------------------------------------------
 # Control de acceso — implementado
 # --------------------------------------------------------------------------
@@ -98,20 +97,10 @@ def test_vigencia_del_token_de_acceso_es_corta(monkeypatch):
 #   2. Autentica como la organización A
 #   3. Pide el recurso de la organización B
 #   4. Verifica que la respuesta es 404 o 403, NUNCA el recurso
-
-@pytest.mark.skip(reason="Se habilita con S6.7 — pruebas negativas de aislamiento")
-def test_una_organizacion_no_accede_a_dossiers_de_otra():
-    raise NotImplementedError
-
-
-@pytest.mark.skip(reason="Se habilita con S6.7, tras S4.5")
-def test_una_organizacion_no_accede_a_alertas_ni_prensa_de_otra():
-    raise NotImplementedError
-
-
-@pytest.mark.skip(reason="Se habilita con S6.7, tras S4.10")
-def test_una_organizacion_no_lee_la_auditoria_de_otra():
-    raise NotImplementedError
+#
+# Implementado en S6.7: tests/security/test_aislamiento_organizaciones.py (contra Postgres)
+# y tests/stress/test_aislamiento_organizaciones_estres.py (bajo carga). Las tres pruebas
+# que esperaban aquí viven allá con el mismo nombre.
 
 
 # --------------------------------------------------------------------------

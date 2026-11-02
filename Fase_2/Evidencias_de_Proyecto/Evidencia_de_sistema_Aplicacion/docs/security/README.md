@@ -9,7 +9,7 @@ El objetivo específico 8 compromete cuatro controles. Existen tres (control de 
 
 | Control | Estado | Tarea | Evidencia |
 |---|---|---|---|
-| Control de acceso | **implementado** | — | JWT firmado, RBAC con roles admin/user/viewer, aislamiento por organización, pruebas en `test_rbac.py` |
+| Control de acceso | **implementado** | S6.7 verifica el aislamiento | JWT firmado, RBAC con roles admin/user/viewer, aislamiento por organización; pruebas en `test_rbac.py` y `test_aislamiento_organizaciones.py` |
 | Limitación de tasa | **implementado** | S5.8 | 429 con `Retry-After` en autenticación y generación; ver «Sin limitación de tasa» |
 | Registro de auditoría | **implementado** (lectura y generación) | S4.10; S6.6 suma correos y borrados por retención | `audit_logs` de solo inserción y firmada; ver «Sin rastro de acceso a datos personales» |
 | Retención de 24 h con borrado verificado | **diverge** | S6.5 | Hoy 7 a 90 días, sin verificación de borrado |
@@ -155,8 +155,35 @@ Pruebas: `tests/test_cors_config.py`, `tests/integration/test_cors_politica.py`,
 
 ## Verificación
 
-Pruebas de seguridad y aislamiento: **S6.7** y **S6.8**. Hasta entonces, lo único que cubre este
-frente es `test_rbac.py`.
+### Aislamiento entre organizaciones (S6.7)
+
+Pruebas negativas contra Postgres: no comprueban que algo funcione, sino que algo **no** sea
+posible. Se ataca con el administrador de la organización A —si él no llega a B, nadie de A
+llega— y se exige:
+
+- **404 en todo id de B**, en las 13 rutas que reciben un id (dossier, carpeta, compartición,
+  trabajo, canal de progreso, miembros, invitaciones), tanto al leer como al modificar o borrar.
+- **La misma respuesta que un id inexistente**: la API no revela que el recurso existe en otra
+  organización.
+- **Ningún rastro de B** (ids, correos, sujeto, alertas, prensa, trayectoria) en ninguna
+  respuesta ni en los listados de A, y **los datos de B intactos** después de cada intento.
+- El `org_id` y el `role` del token no bastan: la base manda. Un token con la organización de B
+  sin membresía es 403, un rol inflado no da permisos, y quien sale de la organización pierde el
+  acceso aunque su token siga vigente.
+- No se puede cambiar la sesión a una organización ajena, aceptar una invitación de otro correo ni
+  compartir un dossier con alguien de otra organización.
+- Quien pertenece a dos organizaciones solo ve la de su sesión activa.
+- Las alertas, la prensa, la trayectoria y la auditoría no tienen ruta de lectura propia; si alguien
+  agrega una, la prueba falla y obliga a cubrirla. El panel `/admin` es 403 para un admin de empresa.
+- Bajo carga (24 hilos, 6 organizaciones) ninguna respuesta mezcla organizaciones.
+
+Las pruebas se validaron rompiendo a propósito cada control (quitando el filtro por organización
+uno a la vez): 7 de 8 cambios las hacen fallar. El octavo, quitar el filtro al borrar una carpeta,
+no cambia nada porque el servicio vuelve a filtrar por organización (defensa doble).
+
+Archivos: `backend/tests/security/test_aislamiento_organizaciones.py` y
+`backend/tests/stress/test_aislamiento_organizaciones_estres.py`. Incorporarlas a la CI con
+Postgres es **S6.8**.
 
 Auditoría de dependencias (pendiente de S0.3 y S1.4):
 
