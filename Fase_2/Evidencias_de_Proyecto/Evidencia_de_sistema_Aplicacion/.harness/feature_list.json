@@ -1442,7 +1442,7 @@
       "id": "S5.8",
       "sprint": 5,
       "title": "Implementar limitacion de tasa en autenticacion y generacion",
-      "status": "pending",
+      "status": "claimed",
       "owner": "FD",
       "area": "security",
       "activity": "A8",
@@ -1454,9 +1454,10 @@
         "S6.8"
       ],
       "trello": "https://trello.com/c/S6I7pjQn",
-      "branch": null,
+      "branch": "docmac",
       "evidence": [],
-      "notes": ""
+      "notes": "",
+      "owner_session": "FD"
     },
     {
       "id": "S5.9",
