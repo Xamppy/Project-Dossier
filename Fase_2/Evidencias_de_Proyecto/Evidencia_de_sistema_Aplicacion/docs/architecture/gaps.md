@@ -171,8 +171,10 @@ S5.6, S5.7 y S6.1 están implementadas en `feat/S6.1-envio-dossier-correo`, a la
 revisión:
 
 - Gmail SMTP con contraseña de aplicación (`services/email_service.py`).
-- Plantilla con el dossier completo (`services/dossier_email.py`).
-- Envío automático al terminar un job de Personas y envío manual con `POST /dossiers/{id}/email`.
+- Plantilla con el dossier completo (`services/dossier_email.py`) y el PDF adjunto con el formato
+  de la web (`services/dossier_pdf.py`).
+- Envío automático, sin que se pida, al terminar cada job de Personas, y envío manual con
+  `POST /dossiers/{id}/email`.
 
 Siguen abiertas S6.2 a S6.4 (enlace de un solo uso, automatización desde el calendario,
 reintentos). Detalle en `specs/proposals/S6.1-envio-dossier-correo.md`.

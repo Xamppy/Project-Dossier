@@ -1,8 +1,10 @@
 # Envío de dossiers por correo con Gmail
 
-La aplicación envía el dossier **completo** al correo del usuario de dos formas:
+La aplicación envía el dossier **completo**, con un **PDF adjunto**, al correo del usuario de
+dos formas:
 
-- **Automática:** en Personas, casilla «Enviarme el dossier por correo al terminar».
+- **Automática:** cada dossier de Personas, al terminar, se envía solo a quien lo pidió. El
+  formulario lo avisa: «Al terminar, te enviaremos el dossier en PDF a …».
 - **Manual:** en el detalle de un dossier completo, botón «Enviarme por correo».
 
 El correo siempre va a la dirección de quien lo pide. Para pasarle un dossier a un colega se
@@ -82,11 +84,17 @@ levantan su propio servidor SMTP en loopback (fixture `servidor_smtp` en `backen
 | «Este dossier se acaba de enviar» (429) | Hay que esperar 60 s entre dos envíos manuales del mismo dossier |
 | No llega nada y no hay error | Revisa la carpeta de spam. Gmail limita una cuenta personal a unos 500 correos al día |
 | El envío automático no llegó | El job sigue `completed` aunque el correo falle (por diseño). Busca `No se pudo enviar por correo el dossier` en el log y reenvía con el botón |
+| El correo llegó sin PDF | Busca `No se pudo generar el PDF del dossier` en el log. El informe va igual en el cuerpo |
+| En el PDF aparece ■ en lugar de un carácter | Emoji o ideograma: las fuentes estándar del PDF cubren Windows-1252 |
 
 ## 5. Qué contiene el correo
 
 - Asunto `Dossier: <nombre>`, en el idioma del dossier (es, en, pt, it, fr, de).
 - El informe completo en HTML (tablas, listas, enlaces) y una versión en texto plano.
+- **`dossier-<nombre>.pdf` adjunto**, con el formato del detalle web: logo TraceLens, estado,
+  idioma, nombre, fechas, «Informe generado por IA», alertas y «Página n de N». Se lee sin entrar
+  a la plataforma. Lo genera ReportLab (Python puro, sin dependencias del sistema). Si el PDF
+  fallara, el correo sale igual con el informe en el cuerpo.
 - Un enlace al dossier en la aplicación y un pie que lo marca como confidencial.
 
 El correo es una copia que sale del sistema: no se borra con la retención de dossiers. Se aceptó

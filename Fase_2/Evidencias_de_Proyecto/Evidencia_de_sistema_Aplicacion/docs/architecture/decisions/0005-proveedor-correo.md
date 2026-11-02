@@ -58,3 +58,9 @@ envío previo a la reunión (S6.3). Si se retoma la configuración por organizac
 falta `ENCRYPTION_SECRET`.
 
 Contrato: `specs/proposals/S6.1-envio-dossier-correo.md`. Guía: `docs/dev/correo-gmail.md`.
+
+**Revisión del mismo día (tarde).** DG pidió adjuntar el dossier en PDF, con un formato parecido
+al de la web, y que el envío de Personas sea automático. El PDF se genera con **ReportLab**, no con
+WeasyPrint: WeasyPrint necesita Pango y Cairo del sistema, que el runtime Python de Render no
+tiene. ReportLab es Python puro; a cambio, sus fuentes estándar solo cubren Windows-1252. El campo
+`send_email` de la petición se retiró, porque el envío ya no se pide.

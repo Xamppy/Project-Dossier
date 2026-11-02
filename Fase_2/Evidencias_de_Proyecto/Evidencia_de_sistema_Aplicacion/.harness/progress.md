@@ -6,6 +6,40 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-02 (tarde) · S6.1 · PDF adjunto y envío automático · DG (agente)
+
+**Hecho.** A pedido de DG, el correo del dossier lleva el **PDF adjunto**, con el formato del
+detalle web: logo TraceLens, insignias, nombre, fechas, «Informe generado por IA», alertas y
+«Página n de N». El código está en `services/dossier_pdf.py` (ReportLab). El envío de Personas es
+ahora **automático**: el formulario ya no tiene casilla, sino un aviso. El diseño del correo se
+conservó y suma una línea que menciona el adjunto. Empresas y Calendario siguen sin envío
+automático, por decisión de DG.
+
+Pruebas:
+
+- Backend: 1096 passed con Postgres.
+- Frontend: 619 passed.
+- La app real se verificó con un receptor SMTP local, por el envío automático y por el manual.
+
+**Lo que hay que saber.**
+- **ReportLab y no WeasyPrint.** WeasyPrint pide Pango y Cairo del sistema, que el runtime de
+  Render no tiene. Las fuentes estándar de ReportLab cubren Windows-1252: un emoji sale ■, sin
+  romper el PDF.
+- **El PDF nunca impide el correo.** Si falla, el correo sale sin adjunto y queda un `warning`.
+  Una fila de tabla que no cabe en una página se escribe como «encabezado: valor»: ReportLab no
+  parte filas y lanzaría `LayoutError`.
+- **Se retiró `send_email`** de `PersonResearchRequest`, junto con sus pruebas: la del valor por
+  omisión y la de la huella de deduplicación. Pydantic ignora el campo si un cliente viejo lo manda.
+- **Pruebas que leen el PDF.** `pypdf` está en `requirements-dev.txt` para leer el PDF de vuelta.
+  El logo para el PDF es una copia reducida en `src/dossier/assets/tracelens-logo.png`; si cambia
+  el de `frontend/public/`, hay que regenerarla.
+- **Datos de prueba.** En `dossier_local` quedó otro dossier sintético de `qa-s61@example.com`.
+
+**Siguiente paso concreto.** El mismo de la entrada anterior: probar con la cuenta Gmail del
+proyecto, abrir el PR y pedir la revisión.
+
+**Rama.** `feat/S6.1-envio-dossier-correo` · **Estado.** review
+
 ### 2026-11-02 · S5.6 · S5.7 · S6.1 · Envío del dossier por correo (Gmail SMTP) · DG (agente)
 
 **Hecho.** El dossier se puede enviar completo por correo con Gmail SMTP y una contraseña de
