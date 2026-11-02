@@ -1394,7 +1394,7 @@
       "id": "S5.6",
       "sprint": 5,
       "title": "Integrar el proveedor de correo transaccional",
-      "status": "pending",
+      "status": "in_progress",
       "owner": "DG",
       "area": "backend",
       "activity": "A7",
@@ -1409,15 +1409,16 @@
         "S6.1"
       ],
       "trello": "https://trello.com/c/b40uAH4m",
-      "branch": null,
+      "branch": "feat/S6.1-envio-dossier-correo",
       "evidence": [],
-      "notes": "ADR 0005 asume ENCRYPTION_SECRET como 'clave maestra del entorno' para cifrar credenciales SMTP. Esa variable NO existe hoy (ni en código ni en .env.example). Hay que crearla y decidir gestión/rotación antes de implementar."
+      "notes": "ADR 0005 asume ENCRYPTION_SECRET como 'clave maestra del entorno' para cifrar credenciales SMTP. Esa variable NO existe hoy (ni en código ni en .env.example). Hay que crearla y decidir gestión/rotación antes de implementar.",
+      "owner_session": "DG (agente)"
     },
     {
       "id": "S5.7",
       "sprint": 5,
       "title": "Construir la plantilla de correo del dossier",
-      "status": "pending",
+      "status": "in_progress",
       "owner": "DG",
       "area": "frontend",
       "activity": "A7",
@@ -1431,9 +1432,9 @@
         "S6.1"
       ],
       "trello": "https://trello.com/c/Y6TyljD1",
-      "branch": null,
+      "branch": "feat/S6.1-envio-dossier-correo",
       "evidence": [],
-      "notes": ""
+      "notes": "Implementada junto con S5.6 en la misma rama, a pedido de DG (envío de punta a punta con Gmail SMTP)."
     },
     {
       "id": "S5.8",
@@ -1503,7 +1504,7 @@
       "id": "S6.1",
       "sprint": 6,
       "title": "Implementar el envio del dossier por correo al completarse la generacion",
-      "status": "pending",
+      "status": "in_progress",
       "owner": "DG",
       "area": "backend",
       "activity": "A7",
@@ -1521,9 +1522,9 @@
         "S6.6"
       ],
       "trello": "https://trello.com/c/byxrDl6m",
-      "branch": null,
+      "branch": "feat/S6.1-envio-dossier-correo",
       "evidence": [],
-      "notes": ""
+      "notes": "Implementada junto con S5.6 en la misma rama, a pedido de DG (envío de punta a punta con Gmail SMTP)."
     },
     {
       "id": "S6.2",
