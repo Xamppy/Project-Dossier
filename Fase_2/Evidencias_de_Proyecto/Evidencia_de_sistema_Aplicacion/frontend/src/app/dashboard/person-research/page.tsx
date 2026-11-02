@@ -74,7 +74,6 @@ function PersonResearchPageContent() {
   const [extraKeywords, setExtraKeywords] = useState("");
   const [maxProfiles, setMaxProfiles] = useState(1);
   const [replaceDossierId, setReplaceDossierId] = useState<string | null>(null);
-  const [sendEmail, setSendEmail] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
@@ -186,7 +185,6 @@ function PersonResearchPageContent() {
     if (ex) payload.extra_keywords = ex;
     if (forceRefresh) payload.force_refresh = true;
     if (replaceDossierId) payload.replace_dossier_id = replaceDossierId;
-    if (sendEmail && emailAvailable) payload.send_email = true;
     return payload;
   }
 
@@ -417,22 +415,14 @@ function PersonResearchPageContent() {
             </div>
 
             {emailAvailable ? (
-              <label className="flex items-start gap-2.5 text-sm" style={{ color: "var(--text-secondary)" }}>
-                <input
-                  type="checkbox"
-                  name="send_email"
-                  className="mt-0.5 h-4 w-4 shrink-0"
-                  checked={sendEmail}
-                  onChange={(e) => setSendEmail(e.target.checked)}
-                  disabled={isGenerating}
-                />
-                <span>
-                  <span className="block font-medium">{t("person_research.send_email_label")}</span>
-                  <span className="block text-xs" style={{ color: "var(--text-muted)" }}>
-                    {t("person_research.send_email_hint", { email: me?.email ?? "" })}
-                  </span>
-                </span>
-              </label>
+              // S6.1: el backend envía el dossier con su PDF al terminar, sin que se pida.
+              <p className="flex items-start gap-2 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mt-px h-4 w-4 shrink-0" aria-hidden="true">
+                  <rect x="3" y="5" width="18" height="14" rx="2" />
+                  <polyline points="3 7 12 13 21 7" />
+                </svg>
+                <span>{t("person_research.email_auto_note", { email: me?.email ?? "" })}</span>
+              </p>
             ) : null}
 
             {error ? <p className="text-sm text-red-400">{error}</p> : null}

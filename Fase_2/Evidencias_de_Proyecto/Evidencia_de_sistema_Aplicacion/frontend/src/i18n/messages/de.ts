@@ -203,8 +203,7 @@ const messages = {
   "person_research.extra_keywords": "Zusätzliche Stichwörter (freiwillig)",
   "person_research.extra_keywords_ph": "Universität, Branche, Projekt…",
   "person_research.max_profiles": "Profile anreichern (1–5)",
-  "person_research.send_email_label": "Dossier nach Fertigstellung per E-Mail senden",
-  "person_research.send_email_hint": "Sie erhalten es vollständig an {email}.",
+  "person_research.email_auto_note": "Nach Fertigstellung senden wir Ihnen das Dossier als PDF an {email}.",
   "person_research.reveal_contact_details":
     "E-Mail und Telefon in Lusha anzeigen (PDL liefert sie beim Treffer, falls vorhanden)",
   "person_research.submit": "Suchen und analysieren",
@@ -784,7 +783,7 @@ const messages = {
   "dossiers.share_remove": "Zugriff entfernen",
   "dossiers.share_empty": "Dieses Dossier ist mit niemandem geteilt.",
   "dossiers.email_title": "Per E-Mail senden",
-  "dossiers.email_hint": "Wir senden Ihnen das vollständige Dossier an {email}.",
+  "dossiers.email_hint": "Wir senden Ihnen das vollständige Dossier mit PDF an {email}.",
   "dossiers.email_button": "Per E-Mail an mich senden",
   "dossiers.email_sending": "Wird gesendet…",
   "dossiers.email_sent_ok": "Gesendet an {email}.",

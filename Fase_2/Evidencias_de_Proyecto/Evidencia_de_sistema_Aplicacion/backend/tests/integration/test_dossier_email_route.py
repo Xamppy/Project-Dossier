@@ -5,10 +5,12 @@ Requiere ``TEST_DATABASE_URL`` (fixture ``pg_vacia``).
 """
 from __future__ import annotations
 
+import io
 import uuid
 
 import pytest
 from fastapi.testclient import TestClient
+from pypdf import PdfReader
 from sqlalchemy.orm import Session
 
 from alembic import command
@@ -103,6 +105,9 @@ def test_ca13_envia_al_correo_del_usuario_y_lo_registra(mundo, client, servidor_
     (msg,) = servidor_smtp.mensajes
     assert servidor_smtp.sobres[0]["to"] == [mundo.yo.email]
     assert "Ana Prueba dirige Empresa de Prueba SA." in msg.get_body(("html",)).get_content()
+    (adjunto,) = list(msg.iter_attachments())
+    assert adjunto.get_content_type() == "application/pdf"
+    assert "Ana Prueba" in PdfReader(io.BytesIO(adjunto.get_content())).pages[0].extract_text()
     guardado = mundo.leer(d.id)
     assert guardado.email_sent is True
     assert guardado.email_recipients == [mundo.yo.email]
@@ -202,23 +207,21 @@ def test_ca18_auth_me_indica_si_el_envio_esta_disponible(mundo, client, servidor
 # --- Ruta síncrona de Personas ---
 
 
-def test_ruta_sincrona_de_personas_tambien_respeta_send_email(mundo, client, monkeypatch):
+def test_ruta_sincrona_de_personas_tambien_envia_el_dossier(mundo, client, monkeypatch):
     llamadas: list[dict] = []
     resultado = {"saved_dossier": {"id": str(uuid.uuid4()), "status": "complete"}}
     monkeypatch.setattr(dossier_routes, "run_person_research_and_persist", lambda *a, **k: resultado)
     monkeypatch.setattr(
         dossier_routes,
-        "enviar_por_correo_si_se_pidio",
-        lambda db, *, body, result, user: llamadas.append(
-            {"send_email": body.send_email, "result": result, "email": user.email}
-        ),
+        "enviar_dossier_al_solicitante",
+        lambda db, *, result, user: llamadas.append({"result": result, "email": user.email}),
     )
 
     resp = client.post(
         "/dossiers/person/research",
         headers=mundo.token(),
-        json={"full_name": "Ana Prueba", "send_email": True, "replace_dossier_id": str(uuid.uuid4())},
+        json={"full_name": "Ana Prueba", "replace_dossier_id": str(uuid.uuid4())},
     )
 
     assert resp.status_code == 200, resp.text
-    assert llamadas == [{"send_email": True, "result": resultado, "email": mundo.yo.email}]
+    assert llamadas == [{"result": resultado, "email": mundo.yo.email}]

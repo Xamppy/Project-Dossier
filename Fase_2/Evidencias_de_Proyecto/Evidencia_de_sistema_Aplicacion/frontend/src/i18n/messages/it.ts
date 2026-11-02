@@ -200,8 +200,7 @@ const messages = {
   "person_research.extra_keywords": "Parole chiave aggiuntive (facoltative)",
   "person_research.extra_keywords_ph": "Università, settore, progetto…",
   "person_research.max_profiles": "Profili da arricchire (1–5)",
-  "person_research.send_email_label": "Inviami il dossier via email al termine",
-  "person_research.send_email_hint": "Lo riceverai completo all'indirizzo {email}.",
+  "person_research.email_auto_note": "Al termine, ti invieremo il dossier in PDF a {email}.",
   "person_research.reveal_contact_details":
     "Mostra email e telefono in Lusha (PDL li include in caso di corrispondenza)",
   "person_research.submit": "Cerca e analizza",
@@ -778,7 +777,7 @@ const messages = {
   "dossiers.share_remove": "Rimuovi accesso",
   "dossiers.share_empty": "Questo dossier non è condiviso con nessun altro.",
   "dossiers.email_title": "Invia via email",
-  "dossiers.email_hint": "Ti inviamo il dossier completo a {email}.",
+  "dossiers.email_hint": "Ti inviamo il dossier completo, con il PDF, a {email}.",
   "dossiers.email_button": "Inviamelo via email",
   "dossiers.email_sending": "Invio in corso…",
   "dossiers.email_sent_ok": "Inviato a {email}.",

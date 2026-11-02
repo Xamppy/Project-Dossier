@@ -65,7 +65,7 @@ from dossier.services.dossier_folder_utils import (
 )
 from dossier.services.dossier_generation_job_service import (
     enqueue_person_research_job,
-    enviar_por_correo_si_se_pidio,
+    enviar_dossier_al_solicitante,
 )
 from dossier.services.dossier_share_service import (
     dossier_permissions_payload,
@@ -179,7 +179,7 @@ def person_professional_research(
         result = run_person_research_and_persist(db, user=user, org=org, body=body)
     except ValueError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
-    enviar_por_correo_si_se_pidio(db, body=body, result=result, user=user)
+    enviar_dossier_al_solicitante(db, result=result, user=user)
     return result
 
 

@@ -5,12 +5,14 @@ Requiere ``TEST_DATABASE_URL`` (ver ``pg_vacia`` en conftest.py).
 """
 from __future__ import annotations
 
+import io
 import json
 import logging
 import uuid
 from types import SimpleNamespace
 
 import pytest
+from pypdf import PdfReader
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -77,14 +79,13 @@ def base(pg_vacia, alembic_cfg, monkeypatch):
         bus.forget(job_id)
 
 
-def _procesar(base, *, send_email: bool) -> tuple[dict, Dossier | None]:
+def _procesar(base) -> tuple[dict, Dossier | None]:
     pedido = {
         "full_name": "Ana Prueba",
         "company": "Empresa de Prueba SA",
         "email": "ana@empresa.example",
         "research_source": "pdl",
         "max_profiles": 1,
-        "send_email": send_email,
     }
     with Session(base.engine) as db:
         job = DossierGenerationJob(
@@ -114,7 +115,7 @@ def _procesar(base, *, send_email: bool) -> tuple[dict, Dossier | None]:
 def test_ca10_job_completado_envia_el_dossier_completo_al_solicitante(base, servidor_smtp, llm_falso):
     llm_falso(_payload_valido())
 
-    datos, dossier = _procesar(base, send_email=True)
+    datos, dossier = _procesar(base)
 
     assert datos["status"] == "completed"
     (msg,) = servidor_smtp.mensajes
@@ -123,15 +124,20 @@ def test_ca10_job_completado_envia_el_dossier_completo_al_solicitante(base, serv
     html = msg.get_body(("html",)).get_content()
     assert "Ana Prueba dirige Empresa de Prueba SA." in html
     assert f"/dashboard/dossiers/{dossier.id}" in html
+    (adjunto,) = list(msg.iter_attachments())
+    assert adjunto.get_filename() == "dossier-ana-prueba.pdf"
+    pdf = PdfReader(io.BytesIO(adjunto.get_content()))
+    assert "Ana Prueba dirige Empresa de Prueba SA." in " ".join(p.extract_text() for p in pdf.pages)
     assert dossier.email_sent is True
     assert dossier.email_sent_at is not None
     assert dossier.email_recipients == [CORREO_USUARIO]
 
 
-def test_ca11_sin_send_email_no_se_envia(base, servidor_smtp, llm_falso):
+def test_ca11_sin_smtp_configurado_no_se_envia(base, servidor_smtp, llm_falso, monkeypatch):
     llm_falso(_payload_valido())
+    monkeypatch.setenv("SMTP_SECURITY", "starttls")  # exige usuario y contraseña, que no hay
 
-    datos, dossier = _procesar(base, send_email=False)
+    datos, dossier = _procesar(base)
 
     assert datos["status"] == "completed"
     assert servidor_smtp.conexiones == 0
@@ -141,7 +147,7 @@ def test_ca11_sin_send_email_no_se_envia(base, servidor_smtp, llm_falso):
 def test_ca11_job_fallido_no_envia(base, servidor_smtp, monkeypatch):
     monkeypatch.setattr(person_research_service, "deepseek_api_key", lambda: "")
 
-    datos, _ = _procesar(base, send_email=True)
+    datos, _ = _procesar(base)
 
     assert datos["status"] == "failed"
     assert servidor_smtp.conexiones == 0
@@ -152,7 +158,7 @@ def test_ca12_fallo_smtp_no_cambia_el_job_ni_el_dossier(base, servidor_smtp, llm
     servidor_smtp.rechazar = True
 
     with caplog.at_level(logging.WARNING, logger="dossier.services.dossier_email"):
-        datos, dossier = _procesar(base, send_email=True)
+        datos, dossier = _procesar(base)
 
     assert datos["status"] == "completed"
     assert dossier.status == "complete"

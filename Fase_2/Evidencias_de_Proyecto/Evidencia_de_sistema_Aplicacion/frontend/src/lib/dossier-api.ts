@@ -1042,8 +1042,6 @@ export type PersonResearchPayload = {
   force_refresh?: boolean;
   /** Actualiza un dossier existente (misma carpeta de reunión). */
   replace_dossier_id?: string;
-  /** S6.1: al terminar, envía el dossier completo al correo del usuario. */
-  send_email?: boolean;
 };
 
 export type PdlHealthResponse = {

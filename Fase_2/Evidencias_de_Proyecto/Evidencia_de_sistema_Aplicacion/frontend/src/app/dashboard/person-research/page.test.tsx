@@ -719,40 +719,25 @@ describe("Personas · S5.4 avance real y resultados parciales", () => {
   });
 });
 
-describe("Personas · S6.1 envío del dossier por correo", () => {
-  const casilla = () => screen.queryByRole("checkbox", { name: new RegExp(t("person_research.send_email_label")) });
+describe("Personas · S6.1 envío automático del dossier por correo", () => {
+  const aviso = () => screen.queryByText(t("person_research.email_auto_note", { email: "qa@dossier.test" }));
 
-  it("CA19 · con el envío disponible, la casilla muestra el correo y la petición lleva send_email", async () => {
+  it("CA19 · con el envío disponible, avisa que el PDF llegará al correo sin pedir nada", async () => {
     h.emailDisponible = true;
     render(<Pantalla />);
     await settle();
 
-    const marca = await screen.findByRole("checkbox", { name: new RegExp(t("person_research.send_email_label")) });
-    expect(marca).not.toBeChecked();
-    expect(screen.getByText(t("person_research.send_email_hint", { email: "qa@dossier.test" }))).toBeInTheDocument();
-    await userEvent.setup().click(marca);
-    await iniciar(MODOS[0]);
-
-    expect(postsDeInvestigacion()[0].body).toMatchObject({ full_name: "Ada Lovelace", send_email: true });
-  });
-
-  it("CA19 · sin marcar la casilla la petición no lleva send_email", async () => {
-    h.emailDisponible = true;
-    render(<Pantalla />);
-    await settle();
-    await screen.findByRole("checkbox", { name: new RegExp(t("person_research.send_email_label")) });
-
+    await waitFor(() => expect(aviso()).toBeInTheDocument());
+    expect(screen.queryByRole("checkbox")).toBeNull();
     await iniciar(MODOS[0]);
 
     expect(postsDeInvestigacion()[0].body).not.toHaveProperty("send_email");
   });
 
-  it("CA19 · sin envío disponible la casilla no aparece", async () => {
+  it("CA19 · sin envío disponible no aparece el aviso", async () => {
     render(<Pantalla />);
     await settle();
 
-    expect(casilla()).toBeNull();
-    await iniciar(MODOS[0]);
-    expect(postsDeInvestigacion()[0].body).not.toHaveProperty("send_email");
+    expect(aviso()).toBeNull();
   });
 });

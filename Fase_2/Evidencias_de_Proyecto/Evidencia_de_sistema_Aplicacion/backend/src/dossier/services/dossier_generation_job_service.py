@@ -38,6 +38,7 @@ from dossier.services.dossier_job_progress import (
 )
 from dossier.services.dossier_progress_events import event_name_for_status, publish_if_changed
 from dossier.services.dossier_progress_model import person_scope
+from dossier.services.email_service import email_delivery_available
 from dossier.services.google_calendar_api import obtener_reunion_google_por_id
 from dossier.services.google_calendar_token import get_google_calendar_access_token_for_user
 from dossier.services.graph_calendar import merge_reunion_payload, obtener_reunion_por_id
@@ -446,17 +447,18 @@ def _process_person_manual_job(db: Session, job: DossierGenerationJob) -> None:
     logger.info("Job persona %s %s (subject=%s)", job.id, job.status, body.full_name[:80])
     # Después del commit: un fallo de correo no puede cambiar el resultado del job (S6.1).
     if job.status == "completed":
-        enviar_por_correo_si_se_pidio(db, body=body, result=result, user=user)
+        enviar_dossier_al_solicitante(db, result=result, user=user)
 
 
-def enviar_por_correo_si_se_pidio(
-    db: Session, *, body: PersonResearchRequest, result: dict[str, Any], user: User
-) -> None:
-    """Envía el dossier recién generado a quien lo pidió, si marcó ``send_email`` (S6.1)."""
+def enviar_dossier_al_solicitante(db: Session, *, result: dict[str, Any], user: User) -> None:
+    """Envía el dossier de Personas recién generado, con su PDF, a quien lo pidió (S6.1).
+
+    Siempre que la instancia tenga SMTP: el usuario no lo pide.
+    """
     saved = result.get("saved_dossier") or {}
-    if not body.send_email or saved.get("status") != "complete" or not saved.get("id"):
+    if saved.get("status") != "complete" or not saved.get("id"):
         return
-    if not (user.email or "").strip():
+    if not (user.email or "").strip() or not email_delivery_available():
         return
     deliver_dossier_after_generation(db, dossier_id=saved["id"], recipient=user.email)
 
