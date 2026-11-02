@@ -1641,7 +1641,7 @@
       "id": "S6.7",
       "sprint": 6,
       "title": "Pruebas negativas de aislamiento entre organizaciones",
-      "status": "pending",
+      "status": "claimed",
       "owner": "FD",
       "area": "quality",
       "activity": "A9",
@@ -1654,9 +1654,10 @@
       ],
       "blocks": [],
       "trello": "https://trello.com/c/kbGIl5Hl",
-      "branch": null,
+      "branch": "docmac",
       "evidence": [],
-      "notes": ""
+      "notes": "",
+      "owner_session": "FD"
     },
     {
       "id": "S6.8",
