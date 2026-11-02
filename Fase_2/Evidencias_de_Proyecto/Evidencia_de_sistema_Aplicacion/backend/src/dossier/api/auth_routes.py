@@ -75,6 +75,12 @@ from dossier.schemas.org_invite import (
 )
 from dossier.security import create_access_token, hash_password, refresh_tokens, verify_password
 from dossier.security.jwt_tokens import decode_access_token
+from dossier.security.rate_limit import (
+    LOGIN_FAILURE_LIMITER,
+    email_key,
+    limit_auth,
+    too_many_requests,
+)
 from dossier.security.rbac import can_manage_organization, can_mutate_dossiers, normalize_org_role
 from dossier.services.account_service import (
     change_user_email,
@@ -527,7 +533,7 @@ def get_current_user(
     return user
 
 
-@router.post("/register", response_model=TokenResponse)
+@router.post("/register", response_model=TokenResponse, dependencies=[Depends(limit_auth)])
 def register_user(
     body: RegisterRequest,
     request: Request,
@@ -645,7 +651,7 @@ def register_user(
     )
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=TokenResponse, dependencies=[Depends(limit_auth)])
 def login_user(
     body: LoginRequest,
     request: Request,
@@ -654,13 +660,18 @@ def login_user(
 ) -> TokenResponse:
     _require_jwt_secret()
     email_norm = body.email.lower().strip()
+    # S5.8: demasiados fallos para este correo → 429, aunque la clave sea correcta.
+    clave_fallos = email_key(email_norm)
+    espera = LOGIN_FAILURE_LIMITER.check(clave_fallos)
+    if espera is not None:
+        raise too_many_requests(espera)
     user = db.execute(select(User).where(User.email == email_norm)).scalar_one_or_none()
 
     generic = "Email o contraseña incorrectos."
-    if user is None or not user.password_hash:
+    if user is None or not user.password_hash or not verify_password(body.password, user.password_hash):
+        LOGIN_FAILURE_LIMITER.hit(clave_fallos)
         raise HTTPException(status_code=401, detail=generic)
-    if not verify_password(body.password, user.password_hash):
-        raise HTTPException(status_code=401, detail=generic)
+    LOGIN_FAILURE_LIMITER.clear(clave_fallos)
 
     pair = load_session_membership(db, user.id)
     if not pair:
@@ -690,7 +701,7 @@ def login_user(
     )
 
 
-@router.post("/refresh", response_model=TokenResponse)
+@router.post("/refresh", response_model=TokenResponse, dependencies=[Depends(limit_auth)])
 def refresh_session_with_cookie(
     request: Request,
     response: Response,
@@ -858,17 +869,28 @@ def switch_active_organization(
 
 
 def _clear_and_set_primary_org(db: Session, user_id: UUID, organization_id: UUID) -> None:
+    """Deja ``organization_id`` como la única organización principal del usuario.
+
+    Primero se desmarca la anterior y se envía a la base; recién después se marca la
+    nueva. En un solo flush SQLAlchemy ordena los UPDATE por id (aleatorio) y, si la
+    nueva iba primero, el índice único parcial ``idx_memberships_primary_org`` lo
+    rechazaba: ``/auth/session/switch`` respondía 500 de forma intermitente.
+    """
     rows = db.execute(
         select(OrgMembership).where(OrgMembership.user_id == user_id)
     ).scalars().all()
     for row in rows:
-        should_be_primary = row.organization_id == organization_id
-        if row.is_primary_org != should_be_primary:
-            row.is_primary_org = should_be_primary
+        if row.is_primary_org and row.organization_id != organization_id:
+            row.is_primary_org = False
+            db.add(row)
+    db.flush()
+    for row in rows:
+        if row.organization_id == organization_id and not row.is_primary_org:
+            row.is_primary_org = True
             db.add(row)
 
 
-@router.post("/forgot-password", response_model=ForgotPasswordResponse)
+@router.post("/forgot-password", response_model=ForgotPasswordResponse, dependencies=[Depends(limit_auth)])
 def forgot_password(
     body: ForgotPasswordRequest,
     db: Session = Depends(get_db_if_configured),

@@ -1015,7 +1015,8 @@ const messages = {
   "backend.error_locale_unsupported": "Locale non supportato.",
   "backend.error_plan_depth":
     "Il tuo piano non consente questa profondità di dossier. Passa a Pro o Enterprise.",
-  "errors.server_generic": "Errore del server. Riprova più tardi.",
+  "errors.server_generic": "Errore del server. Riprova più tardi.",
+  "errors.rate_limited": "Troppi tentativi. Attendi {seconds} secondi e riprova.",
   "errors.generation_failed": "Impossibile generare il report. Riprova più tardi.",
   "errors.service_unavailable": "Un servizio dati non è temporaneamente disponibile.",
   "common.loading": "Caricamento…",

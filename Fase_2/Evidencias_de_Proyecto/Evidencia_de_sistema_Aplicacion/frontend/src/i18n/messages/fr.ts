@@ -1020,7 +1020,8 @@ const messages = {
   "backend.error_locale_unsupported": "Locale non prise en charge.",
   "backend.error_plan_depth":
     "Votre forfait n'autorise pas cette profondeur de dossier. Passez à Pro ou Enterprise.",
-  "errors.server_generic": "Erreur serveur. Veuillez réessayer plus tard.",
+  "errors.server_generic": "Erreur serveur. Veuillez réessayer plus tard.",
+  "errors.rate_limited": "Trop de tentatives. Patientez {seconds} secondes puis réessayez.",
   "errors.generation_failed": "Le rapport n'a pas pu être généré. Veuillez réessayer plus tard.",
   "errors.service_unavailable": "Un service de données est temporairement indisponible.",
   "common.loading": "Chargement…",

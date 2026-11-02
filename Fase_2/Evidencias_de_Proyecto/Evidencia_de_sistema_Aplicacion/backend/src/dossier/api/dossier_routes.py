@@ -49,6 +49,7 @@ from dossier.schemas.dossier_generation import (
 )
 from dossier.schemas.dossier_share import DossierShareCreate
 from dossier.schemas.person_research import PersonResearchRequest
+from dossier.security.rate_limit import limit_generation
 from dossier.security.rbac import normalize_org_role
 from dossier.services.calendar_event_dossiers import calendar_meeting_summary_from_dossier_data
 from dossier.services.corporate_company_search import search_corporate_company_candidates
@@ -128,7 +129,7 @@ def corporate_company_search(
     return search_corporate_company_candidates(q)
 
 
-@router.post("/dossiers/person/research")
+@router.post("/dossiers/person/research", dependencies=[Depends(limit_generation)])
 def person_professional_research(
     body: PersonResearchRequest,
     ctx: Annotated[OrgAuthContext, Depends(require_mutator)],
@@ -177,7 +178,7 @@ def empresa_objetivo_de_solicitud(body: CreateCorporateDossierRequest) -> str:
     return body.resolution.title if body.resolution is not None else body.subject_query
 
 
-@router.post("/dossiers/corporate/generate")
+@router.post("/dossiers/corporate/generate", dependencies=[Depends(limit_generation)])
 def generate_corporate_dossier(
     body: CreateCorporateDossierRequest,
     ctx: Annotated[OrgAuthContext, Depends(require_mutator)],

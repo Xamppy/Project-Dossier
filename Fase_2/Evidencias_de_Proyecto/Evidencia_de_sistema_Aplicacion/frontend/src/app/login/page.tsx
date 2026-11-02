@@ -16,6 +16,7 @@ import {
   persistAuthToken,
   writeDossierUserPreview,
 } from "@/lib/dossier-api";
+import { translateApiError } from "@/lib/translate-api-error";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
 const REMEMBER_PREF_KEY = "dossier_login_remember";
@@ -146,6 +147,7 @@ export default function LoginPage() {
       if (e instanceof DossierApiError) {
         if (e.isMixedContentBlocked()) setFormError(t("auth.error.mixed_content"));
         else if (e.isNetworkError()) setFormError(t("auth.error.network"));
+        else if (e.status === 429) setFormError(translateApiError(e, t)); // S5.8
         else setFormError(e.message || t("auth.error.server"));
       } else {
         setFormError(t("auth.error.server"));

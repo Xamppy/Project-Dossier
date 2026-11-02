@@ -118,14 +118,41 @@ def test_una_organizacion_no_lee_la_auditoria_de_otra():
 # Limitación de tasa — S5.8
 # --------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="Se habilita con S5.8 — limitación de tasa")
-def test_superado_el_umbral_la_api_responde_429():
-    raise NotImplementedError
+def _post_refresh_sin_db(veces: int) -> list[int]:
+    from fastapi.testclient import TestClient
+
+    from dossier.api.app import app
+    from dossier.api.auth_routes import get_db_if_configured
+
+    def _sin_db():
+        yield None
+
+    app.dependency_overrides[get_db_if_configured] = _sin_db
+    try:
+        cliente = TestClient(app, raise_server_exceptions=False)
+        return [cliente.post("/auth/refresh").status_code for _ in range(veces)]
+    finally:
+        app.dependency_overrides.pop(get_db_if_configured, None)
 
 
-@pytest.mark.skip(reason="Se habilita con S5.8")
-def test_pasada_la_ventana_la_api_vuelve_a_aceptar():
-    raise NotImplementedError
+def test_superado_el_umbral_la_api_responde_429(monkeypatch):
+    """Habilitada con S5.8."""
+    monkeypatch.setenv("AUTH_RATE_LIMIT", "2/60")
+    assert _post_refresh_sin_db(3) == [401, 401, 429]
+
+
+def test_pasada_la_ventana_la_api_vuelve_a_aceptar(monkeypatch):
+    """Habilitada con S5.8. El reloj del limitador se adelanta en vez de esperar un minuto."""
+    from dossier.security import rate_limit as rl
+
+    ahora = [1000.0]
+    monkeypatch.setattr(rl, "_reloj", lambda: ahora[0])
+    monkeypatch.setenv("AUTH_RATE_LIMIT", "1/60")
+    assert _post_refresh_sin_db(2) == [401, 429]
+
+    ahora[0] += 61
+
+    assert _post_refresh_sin_db(1) == [401]
 
 
 # --------------------------------------------------------------------------

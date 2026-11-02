@@ -36,6 +36,7 @@ from dossier.db.models import OAuthAccount, Organization, OrgMembership, User
 from dossier.org_workspace import ORG_NAME_PERSONAL_PLACEHOLDER
 from dossier.security import create_access_token
 from dossier.security.jwt_tokens import _secret
+from dossier.security.rate_limit import limit_auth
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +136,7 @@ def resolver_usuario_google(
     return user, pair[0], pair[1]
 
 
-@router.get("/login")
+@router.get("/login", dependencies=[Depends(limit_auth)])
 def google_login_inicio(request: Request) -> RedirectResponse:
     credenciales = _credenciales()
     if credenciales is None:

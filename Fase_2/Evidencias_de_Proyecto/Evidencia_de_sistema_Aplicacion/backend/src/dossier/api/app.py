@@ -67,6 +67,7 @@ from dossier.security.jwt_tokens import (
     decode_google_oauth_state,
     decode_microsoft_oauth_state,
 )
+from dossier.security.rate_limit import limit_generation
 from dossier.services import listar_reuniones, obtener_reunion_por_id
 from dossier.services.calendar_automation_worker import start_calendar_automation_thread
 from dossier.services.calendar_event_dossiers import (
@@ -1134,8 +1135,8 @@ def _resolve_google_reuniones(
     return listar_reuniones_google(token, top=top, dias_adelante=90)
 
 
-@app.get("/calendario/generar-dossiers", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES)
-@app.get("/calendario/generar-dossiers-outlook", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES)
+@app.get("/calendario/generar-dossiers", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES, dependencies=[Depends(limit_generation)])
+@app.get("/calendario/generar-dossiers-outlook", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES, dependencies=[Depends(limit_generation)])
 def api_generar_dossiers_desde_calendario(
     ctx: Annotated[OrgAuthContext, Depends(require_mutator)],
     top: int = Query(5, ge=1, le=10, description="Máximo de reuniones a procesar con IA"),
@@ -1186,8 +1187,8 @@ def api_generar_dossiers_desde_calendario(
     }
 
 
-@app.post("/calendario/generar-dossiers", tags=["Calendario"])
-@app.post("/calendario/generar-dossiers-outlook", tags=["Calendario"])
+@app.post("/calendario/generar-dossiers", tags=["Calendario"], dependencies=[Depends(limit_generation)])
+@app.post("/calendario/generar-dossiers-outlook", tags=["Calendario"], dependencies=[Depends(limit_generation)])
 def api_generar_dossiers_desde_calendario_post(
     ctx: Annotated[OrgAuthContext, Depends(require_mutator)],
     body: CalendarGenerarDossiersBody,
@@ -1256,7 +1257,7 @@ def api_generar_dossiers_desde_calendario_post(
     }
 
 
-@app.get("/calendario/generar-dossiers-google", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES)
+@app.get("/calendario/generar-dossiers-google", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES, dependencies=[Depends(limit_generation)])
 def api_generar_dossiers_desde_google_calendar(
     ctx: Annotated[OrgAuthContext, Depends(require_mutator)],
     top: int = Query(5, ge=1, le=10, description="Máximo de eventos a procesar con IA"),
@@ -1307,7 +1308,7 @@ def api_generar_dossiers_desde_google_calendar(
     }
 
 
-@app.post("/calendario/generar-dossiers-google", tags=["Calendario"])
+@app.post("/calendario/generar-dossiers-google", tags=["Calendario"], dependencies=[Depends(limit_generation)])
 def api_generar_dossiers_desde_google_calendar_post(
     ctx: Annotated[OrgAuthContext, Depends(require_mutator)],
     body: CalendarGenerarDossiersBody,

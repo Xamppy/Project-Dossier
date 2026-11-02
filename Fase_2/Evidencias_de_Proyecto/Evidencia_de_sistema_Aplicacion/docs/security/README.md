@@ -5,12 +5,12 @@ objetivo OE8 se van cerrando.
 
 ## Estado de los cuatro controles comprometidos
 
-El objetivo específico 8 compromete cuatro controles. Existen dos (control de acceso y auditoría).
+El objetivo específico 8 compromete cuatro controles. Existen tres (control de acceso, limitación de tasa y auditoría).
 
 | Control | Estado | Tarea | Evidencia |
 |---|---|---|---|
 | Control de acceso | **implementado** | — | JWT firmado, RBAC con roles admin/user/viewer, aislamiento por organización, pruebas en `test_rbac.py` |
-| Limitación de tasa | **ausente** | S5.8 | No hay slowapi ni middleware equivalente |
+| Limitación de tasa | **implementado** | S5.8 | 429 con `Retry-After` en autenticación y generación; ver «Sin limitación de tasa» |
 | Registro de auditoría | **implementado** (lectura y generación) | S4.10; S6.6 suma correos y borrados por retención | `audit_logs` de solo inserción y firmada; ver «Sin rastro de acceso a datos personales» |
 | Retención de 24 h con borrado verificado | **diverge** | S6.5 | Hoy 7 a 90 días, sin verificación de borrado |
 
@@ -39,6 +39,31 @@ por `DOSSIER_ENABLE_LEGACY_OPEN_ROUTES`. Están bien acotadas y hay prueba
 **Cierra en:** S1.6. Mantén la variable apagada mientras tanto.
 
 ## Hallazgos cerrados
+
+### Sin limitación de tasa — cerrado en S5.8
+
+Antes no había límite de peticiones: se podía probar contraseñas sin freno o disparar
+generaciones de dossiers en ráfaga (créditos y cuota de proveedores externos).
+
+Ahora (`security/rate_limit.py`, ventana deslizante en memoria; la API corre con un solo
+proceso, `--workers 1`):
+
+| Variable | Por omisión | Qué limita | Clave |
+|---|---|---|---|
+| `AUTH_RATE_LIMIT` | `20/60` | Inicio de sesión, registro, renovación, recuperación y Google | IP de la conexión |
+| `LOGIN_FAILURE_RATE_LIMIT` | `5/300` | Inicios de sesión **fallidos** (uno correcto los limpia) | Hash del correo |
+| `GENERATION_RATE_LIMIT` | `10/60` | Generación de dossiers (corporativo, personas y calendario) | Usuario del token (IP si no es válido) |
+
+- Formato `N/S` (N peticiones cada S segundos) u `off`. Un valor inválido usa el de omisión.
+- Al superarlo: **HTTP 429**, cabecera `Retry-After` y `detail.code = "rate_limited"`. El
+  dashboard muestra cuántos segundos esperar (`errors.rate_limited`, 7 idiomas).
+- Un rechazo no cuenta como petición. La IP sale de la conexión, no de `X-Forwarded-For`
+  (detrás de Caddy la corrige uvicorn `--proxy-headers`). Las claves están acotadas en
+  memoria aunque un atacante rote IPs.
+- Con varios procesos habría que mover los contadores a Redis.
+
+Pruebas: `tests/test_rate_limit.py`, `tests/integration/test_rate_limit_rutas.py`,
+`tests/security/test_rate_limit_seguridad.py` y `tests/stress/test_rate_limit_estres.py`.
 
 ### Sin rastro de acceso a datos personales — cerrado en S4.10 (S6.6 lo extiende)
 

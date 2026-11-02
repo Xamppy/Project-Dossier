@@ -3,7 +3,7 @@ import type { TranslationKey } from "@/i18n/types";
 import type { DossierApiError } from "@/lib/dossier-api";
 import { toPublicErrorMessage } from "@/lib/public-error-message";
 
-type ApiErrorDetail = { code?: string; domain?: string };
+type ApiErrorDetail = { code?: string; domain?: string; retry_after?: number };
 
 const API_ERROR_CODES: Record<string, TranslationKey> = {
   CORPORATE_EMAIL_REQUIRED: "settings.members.error_corporate_email",
@@ -48,6 +48,11 @@ export function translateApiError(err: DossierApiError, t: TranslateFn): string 
   }
 
   const detail = extractDetail(err.body);
+  // S5.8: límite de solicitudes; el backend dice cuántos segundos esperar.
+  if (err.status === 429 || detail?.code === "rate_limited") {
+    const seconds = typeof detail?.retry_after === "number" && detail.retry_after > 0 ? detail.retry_after : 60;
+    return t("errors.rate_limited", { seconds });
+  }
   if (detail?.code) {
     const key = API_ERROR_CODES[detail.code];
     if (key) {
