@@ -992,7 +992,7 @@
       "id": "S3.9",
       "sprint": 3,
       "title": "Reducir la vigencia del token e introducir renovacion",
-      "status": "pending",
+      "status": "claimed",
       "owner": "FD",
       "area": "security",
       "activity": "A8",
@@ -1004,9 +1004,10 @@
         "S6.8"
       ],
       "trello": "https://trello.com/c/JNkEtd4k",
-      "branch": null,
+      "branch": "docmac",
       "evidence": [],
-      "notes": ""
+      "notes": "",
+      "owner_session": "FD"
     },
     {
       "id": "S4.1",
