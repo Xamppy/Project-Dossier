@@ -3,8 +3,11 @@ Política CORS del API (S3.8).
 
 Reglas:
 - Métodos y cabeceras en lista explícita, nunca ``*``.
-- Sin credenciales entre sitios: el dashboard autentica con ``Authorization: Bearer``,
-  no con cookies, así que ``allow_credentials`` queda en ``False``.
+- Credenciales (cookies) solo para los orígenes de la lista explícita ``CORS_ORIGINS``
+  (S3.9: la cookie HttpOnly de renovación). En producción el dashboard y la API comparten
+  dominio y no las necesitan; en desarrollo (``localhost:3000`` → ``localhost:8000``) sí.
+- Con la regla ``*.vercel.app`` activa, **sin** credenciales: cualquier proyecto ajeno en
+  Vercel podría leer respuestas autenticadas por la cookie.
 - Los subdominios ``*.vercel.app`` solo se aceptan si se activa
   ``CORS_ALLOW_VERCEL_APP_REGEX`` de forma explícita.
 
@@ -79,12 +82,17 @@ class CorsSettings:
     origins: list[str]
     origin_regex: str | None
 
+    @property
+    def allow_credentials(self) -> bool:
+        """Credenciales solo si todos los orígenes son explícitos (ni regex ni ``*``)."""
+        return self.origin_regex is None and "*" not in self.origins
+
     def middleware_kwargs(self) -> dict[str, Any]:
         """Argumentos para ``app.add_middleware(CORSMiddleware, **kwargs)``."""
         return {
             "allow_origins": list(self.origins),
             "allow_origin_regex": self.origin_regex,
-            "allow_credentials": False,
+            "allow_credentials": self.allow_credentials,
             "allow_methods": list(ALLOWED_METHODS),
             "allow_headers": list(ALLOWED_HEADERS),
         }

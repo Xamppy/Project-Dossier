@@ -121,6 +121,13 @@ copy .env.local.example .env.local
 Ajusta `NEXT_PUBLIC_API_URL` en `.env.local` si el backend no está en
 `http://127.0.0.1:8000`.
 
+**Sesión (S3.9).** El token de acceso dura 15 minutos y se renueva solo con una cookie
+`HttpOnly` (`SameSite=Strict`). Para que el navegador la envíe, el dashboard y la API deben
+estar en el **mismo host**: usa `NEXT_PUBLIC_API_URL=http://localhost:8000` si abres el
+dashboard en `http://localhost:3000` (con `127.0.0.1` en uno y `localhost` en el otro, la
+sesión vence a los 15 minutos). Si tu `backend/.env` trae `JWT_ACCESS_TOKEN_EXPIRE_MINUTES=10080`
+de antes, cámbialo a `15` o bórralo.
+
 ```powershell
 npm run dev
 ```

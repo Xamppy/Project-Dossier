@@ -68,16 +68,21 @@ def test_token_con_otra_clave_es_rechazado():
         os.environ["JWT_SECRET"] = previo
 
 
-def test_vigencia_del_token_de_acceso_es_corta():
-    """La vigencia por omisión es de 7 días (10080 minutos) y debe bajar.
+def test_vigencia_del_token_de_acceso_es_corta(monkeypatch):
+    """La vigencia por omisión era de 7 días (10080 minutos); S3.9 la bajó a 15.
 
-    Esta prueba documenta el hallazgo de seguridad y **falla a propósito**
-    cuando S3.9 no está hecha. Se quita el `skip` al implementar S3.9: ese es el
-    momento en que pasa a verde y se queda para siempre como red de seguridad.
+    Habilitada con S3.9. Queda como red de seguridad: si alguien vuelve a subir
+    el valor por omisión por encima de 15 minutos, falla.
 
     Ver docs/security/README.md, "Token de acceso de 7 días en localStorage".
     """
-    pytest.skip("Se habilita con S3.9 — reducir vigencia del token e introducir renovación")
+    import jwt
+
+    monkeypatch.delenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", raising=False)
+    token = create_access_token(user_id="u-1", email="persona@ejemplo.cl")
+    claims = jwt.decode(token, options={"verify_signature": False})
+
+    assert claims["exp"] - claims["iat"] <= 15 * 60
 
 
 # --------------------------------------------------------------------------

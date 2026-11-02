@@ -56,8 +56,10 @@ def test_app_real_usa_metodos_y_cabeceras_explicitos():
     assert list(kwargs["allow_headers"]) == list(ALLOWED_HEADERS)
 
 
-def test_app_real_no_envia_credenciales():
-    assert _kwargs_cors_de_la_app_real()["allow_credentials"] is False
+def test_app_real_solo_permite_credenciales_sin_regex_de_vercel():
+    """S3.9: con la configuración de pruebas (lista explícita, sin Vercel) hay credenciales."""
+    kwargs = _kwargs_cors_de_la_app_real()
+    assert kwargs["allow_credentials"] is (kwargs["allow_origin_regex"] is None)
 
 
 def test_preflight_del_dashboard_es_aceptado_para_cada_metodo():
@@ -80,7 +82,7 @@ def test_peticion_simple_del_dashboard_recibe_su_origen():
     r = client.get("/recurso", headers={"Origin": ORIGEN_DASHBOARD})
     assert r.status_code == 200
     assert r.headers["access-control-allow-origin"] == ORIGEN_DASHBOARD
-    assert "access-control-allow-credentials" not in r.headers
+    assert r.headers["access-control-allow-credentials"] == "true"  # S3.9: cookie de renovación
 
 
 def test_origen_configurado_por_variable_es_aceptado():

@@ -110,9 +110,27 @@ def test_regex_personalizada_se_ignora_si_la_bandera_esta_apagada():
     assert s.origin_regex is None
 
 
-def test_kwargs_del_middleware_sin_credenciales_ni_comodines():
+def test_kwargs_del_middleware_sin_comodines():
     kwargs = build_cors_settings({}).middleware_kwargs()
-    assert kwargs["allow_credentials"] is False
     assert list(kwargs["allow_methods"]) == list(ALLOWED_METHODS)
     assert list(kwargs["allow_headers"]) == list(ALLOWED_HEADERS)
     assert "*" not in kwargs["allow_origins"]
+
+
+def test_credenciales_solo_con_origenes_explicitos():
+    """S3.9: la cookie de renovación cruza de localhost:3000 a la API en desarrollo."""
+    assert build_cors_settings({}).middleware_kwargs()["allow_credentials"] is True
+    assert build_cors_settings({"CORS_ORIGINS": "https://dossier.example.cl"}).middleware_kwargs()[
+        "allow_credentials"
+    ] is True
+
+
+def test_sin_credenciales_si_se_activa_la_regex_de_vercel():
+    """Cualquier proyecto ajeno en *.vercel.app podría leer respuestas autenticadas por cookie."""
+    kwargs = build_cors_settings({"CORS_ALLOW_VERCEL_APP_REGEX": "1"}).middleware_kwargs()
+    assert kwargs["allow_credentials"] is False
+
+
+def test_sin_credenciales_si_la_lista_trae_un_comodin():
+    kwargs = build_cors_settings({"CORS_ORIGINS": "*"}).middleware_kwargs()
+    assert kwargs["allow_credentials"] is False

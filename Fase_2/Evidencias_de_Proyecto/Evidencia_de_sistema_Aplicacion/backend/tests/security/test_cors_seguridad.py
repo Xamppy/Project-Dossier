@@ -66,11 +66,32 @@ def test_cabecera_fuera_de_la_lista_es_rechazada():
     assert r.status_code == 400
 
 
-def test_respuestas_no_habilitan_credenciales():
-    """Sin cookies entre sitios: el dashboard autentica con `Authorization: Bearer`."""
-    r = _preflight(_cliente(), ORIGEN_DASHBOARD, "GET", "authorization")
+def test_credenciales_nunca_para_un_origen_desconocido():
+    """S3.9 habilita credenciales para la lista explícita; un origen ajeno no puede leer nada.
+
+    Starlette agrega ``Access-Control-Allow-Credentials: true`` a toda respuesta simple,
+    pero sin ``Access-Control-Allow-Origin`` el navegador bloquea la lectura: esa es la
+    propiedad que importa. El preflight (lo que precede a un POST con JSON) se rechaza.
+    """
+    cliente = _cliente()
+    simple = cliente.get("/recurso", headers={"Origin": "https://atacante.example"})
+    assert "access-control-allow-origin" not in simple.headers
+    assert _preflight(cliente, "https://atacante.example", "POST", "content-type").status_code == 400
+
+
+def test_con_regex_de_vercel_no_hay_credenciales_ni_para_vercel():
+    cliente = _cliente({"CORS_ALLOW_VERCEL_APP_REGEX": "1"})
+    r = _preflight(cliente, "https://otro-proyecto.vercel.app", "GET", "authorization")
     assert r.status_code == 200
     assert "access-control-allow-credentials" not in r.headers
+
+
+def test_con_credenciales_el_origen_nunca_es_comodin():
+    """Con credenciales, `Access-Control-Allow-Origin: *` sería ignorado o peligroso: se devuelve el origen."""
+    r = _preflight(_cliente(), ORIGEN_DASHBOARD, "GET", "authorization")
+    assert r.status_code == 200
+    assert r.headers["access-control-allow-credentials"] == "true"
+    assert r.headers["access-control-allow-origin"] == ORIGEN_DASHBOARD
 
 
 def test_origen_null_es_rechazado():

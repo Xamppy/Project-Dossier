@@ -16,22 +16,6 @@ El objetivo específico 8 compromete cuatro controles. **Solo uno existe.**
 
 ## Hallazgos abiertos
 
-### Token de acceso de 7 días en `localStorage`
-
-`backend/src/dossier/security/jwt_tokens.py:41`
-
-```python
-minutes = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "10080"))  # 7 días por defecto
-```
-
-El token se guarda en `localStorage` (`frontend/src/app/dashboard/DashboardAuthGate.tsx`). Un
-token de larga vida en almacenamiento accesible por script amplía el impacto de cualquier XSS.
-
-Los tokens de restablecimiento y verificación sí usan 15 minutos (`jwt_tokens.py:66` y `:90`):
-el token de acceso es el que queda fuera de esa política.
-
-**Cierra en:** S3.9 — vida corta más renovación.
-
 ### Retención por debajo de lo exigido
 
 `backend/src/dossier/services/dossier_retention.py`
@@ -63,6 +47,35 @@ por `DOSSIER_ENABLE_LEGACY_OPEN_ROUTES`. Están bien acotadas y hay prueba
 **Cierra en:** S1.6. Mantén la variable apagada mientras tanto.
 
 ## Hallazgos cerrados
+
+### Token de acceso de 7 días en `localStorage` — cerrado en S3.9
+
+Antes, el JWT de acceso duraba 7 días (`JWT_ACCESS_TOKEN_EXPIRE_MINUTES=10080`) y se guardaba
+en `localStorage`: un XSS podía llevarse una sesión de una semana.
+
+Ahora:
+
+- El token de acceso dura **15 minutos** (`security/jwt_tokens.py`).
+- La sesión larga la sostiene un **token de renovación opaco** en la cookie `dossier_refresh`:
+  `HttpOnly` (JavaScript no la lee), `Secure`, `SameSite=Strict` y `Path=/auth` (o `/api/auth`
+  detrás de Caddy). Con «Recuérdame» dura `REFRESH_TOKEN_EXPIRE_DAYS` (30); sin él, 12 h y se
+  pierde al cerrar el navegador (`api/refresh_cookie.py`).
+- En la base solo se guarda el **hash SHA-256** (`refresh_tokens.token_hash`).
+- `POST /auth/refresh` **rota** el token en cada uso y conserva el vencimiento original. Un token
+  ya rotado que vuelve dentro de 30 s es una carrera entre pestañas (`refresh_rotated`); fuera de
+  esa ventana es reutilización de un token robado y se **revocan todas** las sesiones del usuario
+  (`refresh_reused`). Usuario desactivado o sin membresía: `refresh_inactive`
+  (`security/refresh_tokens.py`).
+- `POST /auth/logout` revoca el token y borra la cookie. Cambiar de organización mueve la sesión.
+- El dashboard renueva solo ante un 401 y reintenta una vez (`authFetch` en
+  `frontend/src/lib/dossier-api.ts`), también al reabrir el canal SSE.
+- CORS permite credenciales solo para la lista explícita `CORS_ORIGINS`, nunca con la regla de
+  `*.vercel.app` (`api/cors_config.py`).
+
+Pruebas: `tests/test_refresh_tokens.py`, `tests/integration/test_refresh_tokens_flujo.py`,
+`tests/integration/test_refresh_tokens_migracion.py`,
+`tests/security/test_refresh_tokens_seguridad.py`, `tests/stress/test_refresh_tokens_estres.py`
+y `frontend/src/lib/dossier-api.auth-refresh.test.ts`.
 
 ### CORS con métodos abiertos — cerrado en S3.8
 

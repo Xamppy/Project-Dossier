@@ -119,7 +119,30 @@ JOB_QUEUE_PATCHES = (
 )
 
 
+# S3.9: la tabla `refresh_tokens` viene de la línea base (Migracion.md) y no se usaba. La
+# rotación necesita saber cuándo se revocó cada token (ventana de gracia entre pestañas y
+# detección de reutilización), por eso se agrega `revoked_at`. El CREATE TABLE cubre bases
+# que no aplicaron la línea base; lo reutiliza la migración d5a9e3c7f2b8.
+REFRESH_TOKEN_PATCHES = (
+    """
+    CREATE TABLE IF NOT EXISTS refresh_tokens (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        token_hash VARCHAR(255) NOT NULL UNIQUE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        is_revoked BOOLEAN NOT NULL DEFAULT FALSE,
+        ip_address INET,
+        user_agent TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    """,
+    "ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ;",
+    "CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens (user_id);",
+)
+
+
 def apply_schema_patches(engine: Engine) -> None:
     with engine.begin() as conn:
-        for sql in _PATCHES + DOSSIER_ENTITIES_PATCHES + JOB_QUEUE_PATCHES:
+        for sql in _PATCHES + DOSSIER_ENTITIES_PATCHES + JOB_QUEUE_PATCHES + REFRESH_TOKEN_PATCHES:
             conn.execute(text(sql))

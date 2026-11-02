@@ -12,6 +12,7 @@ El JWT incluye `org_id` para multi-tenant en rutas como `GET /dossiers`.
 """
 from __future__ import annotations
 
+import ipaddress
 import os
 import re
 import secrets
@@ -21,12 +22,17 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from jwt.exceptions import PyJWTError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from dossier.api.refresh_cookie import (
+    clear_refresh_cookie,
+    read_refresh_cookie,
+    set_refresh_cookie,
+)
 from dossier.api_errors import INVITES_WORKSPACE_ONLY, OrgApiError, org_api_http_detail
 from dossier.billing.plan_catalog import apply_plan_to_organization
 from dossier.db import is_database_configured
@@ -67,7 +73,7 @@ from dossier.schemas.org_invite import (
     UserOrganizationItem,
     UserOrganizationsResponse,
 )
-from dossier.security import create_access_token, hash_password, verify_password
+from dossier.security import create_access_token, hash_password, refresh_tokens, verify_password
 from dossier.security.jwt_tokens import decode_access_token
 from dossier.security.rbac import can_manage_organization, can_mutate_dossiers, normalize_org_role
 from dossier.services.account_service import (
@@ -155,6 +161,68 @@ def _require_jwt_secret() -> None:
         assert_jwt_secret_configured()
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
+
+
+def _client_ip(request: Request) -> str | None:
+    """IP del cliente si es una dirección válida (la columna es INET)."""
+    host = request.client.host if request.client else None
+    try:
+        return str(ipaddress.ip_address(host)) if host else None
+    except ValueError:
+        return None
+
+
+def open_refreshable_session(
+    db: Session,
+    request: Request,
+    response: Response,
+    *,
+    user_id: UUID,
+    organization_id: UUID,
+    persistent: bool = True,
+) -> None:
+    """S3.9: crea el token de renovación, hace commit y lo deja en la cookie HttpOnly."""
+    now = datetime.now(UTC)
+    raw = refresh_tokens.issue(
+        db,
+        user_id=user_id,
+        organization_id=organization_id,
+        persistent=persistent,
+        ip=_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        now=now,
+    )
+    db.commit()
+    set_refresh_cookie(
+        response,
+        request,
+        raw,
+        refresh_tokens.expiry_for(persistent=persistent, now=now),
+        now=now,
+    )
+
+
+def _move_session_to_org(db: Session, request: Request, response: Response, organization_id: UUID) -> None:
+    """S3.9: al cambiar de organización, la renovación debe seguir a la organización nueva."""
+    movido = refresh_tokens.rebind(db, read_refresh_cookie(request), organization_id)
+    if movido is not None:
+        db.commit()
+        set_refresh_cookie(response, request, movido[0], movido[1])
+
+
+def _refresh_error(request: Request, code: str) -> HTTPException:
+    mensajes = {
+        "refresh_missing": "No hay sesión para renovar. Inicia sesión de nuevo.",
+        "refresh_invalid": "La sesión no es válida. Inicia sesión de nuevo.",
+        "refresh_expired": "La sesión venció. Inicia sesión de nuevo.",
+        "refresh_rotated": "La sesión se renovó en otra pestaña. Reintenta.",
+        "refresh_reused": "Se detectó un uso indebido de la sesión y se cerraron todas. Inicia sesión de nuevo.",
+        "refresh_inactive": "La cuenta o la organización ya no están disponibles.",
+    }
+    return HTTPException(
+        status_code=401,
+        detail={"code": code, "message": mensajes.get(code, "Inicia sesión de nuevo.")},
+    )
 
 
 def _slug_base_from_company(name: str) -> str:
@@ -461,7 +529,10 @@ def get_current_user(
 
 @router.post("/register", response_model=TokenResponse)
 def register_user(
-    body: RegisterRequest, db: Session = Depends(get_db_if_configured)
+    body: RegisterRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db_if_configured),
 ) -> TokenResponse:
     _require_jwt_secret()
     email_norm = body.email.lower().strip()
@@ -505,6 +576,7 @@ def register_user(
             organization_id=str(org.id),
             role=membership.role,
         )
+        open_refreshable_session(db, request, response, user_id=user.id, organization_id=org.id)
         return TokenResponse(access_token=token, user=build_user_public(db, user, org.id))
 
     if body.workspace_kind == "personal":
@@ -566,6 +638,7 @@ def register_user(
         organization_id=str(org.id),
         role=membership.role,
     )
+    open_refreshable_session(db, request, response, user_id=user.id, organization_id=org.id)
     return TokenResponse(
         access_token=token,
         user=build_user_public(db, user, org.id),
@@ -573,7 +646,12 @@ def register_user(
 
 
 @router.post("/login", response_model=TokenResponse)
-def login_user(body: LoginRequest, db: Session = Depends(get_db_if_configured)) -> TokenResponse:
+def login_user(
+    body: LoginRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db_if_configured),
+) -> TokenResponse:
     _require_jwt_secret()
     email_norm = body.email.lower().strip()
     user = db.execute(select(User).where(User.email == email_norm)).scalar_one_or_none()
@@ -603,10 +681,78 @@ def login_user(body: LoginRequest, db: Session = Depends(get_db_if_configured)) 
         organization_id=str(org.id),
         role=membership.role,
     )
+    open_refreshable_session(
+        db, request, response, user_id=user.id, organization_id=org.id, persistent=body.remember
+    )
     return TokenResponse(
         access_token=token,
         user=build_user_public(db, user, org.id),
     )
+
+
+@router.post("/refresh", response_model=TokenResponse)
+def refresh_session_with_cookie(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db_if_configured),
+) -> TokenResponse:
+    """S3.9: con la cookie HttpOnly de renovación, entrega un token de acceso nuevo y rota la cookie.
+
+    No acepta ``Authorization``: un token de acceso robado no sirve para alargar la sesión.
+    Errores: 401 con ``detail.code`` (``refresh_missing``, ``refresh_invalid``,
+    ``refresh_expired``, ``refresh_rotated``, ``refresh_reused``, ``refresh_inactive``).
+    """
+    _require_jwt_secret()
+    activos: dict[str, tuple[User, Organization, OrgMembership]] = {}
+
+    def _sigue_habilitado(fila) -> bool:
+        user = db.get(User, fila.user_id)
+        if user is None or not user.is_active:
+            return False
+        pair = load_membership_for_org(db, user.id, fila.organization_id)
+        if pair is None or not pair[0].is_active:
+            return False
+        activos["sesion"] = (user, pair[0], pair[1])
+        return True
+
+    try:
+        rotado = refresh_tokens.rotate(
+            db,
+            read_refresh_cookie(request),
+            ip=_client_ip(request),
+            user_agent=request.headers.get("user-agent"),
+            still_allowed=_sigue_habilitado,
+        )
+    except refresh_tokens.RefreshTokenError as e:
+        error = _refresh_error(request, e.code)
+        if e.code != "refresh_rotated":  # en una carrera entre pestañas, la cookie nueva ya está puesta
+            clear_refresh_cookie(response, request)
+            error.headers = {"set-cookie": response.headers["set-cookie"]}
+        raise error from None
+
+    user, org, membership = activos["sesion"]
+    set_refresh_cookie(response, request, rotado.raw_token, rotado.expires_at)
+    token = create_access_token(
+        user_id=str(user.id),
+        email=user.email,
+        organization_id=str(org.id),
+        role=membership.role,
+    )
+    return TokenResponse(access_token=token, user=build_user_public(db, user, org.id))
+
+
+@router.post("/logout", status_code=204)
+def logout_session(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db_if_configured),
+) -> Response:
+    """S3.9: revoca el token de renovación de esta sesión y borra la cookie. Siempre 204."""
+    if refresh_tokens.revoke(db, read_refresh_cookie(request)):
+        db.commit()
+    salida = Response(status_code=204)
+    clear_refresh_cookie(salida, request)
+    return salida
 
 
 @router.post("/session/refresh", response_model=TokenResponse)
@@ -677,6 +823,8 @@ def list_my_organizations(
 @router.post("/session/switch", response_model=TokenResponse)
 def switch_active_organization(
     body: SessionSwitchRequest,
+    request: Request,
+    response: Response,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db_if_configured),
 ) -> TokenResponse:
@@ -695,6 +843,7 @@ def switch_active_organization(
     sync_calendar_integrations_org(db, user_id=user.id, organization_id=org.id)
     db.commit()
     db.refresh(user)
+    _move_session_to_org(db, request, response, org.id)
 
     token = create_access_token(
         user_id=str(user.id),
@@ -993,6 +1142,8 @@ def delete_organization_invite(
 @router.post("/organization/invites/accept", response_model=TokenResponse)
 def post_accept_organization_invite(
     body: OrgInviteAcceptRequest,
+    request: Request,
+    response: Response,
     user: Annotated[User, Depends(get_current_user)],
     db: Session = Depends(get_db_if_configured),
 ) -> TokenResponse:
@@ -1000,6 +1151,7 @@ def post_accept_organization_invite(
     org, membership = accept_org_invite(db, token=body.token.strip(), user=user, make_primary=True)
     db.commit()
     db.refresh(user)
+    _move_session_to_org(db, request, response, org.id)
     token = create_access_token(
         user_id=str(user.id),
         email=user.email,
