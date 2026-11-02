@@ -203,6 +203,8 @@ const messages = {
   "person_research.extra_keywords": "Zusätzliche Stichwörter (freiwillig)",
   "person_research.extra_keywords_ph": "Universität, Branche, Projekt…",
   "person_research.max_profiles": "Profile anreichern (1–5)",
+  "person_research.send_email_label": "Dossier nach Fertigstellung per E-Mail senden",
+  "person_research.send_email_hint": "Sie erhalten es vollständig an {email}.",
   "person_research.reveal_contact_details":
     "E-Mail und Telefon in Lusha anzeigen (PDL liefert sie beim Treffer, falls vorhanden)",
   "person_research.submit": "Suchen und analysieren",
@@ -781,6 +783,17 @@ const messages = {
   "dossiers.share_saving": "Speichern…",
   "dossiers.share_remove": "Zugriff entfernen",
   "dossiers.share_empty": "Dieses Dossier ist mit niemandem geteilt.",
+  "dossiers.email_title": "Per E-Mail senden",
+  "dossiers.email_hint": "Wir senden Ihnen das vollständige Dossier an {email}.",
+  "dossiers.email_button": "Per E-Mail an mich senden",
+  "dossiers.email_sending": "Wird gesendet…",
+  "dossiers.email_sent_ok": "Gesendet an {email}.",
+  "dossiers.email_last_sent": "Zuletzt gesendet: {date} an {recipients}.",
+  "dossiers.email_never_sent": "Noch nicht per E-Mail gesendet.",
+  "dossiers.email_error_too_soon": "Es wurde gerade gesendet. Warten Sie eine Minute, bevor Sie es erneut senden.",
+  "dossiers.email_error_unavailable": "Der E-Mail-Versand ist derzeit nicht verfügbar.",
+  "dossiers.email_error_failed": "Die E-Mail konnte nicht gesendet werden. Bitte versuchen Sie es später erneut.",
+  "dossiers.email_error_not_complete": "Nur ein vollständiges Dossier kann gesendet werden.",
   "dossiers.viewer_readonly_hint":
     "Sie haben nur Lesezugriff. Sie können keine Dossiers erstellen, bearbeiten oder löschen.",
   "dossiers.viewer_list_hint":

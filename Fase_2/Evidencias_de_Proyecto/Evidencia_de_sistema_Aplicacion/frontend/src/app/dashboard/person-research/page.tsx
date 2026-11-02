@@ -74,6 +74,7 @@ function PersonResearchPageContent() {
   const [extraKeywords, setExtraKeywords] = useState("");
   const [maxProfiles, setMaxProfiles] = useState(1);
   const [replaceDossierId, setReplaceDossierId] = useState<string | null>(null);
+  const [sendEmail, setSendEmail] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
@@ -82,6 +83,7 @@ function PersonResearchPageContent() {
   const jobParamAppliedRef = useRef<string | null>(null);
   const partialsRef = useRef<HTMLDivElement>(null);
   const usesEnrichment = researchSource === "pdl";
+  const emailAvailable = Boolean(me?.email_delivery_available && me.email);
 
   const summaryScopeKey =
     researchSource === "pdl"
@@ -184,6 +186,7 @@ function PersonResearchPageContent() {
     if (ex) payload.extra_keywords = ex;
     if (forceRefresh) payload.force_refresh = true;
     if (replaceDossierId) payload.replace_dossier_id = replaceDossierId;
+    if (sendEmail && emailAvailable) payload.send_email = true;
     return payload;
   }
 
@@ -412,6 +415,25 @@ function PersonResearchPageContent() {
                 </div>
               ) : null}
             </div>
+
+            {emailAvailable ? (
+              <label className="flex items-start gap-2.5 text-sm" style={{ color: "var(--text-secondary)" }}>
+                <input
+                  type="checkbox"
+                  name="send_email"
+                  className="mt-0.5 h-4 w-4 shrink-0"
+                  checked={sendEmail}
+                  onChange={(e) => setSendEmail(e.target.checked)}
+                  disabled={isGenerating}
+                />
+                <span>
+                  <span className="block font-medium">{t("person_research.send_email_label")}</span>
+                  <span className="block text-xs" style={{ color: "var(--text-muted)" }}>
+                    {t("person_research.send_email_hint", { email: me?.email ?? "" })}
+                  </span>
+                </span>
+              </label>
+            ) : null}
 
             {error ? <p className="text-sm text-red-400">{error}</p> : null}
 

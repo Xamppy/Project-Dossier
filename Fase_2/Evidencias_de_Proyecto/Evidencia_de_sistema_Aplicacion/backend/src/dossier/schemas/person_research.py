@@ -72,6 +72,10 @@ class PersonResearchRequest(BaseModel):
         None,
         description="Si se indica, actualiza este dossier existente (misma carpeta de reunión).",
     )
+    send_email: bool = Field(
+        False,
+        description="Si true, al completarse envía el dossier completo al correo de quien lo pidió (S6.1).",
+    )
 
     @field_validator("replace_dossier_id", mode="before")
     @classmethod

@@ -57,12 +57,16 @@ from dossier.services.dossier_deletion_service import (
     delete_dossiers_in_folder,
     finalize_dossier_deletions,
 )
+from dossier.services.dossier_email import resend_wait_seconds, send_dossier_email
 from dossier.services.dossier_folder_utils import (
     build_dossier_list_entries,
     serialize_dossier_list_item,
     serialize_folder,
 )
-from dossier.services.dossier_generation_job_service import enqueue_person_research_job
+from dossier.services.dossier_generation_job_service import (
+    enqueue_person_research_job,
+    enviar_por_correo_si_se_pidio,
+)
 from dossier.services.dossier_share_service import (
     dossier_permissions_payload,
     list_dossier_shares,
@@ -71,6 +75,11 @@ from dossier.services.dossier_visibility import (
     apply_dossier_visibility,
     get_visible_dossier_or_404,
     user_can_delete_dossier,
+)
+from dossier.services.email_service import (
+    EmailDeliveryError,
+    EmailNotConfiguredError,
+    email_delivery_available,
 )
 from dossier.services.output_language import effective_output_language
 from dossier.services.person_research_pipeline import run_person_research_and_persist
@@ -167,9 +176,11 @@ def person_professional_research(
         assert_sufficient_credits(org, person_research_credit_cost())
 
     try:
-        return run_person_research_and_persist(db, user=user, org=org, body=body)
+        result = run_person_research_and_persist(db, user=user, org=org, body=body)
     except ValueError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
+    enviar_por_correo_si_se_pidio(db, body=body, result=result, user=user)
+    return result
 
 
 def empresa_objetivo_de_solicitud(body: CreateCorporateDossierRequest) -> str:
@@ -405,6 +416,71 @@ def get_dossier_by_id(
             role=role,
         ),
         "shares": list_dossier_shares(db, dossier_id=d.id),
+        # S6.1: aditivo.
+        "email_delivery": _email_delivery_payload(d),
+    }
+
+
+def _email_delivery_payload(d: Dossier) -> dict:
+    return {
+        "sent": bool(d.email_sent),
+        "sent_at": d.email_sent_at.isoformat() if d.email_sent_at else None,
+        "recipients": list(d.email_recipients or []),
+    }
+
+
+@router.post("/dossiers/{dossier_id}/email")
+def send_dossier_by_email(
+    dossier_id: UUID,
+    ctx: Annotated[OrgAuthContext, Depends(get_org_auth_context)],
+    db: Session = Depends(get_db_if_configured),
+):
+    """Envía el dossier completo al correo del usuario de la sesión (S6.1).
+
+    El destinatario no se elige: siempre es quien pide el envío. Para dárselo a un colega
+    está «Compartir».
+    """
+    user, org, role = ctx.user, ctx.org, ctx.role
+    d = get_visible_dossier_or_404(
+        db,
+        dossier_id=dossier_id,
+        user_id=user.id,
+        organization_id=org.id,
+        role=role,
+    )
+    if not email_delivery_available():
+        raise HTTPException(status_code=503, detail="El envío por correo no está disponible.")
+
+    # Bloquea la fila: dos clics simultáneos no pueden saltarse el enfriamiento.
+    db.refresh(d, with_for_update=True)
+    espera = resend_wait_seconds(d, now=datetime.now(UTC))
+    if espera:
+        db.rollback()
+        raise HTTPException(
+            status_code=429,
+            detail="Este dossier se acaba de enviar. Espera un momento antes de reenviarlo.",
+            headers={"Retry-After": str(espera)},
+        )
+    try:
+        send_dossier_email(d, recipient=user.email)
+    except EmailNotConfiguredError as e:
+        db.rollback()
+        raise HTTPException(status_code=503, detail="El envío por correo no está disponible.") from e
+    except EmailDeliveryError as e:
+        db.rollback()
+        logger.warning("Envío manual del dossier %s falló: %s", d.id, e)
+        raise HTTPException(
+            status_code=502, detail="No se pudo enviar el correo. Inténtalo de nuevo más tarde."
+        ) from e
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Solo se puede enviar un dossier completo.") from e
+    db.commit()
+    return {
+        "dossier_id": str(d.id),
+        "email_sent": d.email_sent,
+        "email_sent_at": d.email_sent_at.isoformat() if d.email_sent_at else None,
+        "email_recipients": list(d.email_recipients or []),
     }
 
 

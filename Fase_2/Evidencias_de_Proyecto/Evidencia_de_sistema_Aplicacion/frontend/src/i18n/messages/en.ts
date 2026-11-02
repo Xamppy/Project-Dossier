@@ -200,6 +200,8 @@ const messages = {
   "person_research.extra_keywords": "Extra keywords (optional)",
   "person_research.extra_keywords_ph": "School, sector, project…",
   "person_research.max_profiles": "Profiles to enrich (1–5)",
+  "person_research.send_email_label": "Email me the dossier when it's ready",
+  "person_research.send_email_hint": "You'll receive the full dossier at {email}.",
   "person_research.reveal_contact_details":
     "Reveal email and phone in Lusha (PDL includes them in the match when available)",
   "person_research.submit": "Search and analyze",
@@ -885,6 +887,17 @@ const messages = {
   "dossiers.share_saving": "Saving…",
   "dossiers.share_remove": "Remove access",
   "dossiers.share_empty": "This dossier is not shared with anyone else.",
+  "dossiers.email_title": "Send by email",
+  "dossiers.email_hint": "We'll send the full dossier to {email}.",
+  "dossiers.email_button": "Email it to me",
+  "dossiers.email_sending": "Sending…",
+  "dossiers.email_sent_ok": "Sent to {email}.",
+  "dossiers.email_last_sent": "Last sent: {date} to {recipients}.",
+  "dossiers.email_never_sent": "Not sent by email yet.",
+  "dossiers.email_error_too_soon": "It was just sent. Wait a minute before sending it again.",
+  "dossiers.email_error_unavailable": "Email delivery is not available right now.",
+  "dossiers.email_error_failed": "The email could not be sent. Please try again later.",
+  "dossiers.email_error_not_complete": "Only a complete dossier can be sent.",
   "dossiers.viewer_readonly_hint":
     "You have read-only access. You cannot generate, edit, or delete dossiers.",
   "dossiers.viewer_list_hint":

@@ -201,6 +201,8 @@ const messages = {
   "person_research.extra_keywords": "Palabras clave extra (opcional)",
   "person_research.extra_keywords_ph": "Universidad, sector, proyecto…",
   "person_research.max_profiles": "Perfiles a enriquecer (1–5)",
+  "person_research.send_email_label": "Enviarme el dossier por correo al terminar",
+  "person_research.send_email_hint": "Lo recibirás completo en {email}.",
   "person_research.reveal_contact_details":
     "Revelar email y teléfono en Lusha (PDL los incluye en el match si existen)",
   "person_research.submit": "Buscar y analizar",
@@ -888,6 +890,17 @@ const messages = {
   "dossiers.share_saving": "Guardando…",
   "dossiers.share_remove": "Quitar acceso",
   "dossiers.share_empty": "Este dossier no está compartido con nadie más.",
+  "dossiers.email_title": "Enviar por correo",
+  "dossiers.email_hint": "Te enviamos el dossier completo a {email}.",
+  "dossiers.email_button": "Enviarme por correo",
+  "dossiers.email_sending": "Enviando…",
+  "dossiers.email_sent_ok": "Enviado a {email}.",
+  "dossiers.email_last_sent": "Último envío: {date} a {recipients}.",
+  "dossiers.email_never_sent": "Todavía no se ha enviado por correo.",
+  "dossiers.email_error_too_soon": "Se acaba de enviar. Espera un minuto antes de reenviarlo.",
+  "dossiers.email_error_unavailable": "El envío por correo no está disponible en este momento.",
+  "dossiers.email_error_failed": "No se pudo enviar el correo. Inténtalo de nuevo más tarde.",
+  "dossiers.email_error_not_complete": "Solo se puede enviar un dossier completo.",
   "dossiers.viewer_readonly_hint":
     "Tienes acceso de solo lectura. No puedes generar, editar ni eliminar dossiers.",
   "dossiers.viewer_list_hint":

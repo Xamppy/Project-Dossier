@@ -29,6 +29,7 @@ from dossier.services.calendar_event_dossiers import (
     parse_calendar_event_for_dossiers,
     persist_calendar_dossiers,
 )
+from dossier.services.dossier_email import deliver_dossier_after_generation
 from dossier.services.dossier_job_progress import (
     JobProgress,
     SqlProgressStore,
@@ -443,6 +444,21 @@ def _process_person_manual_job(db: Session, job: DossierGenerationJob) -> None:
     db.commit()
     _publicar_estado(job)
     logger.info("Job persona %s %s (subject=%s)", job.id, job.status, body.full_name[:80])
+    # Después del commit: un fallo de correo no puede cambiar el resultado del job (S6.1).
+    if job.status == "completed":
+        enviar_por_correo_si_se_pidio(db, body=body, result=result, user=user)
+
+
+def enviar_por_correo_si_se_pidio(
+    db: Session, *, body: PersonResearchRequest, result: dict[str, Any], user: User
+) -> None:
+    """Envía el dossier recién generado a quien lo pidió, si marcó ``send_email`` (S6.1)."""
+    saved = result.get("saved_dossier") or {}
+    if not body.send_email or saved.get("status") != "complete" or not saved.get("id"):
+        return
+    if not (user.email or "").strip():
+        return
+    deliver_dossier_after_generation(db, dossier_id=saved["id"], recipient=user.email)
 
 
 def _process_calendar_manual_job(db: Session, job: DossierGenerationJob) -> None:

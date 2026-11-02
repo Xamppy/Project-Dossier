@@ -9,6 +9,7 @@ import DashboardCard from "@/components/dashboard/DashboardCard";
 import CalendarMeetingLabel from "@/components/dossier/CalendarMeetingLabel";
 import DossierOutputLanguageBadge from "@/components/dossier/DossierOutputLanguageBadge";
 import DeleteDossierIconButton from "@/components/dossier/DeleteDossierIconButton";
+import EmailDossierPanel from "@/components/dossier/EmailDossierPanel";
 import ShareDossierPanel from "@/components/dossier/ShareDossierPanel";
 import { useAuthMe } from "@/hooks/useAuthMe";
 import {
@@ -375,6 +376,18 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
             dossierId={dossier.id}
             initialShares={shares}
             onSharesChange={setShares}
+          />
+        </div>
+      ) : null}
+
+      {statusOk && user?.email_delivery_available ? (
+        <div className="mb-8">
+          <EmailDossierPanel
+            dossierId={dossier.id}
+            available
+            complete={statusOk}
+            userEmail={user.email}
+            initialDelivery={dossier.email_delivery}
           />
         </div>
       ) : null}
