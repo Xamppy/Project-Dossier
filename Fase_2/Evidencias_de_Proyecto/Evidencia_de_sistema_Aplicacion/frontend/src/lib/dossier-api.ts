@@ -316,13 +316,16 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   const url = `${getApiBaseUrl()}${path}`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await globalThis.fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
       body: JSON.stringify(body),
+      // S3.9: login y registro dejan la cookie HttpOnly de renovación; en desarrollo la API
+      // está en otro puerto y sin esto el navegador descarta la cookie.
+      credentials: "include",
     });
   } catch {
     throwFetchFailed();
@@ -362,6 +365,8 @@ export async function authRegister(payload: {
 export async function authLogin(payload: {
   email: string;
   password: string;
+  /** S3.9: «Recuérdame». false: la sesión termina al cerrar el navegador. */
+  remember?: boolean;
 }): Promise<AuthSuccessResponse> {
   const data = await postJson<AuthSuccessResponse>("/auth/login", payload);
   assertAuthSuccessResponse(data);
@@ -387,7 +392,7 @@ export async function fetchAuthMe(): Promise<AuthUser> {
   const url = `${getApiBaseUrl()}/auth/me`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
@@ -465,7 +470,7 @@ export async function patchAuthUserPreferences(
   const url = `${getApiBaseUrl()}/auth/me/preferences`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       method: "PATCH",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -517,7 +522,7 @@ export async function patchMyPassword(payload: ChangePasswordPayload): Promise<v
   const url = `${getApiBaseUrl()}/auth/me/password`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       method: "PATCH",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -556,7 +561,7 @@ export async function deleteMyAccount(payload: DeleteAccountPayload): Promise<vo
   const url = `${getApiBaseUrl()}/auth/me`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       method: "DELETE",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -645,7 +650,7 @@ async function getJsonWithAuth<T>(path: string): Promise<T> {
   const url = `${getApiBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
@@ -728,7 +733,7 @@ async function patchJsonWithAuth<T>(
   const url = `${getApiBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       method,
       headers: {
         "Content-Type": "application/json",
@@ -794,7 +799,7 @@ export async function deleteAdminUser(userId: string): Promise<void> {
   const url = `${getApiBaseUrl()}/admin/users/${encodeURIComponent(userId)}`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
@@ -866,7 +871,10 @@ export function getStoredAccessToken(): string | null {
   );
 }
 
-/** Quita JWT y vista previa de usuario en local y session (cerrar sesión). */
+/**
+ * Quita JWT y vista previa de usuario en local y session (cerrar sesión).
+ * S3.9: además pide al backend revocar el token de renovación y borrar su cookie.
+ */
 export function clearAuthSession(): void {
   clearCalendarEventsCache();
   if (typeof window === "undefined") return;
@@ -874,6 +882,86 @@ export function clearAuthSession(): void {
   sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
   localStorage.removeItem(DOSSIER_USER_PREVIEW_KEY);
   sessionStorage.removeItem(DOSSIER_USER_PREVIEW_KEY);
+  try {
+    void Promise.resolve(
+      globalThis.fetch(`${getApiBaseUrl()}/auth/logout`, { method: "POST", credentials: "include" })
+    ).catch(() => undefined);
+  } catch {
+    // Sin red o sin fetch: la sesión local ya quedó cerrada.
+  }
+}
+
+/** Código estable de error de POST /auth/refresh (`detail.code`). */
+function refreshErrorCode(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const detail = (body as { detail?: unknown }).detail;
+  if (!detail || typeof detail !== "object") return null;
+  const code = (detail as { code?: unknown }).code;
+  return typeof code === "string" ? code : null;
+}
+
+async function requestAccessTokenRefresh(): Promise<string | null> {
+  const url = `${getApiBaseUrl()}/auth/refresh`;
+  for (let intento = 0; intento < 2; intento += 1) {
+    let res: Response;
+    try {
+      res = await globalThis.fetch(url, {
+        method: "POST",
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+    } catch {
+      return null;
+    }
+    const body: unknown = await res.json().catch(() => null);
+    if (res.ok) {
+      const token = (body as { access_token?: unknown } | null)?.access_token;
+      if (typeof token !== "string" || !token) return null;
+      persistAuthToken(token, getAuthTokenStorageMode() === "local");
+      return token;
+    }
+    // Otra pestaña renovó con la misma cookie un instante antes: la cookie nueva ya está.
+    if (res.status === 401 && refreshErrorCode(body) === "refresh_rotated" && intento === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      continue;
+    }
+    return null;
+  }
+  return null;
+}
+
+let refreshInFlight: Promise<string | null> | null = null;
+
+/**
+ * S3.9: pide un token de acceso nuevo con la cookie HttpOnly de renovación.
+ * Varias llamadas simultáneas comparten una sola petición. Devuelve null si la sesión terminó.
+ */
+export function refreshAccessToken(): Promise<string | null> {
+  if (!refreshInFlight) {
+    refreshInFlight = requestAccessTokenRefresh().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+/**
+ * S3.9: `fetch` que, ante un 401 de una petición con `Authorization: Bearer`, renueva el
+ * token de acceso (vive 15 minutos) y reintenta una vez. Sin Bearer se comporta igual que `fetch`.
+ */
+export async function authFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  const res = await globalThis.fetch(input, init);
+  if (res.status !== 401) return res;
+  const headers = new Headers(init.headers);
+  const auth = headers.get("authorization");
+  if (!auth || !/^bearer\s/i.test(auth)) return res;
+  const usado = auth.slice(7).trim();
+  const vigente = getStoredAccessToken();
+  // Si otra llamada ya renovó mientras esta viajaba, basta con reintentar con el vigente.
+  const nuevo = vigente && vigente !== usado ? vigente : await refreshAccessToken();
+  if (!nuevo) return res;
+  headers.set("authorization", `Bearer ${nuevo}`);
+  return globalThis.fetch(input, { ...init, headers });
 }
 
 async function postJsonWithAuth<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
@@ -884,7 +972,7 @@ async function postJsonWithAuth<T>(path: string, body: unknown, signal?: AbortSi
   const url = `${getApiBaseUrl()}${path}`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -982,7 +1070,7 @@ export async function fetchCorporateCompanySearch(
   const url = `${getApiBaseUrl()}/dossiers/corporate/company-search?q=${encodeURIComponent(q)}`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
@@ -1101,7 +1189,7 @@ export async function enqueuePersonResearch(
 }
 
 export async function getPdlIntegrationHealth(): Promise<PdlHealthResponse> {
-  const res = await fetch(`${getApiBaseUrl()}/integrations/pdl/health`, { cache: "no-store" });
+  const res = await authFetch(`${getApiBaseUrl()}/integrations/pdl/health`, { cache: "no-store" });
   const parsed = await res.json().catch(() => ({}));
   if (!res.ok) {
     const msg =
@@ -1137,7 +1225,7 @@ export async function fetchDossiersFromApi(limit = 50): Promise<DossiersListResp
   const url = `${getApiBaseUrl()}/dossiers?limit=${encodeURIComponent(String(limit))}`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
@@ -1168,7 +1256,7 @@ export async function fetchDossierFolderById(
   const url = `${getApiBaseUrl()}/dossiers/folders/${encodeURIComponent(folderId)}`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
@@ -1197,7 +1285,7 @@ export async function fetchDossierById(dossierId: string): Promise<DossierDetail
   const url = `${getApiBaseUrl()}/dossiers/${encodeURIComponent(dossierId)}`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
@@ -1226,7 +1314,7 @@ export async function fetchOrgMembers(): Promise<{ items: OrgMemberItem[] }> {
   const url = `${getApiBaseUrl()}/auth/organization/members`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
@@ -1255,7 +1343,7 @@ export async function fetchOrgMembersForManagement(): Promise<{ items: OrgMember
   const url = `${getApiBaseUrl()}/auth/organization/members/manage`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
@@ -1293,7 +1381,7 @@ export async function deleteOrgMember(userId: string): Promise<void> {
   const url = `${getApiBaseUrl()}/auth/organization/members/${encodeURIComponent(userId)}`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
@@ -1323,7 +1411,7 @@ export async function fetchOrgInvites(): Promise<{
   const url = `${getApiBaseUrl()}/auth/organization/invites`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
@@ -1358,7 +1446,7 @@ export async function revokeOrgInvite(inviteId: string): Promise<void> {
   const url = `${getApiBaseUrl()}/auth/organization/invites/${encodeURIComponent(inviteId)}`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
@@ -1382,7 +1470,7 @@ export async function fetchOrgInvitePreview(token: string): Promise<OrgInvitePre
   const url = `${getApiBaseUrl()}/auth/organization/invites/preview?token=${encodeURIComponent(token)}`;
   let res: Response;
   try {
-    res = await fetch(url, { headers: { Accept: "application/json" } });
+    res = await authFetch(url, { headers: { Accept: "application/json" } });
   } catch {
     throwFetchFailed();
   }
@@ -1408,7 +1496,7 @@ export async function fetchMyPendingInvites(): Promise<{ items: OrgInvitePreview
   const url = `${getApiBaseUrl()}/auth/me/pending-invites`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
@@ -1449,7 +1537,7 @@ export async function createDossierShare(
   const url = `${getApiBaseUrl()}/dossiers/${encodeURIComponent(dossierId)}/shares`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -1483,7 +1571,7 @@ export async function deleteDossierShare(dossierId: string, userId: string): Pro
   const url = `${getApiBaseUrl()}/dossiers/${encodeURIComponent(dossierId)}/shares/${encodeURIComponent(userId)}`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
@@ -1512,7 +1600,7 @@ export async function deleteDossierFromApi(dossierId: string): Promise<void> {
   const url = `${getApiBaseUrl()}/dossiers/${encodeURIComponent(dossierId)}`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
@@ -1543,7 +1631,7 @@ export async function deleteDossierFolderFromApi(folderId: string): Promise<void
   const url = `${getApiBaseUrl()}/dossiers/folders/${encodeURIComponent(folderId)}`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
@@ -1580,7 +1668,7 @@ export async function fetchMicrosoftIntegrationStartAsJson(): Promise<CalendarOA
   const url = `${getApiBaseUrl()}/integrations/microsoft/start?as_json=true`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
@@ -1616,7 +1704,7 @@ export async function fetchGoogleIntegrationStartAsJson(): Promise<CalendarOAuth
   const url = `${getApiBaseUrl()}/integrations/google/start?as_json=true`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
@@ -1653,7 +1741,7 @@ export async function fetchCalendarProviderConfigured(provider: CalendarProvider
   const url = `${getApiBaseUrl()}/integrations/${provider}/oauth-config`;
   let res: Response;
   try {
-    res = await fetch(url, { headers: { Accept: "application/json" } });
+    res = await authFetch(url, { headers: { Accept: "application/json" } });
   } catch {
     throwFetchFailed();
   }
@@ -1678,7 +1766,7 @@ export async function disconnectCalendarIntegration(
   const url = `${getApiBaseUrl()}/integrations/${provider}/disconnect`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
@@ -1715,7 +1803,7 @@ export async function fetchCalendarDiagnostico(
   const url = `${getApiBaseUrl()}${path}`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
@@ -1772,7 +1860,7 @@ export async function fetchOutlookCalendarEventos(options?: {
   const pathUrl = `${getApiBaseUrl()}/calendario/eventos-outlook${qs ? `?${qs}` : ""}`;
   let res: Response;
   try {
-    res = await fetch(pathUrl, {
+    res = await authFetch(pathUrl, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
@@ -1830,7 +1918,7 @@ export async function fetchCalendarEventosPorIntervalo(
   const qs = new URLSearchParams({ desde: range.desde, hasta: range.hasta }).toString();
   let res: Response;
   try {
-    res = await fetch(`${getApiBaseUrl()}${path}?${qs}`, {
+    res = await authFetch(`${getApiBaseUrl()}${path}?${qs}`, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
       signal: options?.signal,
     });
@@ -1882,7 +1970,7 @@ export async function fetchGoogleCalendarEventos(options?: {
   const pathUrl = `${getApiBaseUrl()}/calendario/eventos-google${qs ? `?${qs}` : ""}`;
   let res: Response;
   try {
-    res = await fetch(pathUrl, {
+    res = await authFetch(pathUrl, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
@@ -1998,7 +2086,7 @@ export async function fetchGenerarDossiersDesdeCalendario(options?: {
   const pathUrl = `${getApiBaseUrl()}/calendario/generar-dossiers-outlook`;
   let res: Response;
   try {
-    res = await fetch(pathUrl, {
+    res = await authFetch(pathUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -2053,7 +2141,7 @@ export async function fetchGenerarDossiersDesdeGoogleCalendar(options?: {
   const pathUrl = `${getApiBaseUrl()}/calendario/generar-dossiers-google`;
   let res: Response;
   try {
-    res = await fetch(pathUrl, {
+    res = await authFetch(pathUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -2320,7 +2408,7 @@ async function postCalendarGenerarDossiers(
   }
   let res: Response;
   try {
-    res = await fetch(pathUrl, {
+    res = await authFetch(pathUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -2415,7 +2503,7 @@ export async function fetchDossierGenerationJobs(options?: {
   const url = `${getApiBaseUrl()}/dossier-generation-jobs${qs ? `?${qs}` : ""}`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
@@ -2446,7 +2534,7 @@ export async function fetchDossierGenerationJob(
   const url = `${getApiBaseUrl()}/dossier-generation-jobs/${encodeURIComponent(jobId)}`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
@@ -2509,7 +2597,7 @@ export async function fetchCalendarAutomationStatus(): Promise<CalendarAutomatio
   const url = `${getApiBaseUrl()}/calendario/automation/status`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
   } catch {
@@ -2546,7 +2634,7 @@ export async function patchCalendarAutomationSettings(
   const url = `${getApiBaseUrl()}/calendario/automation/settings`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    res = await authFetch(url, {
       method: "PATCH",
       headers: {
         Authorization: `Bearer ${token}`,

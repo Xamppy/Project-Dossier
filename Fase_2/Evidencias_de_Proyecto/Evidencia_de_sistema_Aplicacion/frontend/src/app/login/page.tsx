@@ -118,7 +118,7 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      const data = await authLogin({ email: email.trim(), password });
+      const data = await authLogin({ email: email.trim(), password, remember });
       persistAuthToken(data.access_token, remember);
       writeDossierUserPreview(
         {

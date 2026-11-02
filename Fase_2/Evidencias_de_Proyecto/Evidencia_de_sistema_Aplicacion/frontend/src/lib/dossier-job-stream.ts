@@ -13,6 +13,7 @@
  */
 import { fetchEventSource, type EventSourceMessage } from "@microsoft/fetch-event-source";
 import {
+  authFetch,
   getApiBaseUrl,
   getStoredAccessToken,
   type DossierGenerationJobApi,
@@ -158,7 +159,8 @@ export function openDossierJobStream(
     // Sin esto la librería corta y reabre la conexión cada vez que cambia la visibilidad.
     openWhenHidden: true,
     // `fetch` global resuelto en cada llamada (la librería usaría `window.fetch` fijo).
-    fetch: (input, init) => fetch(input, init),
+    // S3.9: si el token de acceso (15 min) venció, `authFetch` lo renueva y reabre una vez.
+    fetch: (input, init) => authFetch(input, init),
     async onopen(response) {
       if (!response.ok) throw errorForStatus(response.status);
       const contentType = response.headers.get("content-type") ?? "";
