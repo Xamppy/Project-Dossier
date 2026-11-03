@@ -79,6 +79,7 @@ APIs / IA (según uso):
 | `GEMINI_API_KEY` |
 | `DEEPSEEK_API_KEY` |
 | `PDL_API_KEY` |
+| `SMTP_USERNAME`, `SMTP_PASSWORD` (opcional: correo del dossier, ver `docs/dev/correo-gmail.md`) |
 | `COMPANIES_HOUSE_API_KEY` |
 | `OPENAI_API_KEY` (opcional, solo con `DOSSIER_LEGACY_OPENAI=1`) |
 

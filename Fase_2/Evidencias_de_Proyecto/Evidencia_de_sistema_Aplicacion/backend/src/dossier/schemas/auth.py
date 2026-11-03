@@ -203,6 +203,8 @@ class UserPublic(BaseModel):
     timezone: str = "UTC"
     dossier_output_language: str = "match"
     dossier_retention_days: int | None = 30
+    # S6.1: solo si la instancia tiene SMTP configurado; nunca expone la configuración.
+    email_delivery_available: bool = False
 
 
 class OrganizationPlanPatch(BaseModel):

@@ -24,6 +24,8 @@ const h = vi.hoisted(() => ({
   params: new URLSearchParams(),
   /** S5.4: ID del próximo job encolado (los ejemplos de S5.10 usan un ID fijo). */
   forcedJobId: null as string | null,
+  /** S6.1: `/auth/me` informa que la instancia puede enviar por correo. */
+  emailDisponible: false,
 }));
 
 vi.mock("@/lib/dossier-job-stream", async (importOriginal) => {
@@ -111,6 +113,7 @@ beforeEach(() => {
   h.subs.length = 0;
   h.params = new URLSearchParams();
   h.forcedJobId = null;
+  h.emailDisponible = false;
   servidor = new Map();
   llamadas = [];
   secuencia = 0;
@@ -124,7 +127,12 @@ beforeEach(() => {
       const body = typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : null;
       llamadas.push({ method, url, body });
       if (url === `${API}/auth/me`) {
-        return json({ email: "qa@dossier.test", organization_plan: "pro", credits_monthly_limit: 100 });
+        return json({
+          email: "qa@dossier.test",
+          organization_plan: "pro",
+          credits_monthly_limit: 100,
+          email_delivery_available: h.emailDisponible,
+        });
       }
       if (url === `${API}/dossiers/person/research` && method === "POST") {
         secuencia += 1;
@@ -708,5 +716,28 @@ describe("Personas · S5.4 avance real y resultados parciales", () => {
     publicar(jobId, { status: "completed", result: resultadoPersona("pdl", "d-1") }, "job_completed");
     await settle();
     expect(screen.queryByRole("region", { name: t("progress.panel_title") })).not.toBeInTheDocument();
+  });
+});
+
+describe("Personas · S6.1 envío automático del dossier por correo", () => {
+  const aviso = () => screen.queryByText(t("person_research.email_auto_note", { email: "qa@dossier.test" }));
+
+  it("CA19 · con el envío disponible, avisa que el PDF llegará al correo sin pedir nada", async () => {
+    h.emailDisponible = true;
+    render(<Pantalla />);
+    await settle();
+
+    await waitFor(() => expect(aviso()).toBeInTheDocument());
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    await iniciar(MODOS[0]);
+
+    expect(postsDeInvestigacion()[0].body).not.toHaveProperty("send_email");
+  });
+
+  it("CA19 · sin envío disponible no aparece el aviso", async () => {
+    render(<Pantalla />);
+    await settle();
+
+    expect(aviso()).toBeNull();
   });
 });

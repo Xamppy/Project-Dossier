@@ -89,6 +89,7 @@ Detalle heredado: [docs/estructura.md](docs/estructura.md)
 | Decisiones técnicas | [docs/architecture/decisions/](docs/architecture/decisions/) |
 | Desarrollo y arranque | [.harness/AGENT.md](.harness/AGENT.md) |
 | Seguridad | [docs/security/](docs/security/) |
+| Correo del dossier (Gmail SMTP) | [docs/dev/correo-gmail.md](docs/dev/correo-gmail.md) |
 | Planes de ejecución activos | [docs/exec-plans/active/](docs/exec-plans/active/) |
 | Base de datos | [docs/postgresql.md](docs/postgresql.md) · [docs/sql/](docs/sql/) |
 | Calendario OAuth | [docs/calendario-oauth-operaciones.md](docs/calendario-oauth-operaciones.md) |

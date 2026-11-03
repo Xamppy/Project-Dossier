@@ -6,6 +6,10 @@ psycopg[binary]==3.3.6
 bcrypt==5.0.0
 PyJWT==2.14.0
 email-validator==2.3.0
+# Correo del dossier (S5.7): Markdown → HTML sin HTML crudo
+markdown-it-py==4.0.0
+# PDF del dossier adjunto al correo (S6.1); Python puro, sin librerías del sistema
+reportlab==4.5.1
 openai==3.19.0
 msal==1.39.0
 requests==2.34.2
