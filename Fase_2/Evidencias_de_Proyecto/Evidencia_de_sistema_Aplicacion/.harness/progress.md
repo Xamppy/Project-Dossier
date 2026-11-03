@@ -6,6 +6,36 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-02 (noche) · S6.1 · Correo corto y ■ en el PDF · DG (agente)
+
+**Hecho.** Segunda revisión de DG, que probó el envío desde Dokploy. Dos cambios:
+
+- **Correo corto:** el informe ya no va en el cuerpo, solo la confirmación, la línea del PDF y el
+  botón. Si el PDF fallara, el informe vuelve al cuerpo para que el correo no llegue vacío.
+- **Sin ■ en el PDF:** usa DejaVu Sans incrustada en lugar de Helvetica.
+
+Pruebas: backend 1106 passed con Postgres; CA7 y CA8 ajustados y CA27 nuevo.
+
+**Lo que hay que saber.**
+- **Causa del ■.** Las 14 fuentes estándar del PDF solo traen Windows-1252, y ReportLab dibuja ■
+  para cualquier otro carácter. Los modelos escriben U+2011 (guion no separable) en rangos como
+  «2010‑2014». La misma hoja de caracteres está antes y después en `specs/reports/S6.1-evidencia/`.
+- **Helvetica escondida.** No basta con cambiar los estilos de párrafo. Las celdas de `Table` y la
+  fuente inicial del documento también usan Helvetica por omisión; están fijadas con
+  `_estilo_tabla` e `initialFontName`. La prueba
+  `test_negrita_cursiva_y_codigo_tambien_usan_la_fuente_incrustada` falla si vuelve a aparecer una
+  fuente estándar.
+- **Origen de las fuentes.** Salen de la distribución de matplotlib (DejaVu 2.x) y su licencia está
+  en `assets/fonts/LICENSE-DejaVu.txt`. Pesan 2,9 MB en el repositorio, pero el PDF solo incrusta
+  los glifos usados.
+- **El dossier que mostró el problema se generó en Dokploy.** No está en `dossier_local`. Dokploy
+  tendrá el arreglo cuando despliegue esta rama o `main`.
+
+**Siguiente paso concreto.** Desplegar en Dokploy y generar otra persona para confirmar el correo
+corto y el PDF sin ■. Después, la revisión del PR #45.
+
+**Rama.** `feat/S6.1-envio-dossier-correo` · **Estado.** review
+
 ### 2026-11-02 (tarde) · S6.1 · PDF adjunto y envío automático · DG (agente)
 
 **Hecho.** A pedido de DG, el correo del dossier lleva el **PDF adjunto**, con el formato del

@@ -62,5 +62,14 @@ Contrato: `specs/proposals/S6.1-envio-dossier-correo.md`. Guía: `docs/dev/corre
 **Revisión del mismo día (tarde).** DG pidió adjuntar el dossier en PDF, con un formato parecido
 al de la web, y que el envío de Personas sea automático. El PDF se genera con **ReportLab**, no con
 WeasyPrint: WeasyPrint necesita Pango y Cairo del sistema, que el runtime Python de Render no
-tiene. ReportLab es Python puro; a cambio, sus fuentes estándar solo cubren Windows-1252. El campo
+tiene. ReportLab es Python puro (la cobertura Unicode la da DejaVu, ver abajo). El campo
 `send_email` de la petición se retiró, porque el envío ya no se pide.
+
+**Segunda revisión (noche).**
+
+- **Correo corto:** el informe deja el cuerpo; el correo queda en la confirmación, el botón y el
+  PDF.
+- **Fuente:** el PDF pasa de Helvetica a **DejaVu Sans incrustada**
+  (`backend/src/dossier/assets/fonts`, licencia Bitstream Vera con los cambios de DejaVu en
+  dominio público). Con las fuentes estándar, los guiones Unicode que escriben los modelos salían
+  como ■.

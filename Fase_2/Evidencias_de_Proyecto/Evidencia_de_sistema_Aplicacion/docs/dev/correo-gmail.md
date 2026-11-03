@@ -85,17 +85,23 @@ levantan su propio servidor SMTP en loopback (fixture `servidor_smtp` en `backen
 | No llega nada y no hay error | Revisa la carpeta de spam. Gmail limita una cuenta personal a unos 500 correos al día |
 | El envío automático no llegó | El job sigue `completed` aunque el correo falle (por diseño). Busca `No se pudo enviar por correo el dossier` en el log y reenvía con el botón |
 | El correo llegó sin PDF | Busca `No se pudo generar el PDF del dossier` en el log. El informe va igual en el cuerpo |
-| En el PDF aparece ■ en lugar de un carácter | Emoji o ideograma: las fuentes estándar del PDF cubren Windows-1252 |
+| En el PDF falta un emoji | Se omite a propósito: DejaVu Sans no tiene emojis, y antes salían como ■ |
 
 ## 5. Qué contiene el correo
 
 - Asunto `Dossier: <nombre>`, en el idioma del dossier (es, en, pt, it, fr, de).
-- El informe completo en HTML (tablas, listas, enlaces) y una versión en texto plano.
-- **`dossier-<nombre>.pdf` adjunto**, con el formato del detalle web: logo TraceLens, estado,
-  idioma, nombre, fechas, «Informe generado por IA», alertas y «Página n de N». Se lee sin entrar
-  a la plataforma. Lo genera ReportLab (Python puro, sin dependencias del sistema). Si el PDF
-  fallara, el correo sale igual con el informe en el cuerpo.
-- Un enlace al dossier en la aplicación y un pie que lo marca como confidencial.
+- Un cuerpo corto: «Tu dossier está listo», la línea que menciona el PDF, el botón «Abrir en
+  Project Dossier» y un pie que lo marca como confidencial. El informe no va en el cuerpo.
+- **`dossier-<nombre>.pdf` adjunto**, con el formato del detalle web:
+  - logo TraceLens, estado, idioma, nombre y fechas;
+  - «Informe generado por IA» con el informe completo;
+  - alertas y «Página n de N».
+
+  Se lee sin entrar a la plataforma. Lo genera ReportLab (Python puro, sin dependencias del
+  sistema) con DejaVu Sans incrustada, así que guiones, comillas, flechas y acentos se ven tal
+  cual.
+- Si el PDF fallara, el correo sale sin adjunto y con el informe en el cuerpo, para que no llegue
+  vacío.
 
 El correo es una copia que sale del sistema: no se borra con la retención de dossiers. Se aceptó
 así porque el usuario ya puede descargar el dossier (DG, 2026-11-02).
