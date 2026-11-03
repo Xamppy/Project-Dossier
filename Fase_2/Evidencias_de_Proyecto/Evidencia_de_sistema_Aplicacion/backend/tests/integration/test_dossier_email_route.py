@@ -104,10 +104,10 @@ def test_ca13_envia_al_correo_del_usuario_y_lo_registra(mundo, client, servidor_
     assert cuerpo["email_recipients"] == [mundo.yo.email]
     (msg,) = servidor_smtp.mensajes
     assert servidor_smtp.sobres[0]["to"] == [mundo.yo.email]
-    assert "Ana Prueba dirige Empresa de Prueba SA." in msg.get_body(("html",)).get_content()
+    assert "Ana Prueba dirige Empresa de Prueba SA." not in msg.get_body(("html",)).get_content()
     (adjunto,) = list(msg.iter_attachments())
     assert adjunto.get_content_type() == "application/pdf"
-    assert "Ana Prueba" in PdfReader(io.BytesIO(adjunto.get_content())).pages[0].extract_text()
+    assert "Ana Prueba dirige Empresa de Prueba SA." in PdfReader(io.BytesIO(adjunto.get_content())).pages[0].extract_text()
     guardado = mundo.leer(d.id)
     assert guardado.email_sent is True
     assert guardado.email_recipients == [mundo.yo.email]

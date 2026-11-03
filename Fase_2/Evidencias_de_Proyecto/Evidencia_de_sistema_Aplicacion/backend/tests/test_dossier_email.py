@@ -36,6 +36,10 @@ Fuente: [registro](https://registro.example.com/ana)
 """
 
 
+def _pdf_que_falla(*_a, **_k):
+    raise RuntimeError("ReportLab caído")
+
+
 def _dossier(body: str | None = INFORME, **extra) -> Dossier:
     data = {"format": "markdown", "body": body, "output_language": "es"}
     data.update(extra.pop("data", {}))
@@ -55,18 +59,38 @@ def _dossier(body: str | None = INFORME, **extra) -> Dossier:
 # --- CA7: contenido completo ---
 
 
-def test_html_y_texto_llevan_el_informe_completo():
+def test_correo_corto_solo_confirmacion_y_boton():
+    """Revisión de DG: con el PDF adjunto, el informe en el cuerpo sobra."""
     correo = build_dossier_email(_dossier(), language=None, dossier_url=URL)
 
     assert correo.subject == "Dossier: Ana Prueba"
+    for fijo in (
+        "Tu dossier está listo",
+        "Este es el dossier completo de Ana Prueba generado en Project Dossier.",
+        "Adjuntamos el dossier en PDF para que lo consultes sin entrar a la plataforma.",
+        f'href="{URL}"',
+        "Abrir en Project Dossier",
+        "No lo reenvíes fuera de tu organización.",
+    ):
+        assert fijo in correo.html, fijo
+    for del_informe in ("Resumen ejecutivo", "Empresa de Prueba SA", "Hallazgo dos", "Directora", "registro.example.com"):
+        assert del_informe not in correo.html, del_informe
+        assert del_informe not in correo.text, del_informe
+    assert URL in correo.text
+    assert "Adjuntamos el dossier en PDF" in correo.text
+
+
+def test_sin_pdf_el_informe_vuelve_al_cuerpo(monkeypatch):
+    """Si el PDF falla, el correo no puede llegar vacío: lleva el informe completo."""
+    monkeypatch.setattr(dossier_email, "render_dossier_pdf", _pdf_que_falla)
+
+    correo = build_dossier_email(_dossier(), language=None, dossier_url=URL)
+
     assert "<h2>Resumen ejecutivo</h2>" in correo.html
     assert "<strong>Empresa de Prueba SA</strong>" in correo.html
-    assert "<li>Hallazgo dos</li>" in correo.html
     assert "<td>Directora</td>" in correo.html
     assert 'href="https://registro.example.com/ana"' in correo.html
-    assert f'href="{URL}"' in correo.html
     assert INFORME.strip() in correo.text
-    assert URL in correo.text
 
 
 def test_html_es_un_documento_completo_con_estilos_en_linea_de_tabla():
@@ -110,13 +134,15 @@ def test_dossier_data_que_no_es_dict_no_se_arma():
 # --- CA8: nada activo desde el contenido ---
 
 
-def test_html_crudo_y_enlaces_peligrosos_no_quedan_activos():
+def test_html_crudo_y_enlaces_peligrosos_no_quedan_activos(monkeypatch):
     hostil = (
         "<script>alert(1)</script>\n\n"
         '<img src=x onerror="alert(2)">\n\n'
         "[clic](javascript:alert(3)) [dato](data:text/html;base64,PHNjcmlwdD4=) "
         "[vb](vbscript:msgbox(1))"
     )
+    # Sin PDF el informe va en el cuerpo: es el caso en que el contenido hostil llega al HTML.
+    monkeypatch.setattr(dossier_email, "render_dossier_pdf", _pdf_que_falla)
     html = build_dossier_email(_dossier(body=hostil), language=None, dossier_url=URL).html
 
     assert "<script" not in html.lower()

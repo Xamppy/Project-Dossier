@@ -122,7 +122,8 @@ def test_ca10_job_completado_envia_el_dossier_completo_al_solicitante(base, serv
     assert servidor_smtp.sobres[0]["to"] == [CORREO_USUARIO]
     assert msg["Subject"] == "Dossier: Ana Prueba"
     html = msg.get_body(("html",)).get_content()
-    assert "Ana Prueba dirige Empresa de Prueba SA." in html
+    assert "PDF" in html, "la nota del adjunto, en el idioma del dossier"
+    assert "Ana Prueba dirige Empresa de Prueba SA." not in html, "el informe va solo en el PDF"
     assert f"/dashboard/dossiers/{dossier.id}" in html
     (adjunto,) = list(msg.iter_attachments())
     assert adjunto.get_filename() == "dossier-ana-prueba.pdf"
