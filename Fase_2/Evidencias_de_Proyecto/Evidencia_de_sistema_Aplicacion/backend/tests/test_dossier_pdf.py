@@ -231,3 +231,54 @@ def test_nombre_de_archivo_largo_se_corta():
     assert archivo.startswith("dossier-nombre-nombre")
     assert len(archivo) <= 72
     assert archivo.endswith(".pdf") and "-.pdf" not in archivo
+
+
+# --- CA27: ningún carácter sale como cuadro negro (■) ---
+# Helvetica (fuente estándar del PDF) solo trae Windows-1252; ReportLab dibuja ■ para el resto.
+# Los modelos escriben a menudo U+2011 en rangos de años («2010‑2014»): así llegó el informe de DG.
+
+
+def _fuentes(lector: PdfReader) -> set[str]:
+    nombres = set()
+    for pagina in lector.pages:
+        for fuente in (pagina["/Resources"].get("/Font") or {}).values():
+            nombres.add(str(fuente.get_object()["/BaseFont"]))
+    return nombres
+
+
+@pytest.mark.parametrize("guion", ["‐", "‑", "‒", "–", "—", "−"])
+def test_guiones_unicode_no_salen_como_cuadro_negro(guion):
+    _, texto = _leer(render_dossier_pdf(_dossier(body=f"Presidente (2010{guion}2014, 2018{guion}2022)")))
+
+    assert "■" not in texto
+    assert f"2010{guion}2014" in texto
+
+
+def test_espacios_invisibles_y_simbolos_no_salen_como_cuadro_negro():
+    body = "a​b c d e⁠f g﻿h → ≈ ≥ ✓ • … «x» “y” €"
+
+    _, texto = _leer(render_dossier_pdf(_dossier(body=body)))
+
+    assert "■" not in texto
+    assert "ab" in texto and "ef" in texto and "gh" in texto, "los de ancho cero se quitan"
+    for simbolo in "→≈≥✓•…«»“”€":
+        assert simbolo in texto, simbolo
+
+
+def test_emoji_se_omite_en_lugar_de_un_cuadro_negro():
+    _, texto = _leer(render_dossier_pdf(_dossier(subject_name="Ana 🚀", body="Lanzamiento 🚀 listo ✅")))
+
+    assert "■" not in texto and "🚀" not in texto and "✅" not in texto
+    assert "Lanzamiento" in texto and "listo" in texto and "Ana" in texto
+
+
+def test_negrita_cursiva_y_codigo_tambien_usan_la_fuente_incrustada():
+    body = "**negrita‑1** *cursiva‑2* ***ambas‑3*** `código‑4`\n\n```\nbloque‑5\n```"
+
+    lector, texto = _leer(render_dossier_pdf(_dossier(body=body)))
+
+    assert "■" not in texto
+    fuentes = _fuentes(lector)
+    assert not [f for f in fuentes if "Helvetica" in f or "Courier" in f or "Times" in f], fuentes
+    for variante in ("DejaVuSans", "DejaVuSans-Bold", "DejaVuSans-Oblique", "DejaVuSans-BoldOblique", "DejaVuSansMono"):
+        assert any(f.endswith(variante) for f in fuentes), (variante, fuentes)
