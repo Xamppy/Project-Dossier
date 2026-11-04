@@ -5,8 +5,12 @@ Sigue el formato del detalle web (``CorporateDossierDetailView``) en su tema cla
 tarjeta con estado, idioma, nombre y fechas, «Informe generado por IA» con el Markdown del
 informe, y las alertas al final. Los textos fijos son los de los catálogos del dashboard.
 
-ReportLab es Python puro: no pide librerías del sistema en Render ni en Docker. Sus fuentes
-estándar cubren Windows-1252; un emoji o un ideograma sale como ■, pero no rompe el PDF.
+ReportLab es Python puro: no pide librerías del sistema en Render ni en Docker.
+
+Fuentes: DejaVu Sans incrustada (``assets/fonts``, licencia libre). Las 14 fuentes estándar del
+PDF (Helvetica, Courier…) solo traen Windows-1252, y ReportLab dibuja ■ para cualquier otro
+carácter: así salían los guiones U+2010–U+2012 que escriben los modelos («2010‑2014»).
+Los caracteres invisibles se quitan y los emojis que la fuente no tiene se omiten.
 """
 from __future__ import annotations
 
@@ -14,6 +18,7 @@ import io
 import json
 import math
 import re
+import threading
 import unicodedata
 from datetime import datetime
 from pathlib import Path
@@ -27,7 +32,9 @@ from reportlab.lib.enums import TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.pdfmetrics import stringWidth
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen.canvas import Canvas
 from reportlab.platypus import (
     Flowable,
@@ -47,7 +54,28 @@ from dossier.db.models import Dossier
 from dossier.services.output_language import normalize_output_language
 from dossier.utils.html_text import strip_html_to_plain_line
 
-_LOGO = Path(__file__).resolve().parent.parent / "assets" / "tracelens-logo.png"
+_ASSETS = Path(__file__).resolve().parent.parent / "assets"
+_LOGO = _ASSETS / "tracelens-logo.png"
+
+_FUENTE = "DossierSans"
+_FUENTE_NEGRITA = "DossierSans-Bold"
+_FUENTE_CURSIVA = "DossierSans-Oblique"
+_FUENTE_MONO = "DossierMono"
+_ARCHIVOS_FUENTE = {
+    _FUENTE: "DejaVuSans.ttf",
+    _FUENTE_NEGRITA: "DejaVuSans-Bold.ttf",
+    _FUENTE_CURSIVA: "DejaVuSans-Oblique.ttf",
+    "DossierSans-BoldOblique": "DejaVuSans-BoldOblique.ttf",
+    _FUENTE_MONO: "DejaVuSansMono.ttf",
+}
+_REGISTRO_FUENTES = threading.Lock()
+# Las fuentes TrueType registradas son objetos del proceso, y ReportLab las recorta al guardar cada
+# PDF con un lector cuya posición vive en ellas: dos PDF a la vez se la pisan (IndexError o
+# KeyError en makeSubset). El worker y el envío manual generan PDF en hilos distintos, así que se
+# construyen de a uno. Cada PDF tarda una fracción de segundo.
+_CONSTRUCCION = threading.Lock()
+# Ancho cero: no se ven, pero sin glifo propio salían como ■.
+_INVISIBLES = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u2060\ufeff\u00ad"))
 _MARKDOWN = MarkdownIt("commonmark", {"html": False}).enable(["table", "strikethrough"])
 _ESQUEMAS_CLICABLES = ("http://", "https://", "mailto:")
 # Una fila de tabla no se parte entre páginas: si alguna celda pasaría de este alto (puntos;
@@ -145,36 +173,66 @@ _TEXTOS: dict[str, dict[str, str]] = {
 }
 
 
+def _registrar_fuentes() -> None:
+    """Registra DejaVu una sola vez por proceso (el worker y las rutas pueden llegar a la vez)."""
+    with _REGISTRO_FUENTES:
+        if _FUENTE in pdfmetrics.getRegisteredFontNames():
+            return
+        for nombre, archivo in _ARCHIVOS_FUENTE.items():
+            pdfmetrics.registerFont(TTFont(nombre, str(_ASSETS / "fonts" / archivo)))
+        pdfmetrics.registerFontFamily(_FUENTE, normal=_FUENTE, bold=_FUENTE_NEGRITA,
+                                      italic=_FUENTE_CURSIVA, boldItalic="DossierSans-BoldOblique")
+
+
+def _limpiar(texto: str) -> str:
+    """Quita los caracteres invisibles y los símbolos que la fuente no tiene (emojis): mejor
+    omitirlos que dibujar un cuadro. Las letras sin glifo se dejan: perderlas cambia el texto."""
+    glifos = pdfmetrics.getFont(_FUENTE).face.charToGlyph
+    return "".join(
+        c for c in texto.translate(_INVISIBLES)
+        if ord(c) in glifos or c in "\n\t" or not unicodedata.category(c).startswith(("S", "C", "M"))
+    )
+
+
+def _estilo_tabla(comandos: list) -> TableStyle:
+    """Las celdas de ReportLab arrancan en Helvetica aunque solo contengan párrafos."""
+    return TableStyle([("FONTNAME", (0, 0), (-1, -1), _FUENTE), *comandos])
+
+
+def _esc(texto: str) -> str:
+    return escape(_limpiar(texto))
+
+
 def _estilos() -> dict[str, ParagraphStyle]:
-    base = ParagraphStyle("cuerpo", fontName="Helvetica", fontSize=10, leading=14.5,
+    base = ParagraphStyle("cuerpo", fontName=_FUENTE, fontSize=10, leading=14.5,
                           textColor=_SECUNDARIO, spaceAfter=6)
     return {
         "cuerpo": base,
         "item": ParagraphStyle("item", parent=base, spaceAfter=2),
-        "cita": ParagraphStyle("cita", parent=base, textColor=_TENUE, fontName="Helvetica-Oblique"),
-        "codigo": ParagraphStyle("codigo", parent=base, fontName="Courier", fontSize=8.5, leading=11.5,
+        "cita": ParagraphStyle("cita", parent=base, textColor=_TENUE, fontName=_FUENTE_CURSIVA),
+        "codigo": ParagraphStyle("codigo", parent=base, fontName=_FUENTE_MONO, fontSize=8.5, leading=11.5,
                                  backColor=_SUPERFICIE, borderColor=_BORDE, borderWidth=0.5,
                                  borderPadding=6, spaceBefore=6, spaceAfter=10),
         "celda": ParagraphStyle("celda", parent=base, fontSize=8.8, leading=12, spaceAfter=0),
         "celda_th": ParagraphStyle("celda_th", parent=base, fontSize=8.8, leading=12, spaceAfter=0,
-                                   fontName="Helvetica-Bold", textColor=_TEXTO),
-        "h1": ParagraphStyle("h1", parent=base, fontName="Helvetica-Bold", fontSize=17, leading=21,
+                                   fontName=_FUENTE_NEGRITA, textColor=_TEXTO),
+        "h1": ParagraphStyle("h1", parent=base, fontName=_FUENTE_NEGRITA, fontSize=17, leading=21,
                              textColor=_TEXTO, spaceBefore=12, spaceAfter=6),
-        "h2": ParagraphStyle("h2", parent=base, fontName="Helvetica-Bold", fontSize=14.5, leading=18,
+        "h2": ParagraphStyle("h2", parent=base, fontName=_FUENTE_NEGRITA, fontSize=14.5, leading=18,
                              textColor=_TEXTO, spaceBefore=11, spaceAfter=5),
-        "h3": ParagraphStyle("h3", parent=base, fontName="Helvetica-Bold", fontSize=12, leading=15,
+        "h3": ParagraphStyle("h3", parent=base, fontName=_FUENTE_NEGRITA, fontSize=12, leading=15,
                              textColor=_TEXTO, spaceBefore=9, spaceAfter=4),
-        "h4": ParagraphStyle("h4", parent=base, fontName="Helvetica-Bold", fontSize=10.5, leading=14,
+        "h4": ParagraphStyle("h4", parent=base, fontName=_FUENTE_NEGRITA, fontSize=10.5, leading=14,
                              textColor=_TEXTO, spaceBefore=8, spaceAfter=3),
-        "seccion": ParagraphStyle("seccion", parent=base, fontName="Helvetica-Bold", fontSize=13,
+        "seccion": ParagraphStyle("seccion", parent=base, fontName=_FUENTE_NEGRITA, fontSize=13,
                                   leading=16, textColor=_ACENTO, spaceBefore=14, spaceAfter=4),
-        "nombre": ParagraphStyle("nombre", parent=base, fontName="Helvetica-Bold", fontSize=22,
+        "nombre": ParagraphStyle("nombre", parent=base, fontName=_FUENTE_NEGRITA, fontSize=22,
                                  leading=27, textColor=_TEXTO, spaceBefore=6, spaceAfter=2),
         "dato": ParagraphStyle("dato", parent=base, fontSize=9.5, leading=13, textColor=_TENUE, spaceAfter=1),
         "fecha": ParagraphStyle("fecha", parent=base, fontSize=8.5, leading=12, textColor=_TENUE, spaceAfter=0),
         "tipo": ParagraphStyle("tipo", parent=base, fontSize=9, leading=12, textColor=_TENUE,
                                alignment=TA_RIGHT, spaceAfter=0),
-        "insignia": ParagraphStyle("insignia", parent=base, fontName="Helvetica-Bold", fontSize=7.5,
+        "insignia": ParagraphStyle("insignia", parent=base, fontName=_FUENTE_NEGRITA, fontSize=7.5,
                                    leading=9, spaceAfter=0),
     }
 
@@ -196,7 +254,7 @@ def _inline(children: list[Token] | None) -> str:
     enlaces: list[bool] = []
     for t in children or []:
         if t.type == "text":
-            partes.append(escape(t.content))
+            partes.append(_esc(t.content))
         elif t.type == "softbreak":
             partes.append(" ")
         elif t.type == "hardbreak":
@@ -214,7 +272,7 @@ def _inline(children: list[Token] | None) -> str:
         elif t.type == "s_close":
             partes.append("</strike>")
         elif t.type == "code_inline":
-            partes.append(f'<font face="Courier">{escape(t.content)}</font>')
+            partes.append(f'<font face="{_FUENTE_MONO}">{_esc(t.content)}</font>')
         elif t.type == "link_open":
             href = str(t.attrGet("href") or "")
             clicable = href.lower().startswith(_ESQUEMAS_CLICABLES)
@@ -225,7 +283,7 @@ def _inline(children: list[Token] | None) -> str:
             if enlaces and enlaces.pop():
                 partes.append("</u></a>")
         elif t.type == "image":
-            partes.append(f"<i>{escape(t.content)}</i>")
+            partes.append(f"<i>{_esc(t.content)}</i>")
     return "".join(partes)
 
 
@@ -253,7 +311,7 @@ def _bloques(tokens: list[Token], i: int, fin: str | None, est: dict, parrafo: s
             interior, i = _bloques(tokens, i + 1, "blockquote_close", est, "cita", nivel)
             salida.extend([Indenter(left=10), *interior, Indenter(left=-10)])
         elif t.type in ("fence", "code_block"):
-            codigo = escape(t.content.rstrip("\n")).replace("\n", "<br/>")
+            codigo = _esc(t.content.rstrip("\n")).replace("\n", "<br/>")
             salida.append(Paragraph(codigo, est["codigo"]))
             i += 1
         elif t.type == "hr":
@@ -278,10 +336,12 @@ def _lista(tokens: list[Token], i: int, est: dict, nivel: int) -> tuple[Flowable
             i += 1
     if ordenada:
         lista = ListFlowable(items, bulletType="1", start=int(apertura.attrGet("start") or 1),
-                             leftIndent=16, bulletFontSize=9.5, bulletColor=_ACENTO)
+                             leftIndent=16, bulletFontName=_FUENTE, bulletFontSize=9.5,
+                             bulletColor=_ACENTO)
     else:
         lista = ListFlowable(items, bulletType="bullet", start="•" if nivel == 0 else "–",
-                             leftIndent=14, bulletFontSize=9.5, bulletColor=_ACENTO)
+                             leftIndent=14, bulletFontName=_FUENTE, bulletFontSize=9.5,
+                             bulletColor=_ACENTO)
     return lista, i + 1
 
 
@@ -346,7 +406,7 @@ def _tabla(tokens: list[Token], i: int, est: dict) -> tuple[list[Flowable], int]
     ]
     if cabeceras:
         estilo.append(("BACKGROUND", (0, 0), (-1, cabeceras - 1), _SUPERFICIE))
-    tabla = Table(datos, colWidths=anchos, repeatRows=cabeceras, style=TableStyle(estilo), hAlign="LEFT")
+    tabla = Table(datos, colWidths=anchos, repeatRows=cabeceras, style=_estilo_tabla(estilo), hAlign="LEFT")
     return [Spacer(1, 4), tabla, Spacer(1, 8)], i
 
 
@@ -357,7 +417,7 @@ def _insignia(texto: str, color: colors.Color, est: dict) -> Table:
     texto = texto.upper()
     estilo = ParagraphStyle("i", parent=est["insignia"], textColor=color)
     ancho = stringWidth(texto, estilo.fontName, estilo.fontSize) + 16
-    return Table([[Paragraph(escape(texto), estilo)]], colWidths=[ancho], style=TableStyle([
+    return Table([[Paragraph(_esc(texto), estilo)]], colWidths=[ancho], style=_estilo_tabla([
         ("BOX", (0, 0), (-1, -1), 0.8, color),
         ("ROUNDEDCORNERS", [7, 7, 7, 7]),
         ("LEFTPADDING", (0, 0), (-1, -1), 7),
@@ -370,21 +430,21 @@ def _insignia(texto: str, color: colors.Color, est: dict) -> Table:
 def _encabezado(dossier: Dossier, nombre: str, t: dict[str, str], lang: str, est: dict) -> list[Flowable]:
     ancho = A4[0] - 36 * mm
     logo = Image(str(_LOGO), width=46 * mm, height=46 * mm * 231 / 720, mask="auto")
-    marca = Table([[logo, Paragraph(escape(t["kind"]), est["tipo"])]], colWidths=[ancho * 0.6, ancho * 0.4],
-                  style=TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    marca = Table([[logo, Paragraph(_esc(t["kind"]), est["tipo"])]], colWidths=[ancho * 0.6, ancho * 0.4],
+                  style=_estilo_tabla([("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                                     ("LEFTPADDING", (0, 0), (-1, -1), 0),
                                     ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
     estado, idioma = _insignia(t["complete"], _EXITO, est), _insignia(t["report_in"], _TENUE, est)
     insignias = Table([[estado, idioma]], colWidths=[estado._argW[0] + 6, idioma._argW[0] + 6],
-                      hAlign="LEFT", style=TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0),
+                      hAlign="LEFT", style=_estilo_tabla([("LEFTPADDING", (0, 0), (-1, -1), 0),
                                                        ("RIGHTPADDING", (0, 0), (-1, -1), 6)]))
-    tarjeta: list[Flowable] = [insignias, Paragraph(escape(nombre), est["nombre"])]
+    tarjeta: list[Flowable] = [insignias, Paragraph(_esc(nombre), est["nombre"])]
     if dossier.subject_email:
-        tarjeta.append(Paragraph(escape(dossier.subject_email), est["dato"]))
-    tarjeta.append(Paragraph(escape(t["dates"].format(
+        tarjeta.append(Paragraph(_esc(dossier.subject_email), est["dato"]))
+    tarjeta.append(Paragraph(_esc(t["dates"].format(
         created=_fecha(dossier.created_at, lang), updated=_fecha(dossier.updated_at or dossier.created_at, lang),
     )), est["fecha"]))
-    caja = Table([[tarjeta]], colWidths=[ancho], style=TableStyle([
+    caja = Table([[tarjeta]], colWidths=[ancho], style=_estilo_tabla([
         ("BOX", (0, 0), (-1, -1), 0.8, _BORDE),
         ("ROUNDEDCORNERS", [8, 8, 8, 8]),
         ("LEFTPADDING", (0, 0), (-1, -1), 14),
@@ -396,7 +456,7 @@ def _encabezado(dossier: Dossier, nombre: str, t: dict[str, str], lang: str, est
 
 
 def _seccion(titulo: str, est: dict) -> list[Flowable]:
-    return [Paragraph(escape(titulo), est["seccion"]),
+    return [Paragraph(_esc(titulo), est["seccion"]),
             HRFlowable(width="100%", thickness=0.6, color=_BORDE, spaceAfter=6)]
 
 
@@ -406,7 +466,7 @@ def _alertas(alertas: Any, t: dict[str, str], est: dict) -> list[Flowable]:
     salida = _seccion(t["alerts"], est)
     for a in alertas:
         texto = a if isinstance(a, str) else json.dumps(a, ensure_ascii=False)
-        salida.append(Paragraph(escape(texto).replace("\n", "<br/>"), est["cuerpo"]))
+        salida.append(Paragraph(_esc(texto).replace("\n", "<br/>"), est["cuerpo"]))
     return salida
 
 
@@ -435,7 +495,7 @@ def _canvas_numerado(t: dict[str, str]) -> type[Canvas]:
             self.setStrokeColor(_BORDE)
             self.setLineWidth(0.6)
             self.line(18 * mm, 14 * mm, ancho - 18 * mm, 14 * mm)
-            self.setFont("Helvetica", 7.5)
+            self.setFont(_FUENTE, 7.5)
             self.setFillColor(_TENUE)
             self.drawString(18 * mm, 9.5 * mm, t["footer"])
             self.drawRightString(ancho - 18 * mm, 9.5 * mm, t["page"].format(n=self._pageNumber, total=total))
@@ -451,6 +511,7 @@ def render_dossier_pdf(dossier: Dossier, *, language: str | None = None) -> byte
         raise ValueError("El dossier no tiene contenido para el PDF.")
     lang = normalize_output_language(language or data.get("output_language"))
     t = _TEXTOS[lang]
+    _registrar_fuentes()
     est = _estilos()
     nombre = strip_html_to_plain_line(dossier.subject_name, max_len=255) or "Dossier"
 
@@ -464,8 +525,10 @@ def render_dossier_pdf(dossier: Dossier, *, language: str | None = None) -> byte
     doc = SimpleDocTemplate(
         salida, pagesize=A4, leftMargin=18 * mm, rightMargin=18 * mm, topMargin=16 * mm, bottomMargin=20 * mm,
         title=f"Dossier: {nombre}", author="TraceLens", subject=t["report_title"], creator="TraceLens",
+        initialFontName=_FUENTE,
     )
-    doc.build(historia, canvasmaker=_canvas_numerado(t))
+    with _CONSTRUCCION:
+        doc.build(historia, canvasmaker=_canvas_numerado(t))
     return salida.getvalue()
 
 

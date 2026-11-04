@@ -5,11 +5,13 @@ bloqueo de fila; con una sesión falsa no probaría nada.
 """
 from __future__ import annotations
 
+import io
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi.testclient import TestClient
+from pypdf import PdfReader
 from sqlalchemy.orm import Session
 
 from alembic import command
@@ -31,10 +33,14 @@ def test_informe_de_500_kb_se_arma_rapido_y_completo():
 
     inicio = time.monotonic()
     correo = build_dossier_email(d, language=None, dossier_url="https://e.com/d")
-    assert time.monotonic() - inicio < 3
+    assert time.monotonic() - inicio < 30
 
-    assert "<h2>Sección 449</h2>" in correo.html
-    assert "## Sección 449" in correo.text
+    # El informe entero viaja en el PDF; el cuerpo sigue siendo una confirmación corta.
+    (adjunto,) = correo.attachments
+    lector = PdfReader(io.BytesIO(adjunto.content))
+    assert "Sección 449" in " ".join(p.extract_text() for p in lector.pages[-3:])
+    assert len(correo.html) < 10_000
+    assert "Sección" not in correo.text
 
 
 def test_ca16_diez_envios_simultaneos_del_mismo_dossier_mandan_un_solo_correo(

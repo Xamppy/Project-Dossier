@@ -1,9 +1,10 @@
 """
 Correo del dossier (S5.7) y su envío con registro en ``dossiers`` (S6.1).
 
-El correo lleva el informe **completo** (``dossier_data.body``) convertido de Markdown a HTML,
-más una versión en texto plano y el PDF del dossier adjunto (``dossier_pdf``). El HTML crudo del informe se escapa: viene del LLM y de fuentes
-externas, y en un correo no hay CSP que lo contenga.
+El correo es una confirmación con un botón al dossier y el PDF completo adjunto
+(``dossier_pdf``). Solo si el PDF no se puede generar, el informe (``dossier_data.body``) va en
+el cuerpo, convertido de Markdown a HTML. El HTML crudo del informe se escapa: viene del LLM y
+de fuentes externas, y en un correo no hay CSP que lo contenga.
 """
 from __future__ import annotations
 
@@ -158,10 +159,15 @@ def build_dossier_email(dossier: Dossier, *, language: str | None, dossier_url: 
     adjuntos = _pdf_adjunto(dossier, lang)
     nota = [t["attached"]] if adjuntos else []
 
-    text = "\n\n".join(
-        [t["ready"], intro, *nota, f"{t['open']}: {dossier_url}", "-" * 40, body, "-" * 40, t["footer"]]
-    )
+    # Con el PDF adjunto el correo es solo la confirmación y el botón (revisión de DG): el informe
+    # va en el cuerpo únicamente si el PDF no se pudo generar, para que nunca llegue vacío.
+    informe_texto = [] if adjuntos else ["-" * 40, body, "-" * 40]
+    text = "\n\n".join([t["ready"], intro, *nota, f"{t['open']}: {dossier_url}", *informe_texto, t["footer"]])
     nota_html = f'<p style="margin:0 0 16px;">{html.escape(nota[0])}</p>\n' if nota else ""
+    informe_html = "" if adjuntos else (
+        '<hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0 16px;">\n'
+        f'<div class="informe">\n{_MARKDOWN.render(body)}\n</div>\n'
+    )
     html_doc = f"""<!DOCTYPE html>
 <html lang="{lang}">
 <head>
@@ -175,12 +181,8 @@ def build_dossier_email(dossier: Dossier, *, language: str | None, dossier_url: 
 <div class="tarjeta">
 <p style="font-size:18px;font-weight:bold;margin:0 0 8px;">{html.escape(t["ready"])}</p>
 <p style="margin:0 0 16px;">{html.escape(intro)}</p>
-{nota_html}<p style="margin:0 0 24px;"><a class="boton" href="{html.escape(dossier_url, quote=True)}">{html.escape(t["open"])}</a></p>
-<hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 16px;">
-<div class="informe">
-{_MARKDOWN.render(body)}
-</div>
-</div>
+{nota_html}<p style="margin:0;"><a class="boton" href="{html.escape(dossier_url, quote=True)}">{html.escape(t["open"])}</a></p>
+{informe_html}</div>
 <p class="pie">{html.escape(t["footer"])}</p>
 </div>
 </body>

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import io
+import sys
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -70,3 +71,32 @@ def test_diez_pdf_a_la_vez_salen_todos_validos():
 
     for i, pdf in enumerate(pdfs):
         assert f"Informe {i}" in PdfReader(io.BytesIO(pdf)).pages[0].extract_text()
+
+
+def test_pdf_concurrentes_con_fuentes_distintas_no_se_pisan_el_recorte_de_la_fuente():
+    """La fuente TrueType es un objeto compartido del proceso, y ReportLab la recorta al guardar
+    cada PDF con un lector cuya posición vive en ese objeto. Dos PDF guardándose a la vez se la
+    pisan: IndexError o KeyError en ``makeSubset`` (CI del PR #46). En producción pasa cuando el
+    worker y el envío manual generan un PDF al mismo tiempo.
+
+    ``setswitchinterval`` fuerza cambios de hilo frecuentes, así la carrera aparece siempre y no
+    solo cuando la CI tiene mala suerte."""
+    alfabetos = ["ÁÉÍÓÚáéíóúñÑ", "ÀÈÌÒÙàèìòùçÇ", "ÄÖÜäöüß€", "→≈≥≤✓•…«»“”",
+                 "ĀĒĪŌŪāēīōū", "ŁŃŚŹŻłńśźż", "ČĎĚŇŘŠŤŮŽčďěňřšťůž", "ΑΒΓΔΕαβγδε"]
+
+    def generar(i: int) -> bytes:
+        texto = alfabetos[i % len(alfabetos)] * 20
+        return render_dossier_pdf(_dossier(f"## Informe {i}\n\n**{texto}** *{texto}* `{texto}`"))
+
+    anterior = sys.getswitchinterval()
+    sys.setswitchinterval(1e-6)
+    try:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            pdfs = list(pool.map(generar, range(24)))
+    finally:
+        sys.setswitchinterval(anterior)
+
+    for i, pdf in enumerate(pdfs):
+        texto = PdfReader(io.BytesIO(pdf)).pages[0].extract_text()
+        assert f"Informe {i}" in texto
+        assert alfabetos[i % len(alfabetos)][:5] in texto

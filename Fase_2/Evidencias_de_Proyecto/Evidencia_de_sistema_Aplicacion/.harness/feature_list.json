@@ -1529,7 +1529,8 @@
       "branch": "feat/S6.1-envio-dossier-correo",
       "evidence": [
         "specs/reports/S6.1-envio-dossier-correo.md: CA1-CA20 con sus pruebas; backend 1055 passed con Postgres, Vitest 620 passed, ruff/mypy/tsc limpios; demostración en la app real con receptor SMTP local (capturas en specs/reports/S6.1-evidencia/)",
-        "specs/reports/S6.1-envio-dossier-correo.md: CA21-CA26 (PDF y adjunto) con sus pruebas; backend 1096 passed con Postgres, Vitest 619 passed; PDF de ejemplo en specs/reports/S6.1-evidencia/"
+        "specs/reports/S6.1-envio-dossier-correo.md: CA21-CA26 (PDF y adjunto) con sus pruebas; backend 1096 passed con Postgres, Vitest 619 passed; PDF de ejemplo en specs/reports/S6.1-evidencia/",
+        "Segunda revisión (2026-11-02, noche): correo solo con confirmación y botón (CA7) y PDF con DejaVu Sans sin ■ (CA27); backend 1106 passed con Postgres; antes y después en specs/reports/S6.1-evidencia/"
       ],
       "notes": "Implementada junto con S5.6. Revisión de DG (2026-11-02, tarde): PDF adjunto con el formato de la web (dossier_pdf.py, ReportLab) y envío automático de Personas sin casilla. Empresas y Calendario quedan fuera."
     },
