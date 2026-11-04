@@ -30,6 +30,13 @@ Pruebas: backend 1106 passed con Postgres; CA7 y CA8 ajustados y CA27 nuevo.
   los glifos usados.
 - **El dossier que mostró el problema se generó en Dokploy.** No está en `dossier_local`. Dokploy
   tendrá el arreglo cuando despliegue esta rama o `main`.
+- **Carrera de ReportLab con fuentes TrueType** (la CI del PR #46 la encontró). La fuente
+  registrada es un objeto del proceso, y al guardar cada PDF ReportLab la recorta con un lector
+  cuya posición vive en ella. Dos PDF a la vez fallan con `IndexError` o `KeyError` en
+  `makeSubset`. Con Helvetica no pasaba, porque las fuentes estándar no se recortan. Ahora los PDF
+  se construyen de a uno (`_CONSTRUCCION` en `dossier_pdf.py`). La prueba de estrés usa
+  `sys.setswitchinterval(1e-6)` para que la carrera aparezca siempre; sin eso, en local casi nunca
+  falla.
 
 **Siguiente paso concreto.** Desplegar en Dokploy y generar otra persona para confirmar el correo
 corto y el PDF sin ■. Después, la revisión del PR #45.

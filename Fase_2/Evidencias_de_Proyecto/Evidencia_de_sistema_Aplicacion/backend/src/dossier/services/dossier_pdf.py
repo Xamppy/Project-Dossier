@@ -69,6 +69,11 @@ _ARCHIVOS_FUENTE = {
     _FUENTE_MONO: "DejaVuSansMono.ttf",
 }
 _REGISTRO_FUENTES = threading.Lock()
+# Las fuentes TrueType registradas son objetos del proceso, y ReportLab las recorta al guardar cada
+# PDF con un lector cuya posición vive en ellas: dos PDF a la vez se la pisan (IndexError o
+# KeyError en makeSubset). El worker y el envío manual generan PDF en hilos distintos, así que se
+# construyen de a uno. Cada PDF tarda una fracción de segundo.
+_CONSTRUCCION = threading.Lock()
 # Ancho cero: no se ven, pero sin glifo propio salían como ■.
 _INVISIBLES = dict.fromkeys(map(ord, "\u200b\u200c\u200d\u2060\ufeff\u00ad"))
 _MARKDOWN = MarkdownIt("commonmark", {"html": False}).enable(["table", "strikethrough"])
@@ -522,7 +527,8 @@ def render_dossier_pdf(dossier: Dossier, *, language: str | None = None) -> byte
         title=f"Dossier: {nombre}", author="TraceLens", subject=t["report_title"], creator="TraceLens",
         initialFontName=_FUENTE,
     )
-    doc.build(historia, canvasmaker=_canvas_numerado(t))
+    with _CONSTRUCCION:
+        doc.build(historia, canvasmaker=_canvas_numerado(t))
     return salida.getvalue()
 
 
