@@ -6,6 +6,129 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-02 (noche) · S6.1 · Correo corto y ■ en el PDF · DG (agente)
+
+**Hecho.** Segunda revisión de DG, que probó el envío desde Dokploy. Dos cambios:
+
+- **Correo corto:** el informe ya no va en el cuerpo, solo la confirmación, la línea del PDF y el
+  botón. Si el PDF fallara, el informe vuelve al cuerpo para que el correo no llegue vacío.
+- **Sin ■ en el PDF:** usa DejaVu Sans incrustada en lugar de Helvetica.
+
+Pruebas: backend 1106 passed con Postgres; CA7 y CA8 ajustados y CA27 nuevo.
+
+**Lo que hay que saber.**
+- **Causa del ■.** Las 14 fuentes estándar del PDF solo traen Windows-1252, y ReportLab dibuja ■
+  para cualquier otro carácter. Los modelos escriben U+2011 (guion no separable) en rangos como
+  «2010‑2014». La misma hoja de caracteres está antes y después en `specs/reports/S6.1-evidencia/`.
+- **Helvetica escondida.** No basta con cambiar los estilos de párrafo. Las celdas de `Table` y la
+  fuente inicial del documento también usan Helvetica por omisión; están fijadas con
+  `_estilo_tabla` e `initialFontName`. La prueba
+  `test_negrita_cursiva_y_codigo_tambien_usan_la_fuente_incrustada` falla si vuelve a aparecer una
+  fuente estándar.
+- **Origen de las fuentes.** Salen de la distribución de matplotlib (DejaVu 2.x) y su licencia está
+  en `assets/fonts/LICENSE-DejaVu.txt`. Pesan 2,9 MB en el repositorio, pero el PDF solo incrusta
+  los glifos usados.
+- **El dossier que mostró el problema se generó en Dokploy.** No está en `dossier_local`. Dokploy
+  tendrá el arreglo cuando despliegue esta rama o `main`.
+- **Carrera de ReportLab con fuentes TrueType** (la CI del PR #46 la encontró). La fuente
+  registrada es un objeto del proceso, y al guardar cada PDF ReportLab la recorta con un lector
+  cuya posición vive en ella. Dos PDF a la vez fallan con `IndexError` o `KeyError` en
+  `makeSubset`. Con Helvetica no pasaba, porque las fuentes estándar no se recortan. Ahora los PDF
+  se construyen de a uno (`_CONSTRUCCION` en `dossier_pdf.py`). La prueba de estrés usa
+  `sys.setswitchinterval(1e-6)` para que la carrera aparezca siempre; sin eso, en local casi nunca
+  falla.
+
+**Siguiente paso concreto.** Desplegar en Dokploy y generar otra persona para confirmar el correo
+corto y el PDF sin ■. Después, la revisión del PR #45.
+
+**Rama.** `feat/S6.1-envio-dossier-correo` · **Estado.** review
+
+### 2026-11-02 (tarde) · S6.1 · PDF adjunto y envío automático · DG (agente)
+
+**Hecho.** A pedido de DG, el correo del dossier lleva el **PDF adjunto**, con el formato del
+detalle web: logo TraceLens, insignias, nombre, fechas, «Informe generado por IA», alertas y
+«Página n de N». El código está en `services/dossier_pdf.py` (ReportLab). El envío de Personas es
+ahora **automático**: el formulario ya no tiene casilla, sino un aviso. El diseño del correo se
+conservó y suma una línea que menciona el adjunto. Empresas y Calendario siguen sin envío
+automático, por decisión de DG.
+
+Pruebas:
+
+- Backend: 1096 passed con Postgres.
+- Frontend: 619 passed.
+- La app real se verificó con un receptor SMTP local, por el envío automático y por el manual.
+
+**Lo que hay que saber.**
+- **ReportLab y no WeasyPrint.** WeasyPrint pide Pango y Cairo del sistema, que el runtime de
+  Render no tiene. Las fuentes estándar de ReportLab cubren Windows-1252: un emoji sale ■, sin
+  romper el PDF.
+- **El PDF nunca impide el correo.** Si falla, el correo sale sin adjunto y queda un `warning`.
+  Una fila de tabla que no cabe en una página se escribe como «encabezado: valor»: ReportLab no
+  parte filas y lanzaría `LayoutError`.
+- **Se retiró `send_email`** de `PersonResearchRequest`, junto con sus pruebas: la del valor por
+  omisión y la de la huella de deduplicación. Pydantic ignora el campo si un cliente viejo lo manda.
+- **Pruebas que leen el PDF.** `pypdf` está en `requirements-dev.txt` para leer el PDF de vuelta.
+  El logo para el PDF es una copia reducida en `src/dossier/assets/tracelens-logo.png`; si cambia
+  el de `frontend/public/`, hay que regenerarla.
+- **Datos de prueba.** En `dossier_local` quedó otro dossier sintético de `qa-s61@example.com`.
+
+**Siguiente paso concreto.** El mismo de la entrada anterior: probar con la cuenta Gmail del
+proyecto, abrir el PR y pedir la revisión.
+
+**Rama.** `feat/S6.1-envio-dossier-correo` · **Estado.** review
+
+### 2026-11-02 · S5.6 · S5.7 · S6.1 · Envío del dossier por correo (Gmail SMTP) · DG (agente)
+
+**Hecho.** El dossier se puede enviar completo por correo con Gmail SMTP y una contraseña de
+aplicación, a pedido de DG:
+
+- **Servicio SMTP** (`services/email_service.py`).
+- **Plantilla** (`services/dossier_email.py`): HTML y texto en seis idiomas.
+- **Envío automático** al terminar un job de Personas con `send_email=true`.
+- **Envío manual** con `POST /dossiers/{id}/email`.
+- **Campos nuevos:** `email_delivery` en `GET /dossiers/{id}` y `email_delivery_available` en
+  `GET /auth/me`.
+- **Interfaz:** casilla en Personas, panel en el detalle del dossier y textos en los catálogos.
+
+Pruebas:
+
+- Backend: 1055 passed con Postgres local (unitarias, integración, estrés y seguridad).
+- Frontend: 620 passed en Vitest.
+- La app real se probó con un receptor SMTP local.
+- Contrato: `specs/proposals/S6.1-envio-dossier-correo.md`. Verificación:
+  `specs/reports/S6.1-envio-dossier-correo.md`.
+
+**Sin terminar.** Falta probar contra Gmail real con la contraseña de aplicación del proyecto.
+Siguen pendientes la revisión del segundo integrante y el PR.
+
+**Lo que hay que saber.**
+- **Sin `ENCRYPTION_SECRET`.** Hay una sola cuenta remitente por instancia, en `SMTP_*`. No se
+  guardan credenciales en la base, así que no hace falta la variable que pedía la nota de S5.6.
+  La tabla `email_integrations` sigue sin modelo.
+- **`smtplib`, no `aiosmtplib`.** El worker y las rutas son síncronos. Está escrito en la
+  actualización del ADR 0005.
+- **El correo nunca rompe el job.** Se envía después del `commit` que deja el job `completed`.
+  Si falla, el job y el dossier quedan igual y solo hay un `warning` en el log. El usuario puede
+  reenviar desde el detalle.
+- **Destinatario fijo.** Siempre es el usuario de la sesión, sin campo para elegirlo. Entre dos
+  envíos manuales del mismo dossier hay 60 s. La fila se bloquea con `FOR UPDATE`, así que diez
+  clics simultáneos mandan un solo correo (`tests/stress/test_dossier_email_estres.py`).
+- **Servidor SMTP de prueba.** `tests/conftest.py` tiene la fixture `servidor_smtp`: un SMTP real
+  en loopback que guarda los mensajes. Úsala para cualquier prueba futura de correo.
+- **Carpeta de trabajo.** Desde que el proyecto pasó a `Fase_2/…`, el `.venv` y `node_modules`
+  siguen en `backend/` y `frontend/` de la raíz del repositorio (sin seguimiento). En esta sesión
+  se enlazaron con symlinks, excluidos en `.git/info/exclude`. Turbopack no acepta el enlace:
+  usa `npm run dev`, que pasa `--webpack`.
+- **Datos de prueba.** En `dossier_local` quedaron el usuario `qa-s61@example.com`, su
+  organización «QA S6.1» y un dossier «Ana Prueba Ficticia». Para pruebas con Postgres se creó la
+  base local `dossier_test` (`TEST_DATABASE_URL=postgresql://localhost/dossier_test`).
+
+**Siguiente paso concreto.** Poner `SMTP_USERNAME` y `SMTP_PASSWORD` de la cuenta Gmail del
+proyecto en `backend/.env` y enviar un dossier desde el detalle (`docs/dev/correo-gmail.md`).
+Después, abrir el PR y pedir la revisión.
+
+**Rama.** `feat/S6.1-envio-dossier-correo` · **Estado.** review (S5.6, S5.7, S6.1)
+
 ### 2026-10-22 · Validación de los PR del 2026-10-19 · FO (agente)
 
 **Hecho.** Se validaron y mezclaron en main los 12 PR abiertos (#17–#19, #21–#23, #25–#29, #33)

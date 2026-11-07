@@ -82,6 +82,7 @@ function PersonResearchPageContent() {
   const jobParamAppliedRef = useRef<string | null>(null);
   const partialsRef = useRef<HTMLDivElement>(null);
   const usesEnrichment = researchSource === "pdl";
+  const emailAvailable = Boolean(me?.email_delivery_available && me.email);
 
   const summaryScopeKey =
     researchSource === "pdl"
@@ -412,6 +413,17 @@ function PersonResearchPageContent() {
                 </div>
               ) : null}
             </div>
+
+            {emailAvailable ? (
+              // S6.1: el backend envía el dossier con su PDF al terminar, sin que se pida.
+              <p className="flex items-start gap-2 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mt-px h-4 w-4 shrink-0" aria-hidden="true">
+                  <rect x="3" y="5" width="18" height="14" rx="2" />
+                  <polyline points="3 7 12 13 21 7" />
+                </svg>
+                <span>{t("person_research.email_auto_note", { email: me?.email ?? "" })}</span>
+              </p>
+            ) : null}
 
             {error ? <p className="text-sm text-red-400">{error}</p> : null}
 

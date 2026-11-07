@@ -47,6 +47,8 @@ export type AuthUser = {
   dossier_output_language?: string;
   /** 7, 14, 30, 90 o null (conservar indefinidamente). */
   dossier_retention_days?: number | null;
+  /** S6.1: la instancia tiene SMTP configurado y puede enviar dossiers por correo. */
+  email_delivery_available?: boolean;
 };
 
 /** Fila devuelta por `GET /dossiers` (tabla `dossiers` en PostgreSQL). */
@@ -169,6 +171,21 @@ export type DossierDetailResponse = {
   dossier_folder_id?: string | null;
   permissions?: DossierPermissions;
   shares?: DossierShareItem[];
+  /** S6.1: estado del envío por correo. */
+  email_delivery?: DossierEmailDelivery;
+};
+
+export type DossierEmailDelivery = {
+  sent: boolean;
+  sent_at: string | null;
+  recipients: string[];
+};
+
+export type SendDossierEmailResponse = {
+  dossier_id: string;
+  email_sent: boolean;
+  email_sent_at: string | null;
+  email_recipients: string[];
 };
 
 export type AuthSuccessResponse = {
@@ -1524,6 +1541,14 @@ export async function acceptOrgInvite(token: string): Promise<AuthSuccessRespons
   );
   assertAuthSuccessResponse(data);
   return data;
+}
+
+/** S6.1: envía el dossier completo al correo del usuario de la sesión. */
+export async function sendDossierByEmail(dossierId: string): Promise<SendDossierEmailResponse> {
+  return postJsonWithAuth<SendDossierEmailResponse>(
+    `/dossiers/${encodeURIComponent(dossierId)}/email`,
+    {},
+  );
 }
 
 export async function createDossierShare(

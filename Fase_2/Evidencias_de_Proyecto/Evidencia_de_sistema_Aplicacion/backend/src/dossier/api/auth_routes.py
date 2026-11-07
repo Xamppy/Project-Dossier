@@ -89,6 +89,7 @@ from dossier.services.account_service import (
 )
 from dossier.services.dossier_retention import normalize_dossier_retention_days
 from dossier.services.dossier_share_service import list_org_members
+from dossier.services.email_service import email_delivery_available
 from dossier.services.org_invite_service import (
     accept_org_invite,
     accept_org_invite_for_register,
@@ -361,6 +362,7 @@ def build_user_public(
         timezone=user.timezone or "UTC",
         dossier_output_language=getattr(user, "dossier_output_language", None) or "match",
         dossier_retention_days=getattr(user, "dossier_retention_days", None),
+        email_delivery_available=email_delivery_available(),
     )
 
 

@@ -1397,7 +1397,7 @@
       "id": "S5.6",
       "sprint": 5,
       "title": "Integrar el proveedor de correo transaccional",
-      "status": "pending",
+      "status": "review",
       "owner": "DG",
       "area": "backend",
       "activity": "A7",
@@ -1412,15 +1412,18 @@
         "S6.1"
       ],
       "trello": "https://trello.com/c/b40uAH4m",
-      "branch": null,
-      "evidence": [],
-      "notes": "ADR 0005 asume ENCRYPTION_SECRET como 'clave maestra del entorno' para cifrar credenciales SMTP. Esa variable NO existe hoy (ni en código ni en .env.example). Hay que crearla y decidir gestión/rotación antes de implementar."
+      "branch": "feat/S6.1-envio-dossier-correo",
+      "evidence": [
+        "specs/reports/S6.1-envio-dossier-correo.md: CA1-CA20 con sus pruebas; backend 1055 passed con Postgres, Vitest 620 passed, ruff/mypy/tsc limpios; demostración en la app real con receptor SMTP local (capturas en specs/reports/S6.1-evidencia/)"
+      ],
+      "notes": "Gmail SMTP con contraseña de aplicación, configurado por variables SMTP_* (una cuenta por instancia): no guarda credenciales, así que no hace falta ENCRYPTION_SECRET (ADR 0005, actualización 2026-11-02). Falta probar contra Gmail real con la cuenta del proyecto.",
+      "owner_session": "DG (agente)"
     },
     {
       "id": "S5.7",
       "sprint": 5,
       "title": "Construir la plantilla de correo del dossier",
-      "status": "pending",
+      "status": "review",
       "owner": "DG",
       "area": "frontend",
       "activity": "A7",
@@ -1434,9 +1437,11 @@
         "S6.1"
       ],
       "trello": "https://trello.com/c/Y6TyljD1",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S6.1-envio-dossier-correo",
+      "evidence": [
+        "specs/reports/S6.1-envio-dossier-correo.md: CA1-CA20 con sus pruebas; backend 1055 passed con Postgres, Vitest 620 passed, ruff/mypy/tsc limpios; demostración en la app real con receptor SMTP local (capturas en specs/reports/S6.1-evidencia/)"
+      ],
+      "notes": "Implementada junto con S5.6 en la misma rama, a pedido de DG (envío de punta a punta con Gmail SMTP)."
     },
     {
       "id": "S5.8",
@@ -1507,7 +1512,7 @@
       "id": "S6.1",
       "sprint": 6,
       "title": "Implementar el envio del dossier por correo al completarse la generacion",
-      "status": "pending",
+      "status": "review",
       "owner": "DG",
       "area": "backend",
       "activity": "A7",
@@ -1525,9 +1530,13 @@
         "S6.6"
       ],
       "trello": "https://trello.com/c/byxrDl6m",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S6.1-envio-dossier-correo",
+      "evidence": [
+        "specs/reports/S6.1-envio-dossier-correo.md: CA1-CA20 con sus pruebas; backend 1055 passed con Postgres, Vitest 620 passed, ruff/mypy/tsc limpios; demostración en la app real con receptor SMTP local (capturas en specs/reports/S6.1-evidencia/)",
+        "specs/reports/S6.1-envio-dossier-correo.md: CA21-CA26 (PDF y adjunto) con sus pruebas; backend 1096 passed con Postgres, Vitest 619 passed; PDF de ejemplo en specs/reports/S6.1-evidencia/",
+        "Segunda revisión (2026-11-02, noche): correo solo con confirmación y botón (CA7) y PDF con DejaVu Sans sin ■ (CA27); backend 1106 passed con Postgres; antes y después en specs/reports/S6.1-evidencia/"
+      ],
+      "notes": "Implementada junto con S5.6. Revisión de DG (2026-11-02, tarde): PDF adjunto con el formato de la web (dossier_pdf.py, ReportLab) y envío automático de Personas sin casilla. Empresas y Calendario quedan fuera."
     },
     {
       "id": "S6.2",
