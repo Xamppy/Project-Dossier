@@ -1,0 +1,42 @@
+# Pruebas de seguridad (OE8) por archivo, contra PostgreSQL real
+# Fecha: 2026-11-07 13:54:32 -0300
+# Commit: a5a8add515befb6e43118bfa9ed9391fa03e2648
+# Directorio: backend/
+# Comando: TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:55432/dossier_evid_seg_test pytest tests/security -rs
+# Código de salida: 0
+# ---- salida literal ----
+============================= test session starts =============================
+platform win32 -- Python 3.11.9, pytest-9.1.1, pluggy-1.6.0
+rootdir: E:\Proyecto Dossier\Project-Dossier\Fase_2\Evidencias_de_Proyecto\Evidencia_de_sistema_Aplicacion\backend
+configfile: pytest.ini
+plugins: anyio-4.15.1, langsmith-0.14.0, cov-7.1.0
+collected 162 items
+
+tests\security\test_aislamiento_organizaciones.py ...................... [ 13%]
+..........................                                               [ 29%]
+tests\security\test_audit_log_seguridad.py ......                        [ 33%]
+tests\security\test_calendar_correo_asistente_seguridad.py ...           [ 35%]
+tests\security\test_calendar_event_access.py ............                [ 42%]
+tests\security\test_change_password_seguridad.py ......                  [ 46%]
+tests\security\test_cors_seguridad.py ............                       [ 53%]
+tests\security\test_dashboard_summary_seguridad.py ..........            [ 59%]
+tests\security\test_dependencias_seguridad.py .....                      [ 62%]
+tests\security\test_dossier_detail_seguridad.py ..                       [ 64%]
+tests\security\test_dossier_email_seguridad.py .......                   [ 68%]
+tests\security\test_dossier_entities_seguridad.py .....                  [ 71%]
+tests\security\test_dossier_entities_writer_seguridad.py ...             [ 73%]
+tests\security\test_dossier_stream_seguridad.py ....                     [ 75%]
+tests\security\test_ejemplo_seguridad.py .......sss                      [ 82%]
+tests\security\test_google_login_seguridad.py .........                  [ 87%]
+tests\security\test_job_queue_seguridad.py .                             [ 88%]
+tests\security\test_oauth_config_seguridad.py ..                         [ 89%]
+tests\security\test_progress_seguridad.py ...                            [ 91%]
+tests\security\test_rate_limit_seguridad.py ....                         [ 93%]
+tests\security\test_refresh_tokens_seguridad.py .......                  [ 98%]
+tests\security\test_register_password_seguridad.py ...                   [100%]
+
+=========================== short test summary info ===========================
+SKIPPED [1] tests\security\test_ejemplo_seguridad.py:209: Se habilita con S6.6
+SKIPPED [1] tests\security\test_ejemplo_seguridad.py:218: Se habilita con S6.5 — retención de 24 h
+SKIPPED [1] tests\security\test_ejemplo_seguridad.py:228: Se habilita con S6.5, tras S4.5
+======================= 159 passed, 3 skipped in 49.41s =======================
