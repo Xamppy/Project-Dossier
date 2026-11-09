@@ -793,7 +793,7 @@
       "id": "S2.7",
       "sprint": 2,
       "title": "Documentar el agente europeo: cobertura, limites y costo",
-      "status": "pending",
+      "status": "in_progress",
       "owner": "FO",
       "area": "docs",
       "activity": "A9",
@@ -805,9 +805,9 @@
       ],
       "blocks": [],
       "trello": "https://trello.com/c/UkX5kX3I",
-      "branch": null,
+      "branch": "feat/FO-cierre-europa-prensa",
       "evidence": [],
-      "notes": ""
+      "notes": "Tomada en el mismo PR que S2.6: next.py --claim no la acepta mientras S2.6 no esté done (depends_on)."
     },
     {
       "id": "S3.1",
