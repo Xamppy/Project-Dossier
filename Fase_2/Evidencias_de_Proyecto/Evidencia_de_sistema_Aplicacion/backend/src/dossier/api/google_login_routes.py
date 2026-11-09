@@ -30,11 +30,13 @@ from dossier.api.auth_routes import (
     allocate_org_slug,
     get_db_if_configured,
     load_session_membership,
+    open_refreshable_session,
 )
 from dossier.db.models import OAuthAccount, Organization, OrgMembership, User
 from dossier.org_workspace import ORG_NAME_PERSONAL_PLACEHOLDER
 from dossier.security import create_access_token
 from dossier.security.jwt_tokens import _secret
+from dossier.security.rate_limit import limit_auth
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +136,7 @@ def resolver_usuario_google(
     return user, pair[0], pair[1]
 
 
-@router.get("/login")
+@router.get("/login", dependencies=[Depends(limit_auth)])
 def google_login_inicio(request: Request) -> RedirectResponse:
     credenciales = _credenciales()
     if credenciales is None:
@@ -214,4 +216,7 @@ def _abrir_sesion(
     token = create_access_token(
         user_id=str(user.id), email=user.email, organization_id=str(org.id), role=membresia.role
     )
-    return RedirectResponse(f"{_frontend()}/auth/google#token={token}", status_code=302)
+    resp = RedirectResponse(f"{_frontend()}/auth/google#token={token}", status_code=302)
+    # S3.9: la sesión renovable viaja en la cookie HttpOnly, nunca en la URL.
+    open_refreshable_session(db, request, resp, user_id=user.id, organization_id=org.id)
+    return resp

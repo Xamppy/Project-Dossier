@@ -35,3 +35,25 @@ describe("validación de la nueva contraseña al cambiarla", () => {
     expect(message).not.toBe(t("auth.error.password_max_bytes"));
   });
 });
+
+describe("límite de solicitudes (S5.8)", () => {
+  function demasiadas(segundos = 42) {
+    return new DossierApiError(429, "rate_limited", {
+      detail: { code: "rate_limited", message: "Demasiadas solicitudes.", retry_after: segundos },
+    });
+  }
+
+  it.each(SUPPORTED_LOCALES)("explica cuánto esperar en %s, sin mostrar el código interno", (locale) => {
+    const t = createTranslator(locale);
+    const message = translateApiErrorMessage(demasiadas(42), t);
+    expect(message).toContain("42");
+    expect(message).not.toContain("rate_limited");
+    expect(message).not.toBe(t("errors.server_generic"));
+  });
+
+  it("sin retry_after usa un minuto", () => {
+    const t = createTranslator("es");
+    const err = new DossierApiError(429, "rate_limited", { detail: { code: "rate_limited" } });
+    expect(translateApiErrorMessage(err, t)).toContain("60");
+  });
+});

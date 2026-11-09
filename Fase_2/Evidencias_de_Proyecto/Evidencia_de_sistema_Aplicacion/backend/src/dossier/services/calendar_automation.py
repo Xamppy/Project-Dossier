@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from dossier.billing.entitlements import plan_allows_automation
 from dossier.db.models import CalendarEvent, CalendarIntegration, Dossier, Organization, User
 from dossier.org_dossier_context import format_dossier_context_for_prompt
+from dossier.services.audit_log import AuditEvent, record, saved_dossier_ids
 from dossier.services.calendar_event_dossiers import (
     generate_dossiers_from_calendar_event,
     persist_calendar_dossiers,
@@ -40,6 +41,37 @@ from dossier.services.output_language import resolve_dossier_output_language_for
 logger = logging.getLogger(__name__)
 
 _EMAIL_RE = re.compile(r"[\w.+-]+@[\w.-]+\.\w+")
+
+
+def _auditar_generacion_automatica(
+    db: Session, event: CalendarEvent, org_id: Any, guardados: dict[str, Any] | None
+) -> None:
+    """S4.10: la generación automática desde el calendario también queda en audit_logs.
+
+    Sin datos de la reunión: solo ids del evento y de los dossiers guardados.
+    """
+    try:
+        ids = saved_dossier_ids(guardados)
+        with db.begin_nested():
+            record(
+                db,
+                AuditEvent(
+                    action="AUTO calendar_automation",
+                    resource_type="dossier",
+                    resource_id=UUID(ids[0]) if len(ids) == 1 else None,
+                    user_id=event.user_id,
+                    organization_id=org_id,
+                    success=event.processing_status == "completed",
+                    error_message=(event.skip_reason or None)
+                    if event.processing_status != "completed"
+                    else None,
+                    request_data={"calendar_event_id": str(event.id), "dossier_ids": ids},
+                ),
+            )
+    except Exception:
+        logger.warning(
+            "Automatización: no se pudo registrar la auditoría del evento %s", event.id, exc_info=True
+        )
 
 ALLOWED_ADVANCE_MINUTES = frozenset({15, 20, 30, 60, 1440})
 
@@ -520,6 +552,7 @@ def process_due_calendar_events(db: Session) -> dict[str, int]:
         )
 
         t0 = time.perf_counter()
+        guardados: dict[str, Any] | None = None
         try:
             result = generate_dossiers_from_calendar_event(
                 reunion,
@@ -539,6 +572,7 @@ def process_due_calendar_events(db: Session) -> dict[str, int]:
                 calendar_event_id=event.id,
             )
             saved = result.get("saved_dossiers") or {}
+            guardados = saved
             if saved:
                 event.processing_status = "completed"
                 event.skip_reason = None
@@ -558,6 +592,7 @@ def process_due_calendar_events(db: Session) -> dict[str, int]:
             event.skip_reason = str(e)[:500]
             stats["failed"] += 1
 
+        _auditar_generacion_automatica(db, event, org_id, guardados)
         db.commit()
 
     stats["skipped"] = _mark_past_unprocessed_skipped(db)

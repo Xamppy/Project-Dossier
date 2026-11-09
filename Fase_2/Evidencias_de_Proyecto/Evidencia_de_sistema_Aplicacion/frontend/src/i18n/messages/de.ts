@@ -1035,6 +1035,7 @@ const messages = {
   "backend.error_plan_depth":
     "Ihr Plan erlaubt diese Dossier-Tiefe nicht. Upgrade auf Pro oder Enterprise.",
   "errors.server_generic": "Serverfehler. Bitte später erneut versuchen.",
+  "errors.rate_limited": "Zu viele Versuche. Warte {seconds} Sekunden und versuche es erneut.",
   "errors.generation_failed": "Der Bericht konnte nicht erstellt werden. Bitte später erneut versuchen.",
   "errors.service_unavailable": "Ein Datendienst ist vorübergehend nicht verfügbar.",
   "common.loading": "Wird geladen…",

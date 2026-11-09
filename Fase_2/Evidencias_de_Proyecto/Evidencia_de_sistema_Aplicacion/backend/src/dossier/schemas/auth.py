@@ -127,6 +127,9 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)
+    # S3.9: «Recuérdame». True: la sesión dura REFRESH_TOKEN_EXPIRE_DAYS; False: cookie
+    # de sesión del navegador (máximo 12 h). Opcional para no romper clientes existentes.
+    remember: bool = True
 
 
 class ForgotPasswordRequest(BaseModel):

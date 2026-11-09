@@ -971,7 +971,7 @@
       "id": "S3.8",
       "sprint": 3,
       "title": "Endurecer la politica de origenes permitidos (CORS)",
-      "status": "pending",
+      "status": "claimed",
       "owner": "FD",
       "area": "security",
       "activity": "A8",
@@ -983,15 +983,16 @@
         "S6.8"
       ],
       "trello": "https://trello.com/c/yxFNmUet",
-      "branch": null,
+      "branch": "docmac",
       "evidence": [],
-      "notes": ""
+      "notes": "",
+      "owner_session": "FD"
     },
     {
       "id": "S3.9",
       "sprint": 3,
       "title": "Reducir la vigencia del token e introducir renovacion",
-      "status": "pending",
+      "status": "claimed",
       "owner": "FD",
       "area": "security",
       "activity": "A8",
@@ -1003,9 +1004,10 @@
         "S6.8"
       ],
       "trello": "https://trello.com/c/JNkEtd4k",
-      "branch": null,
+      "branch": "docmac",
       "evidence": [],
-      "notes": ""
+      "notes": "",
+      "owner_session": "FD"
     },
     {
       "id": "S4.1",
@@ -1257,7 +1259,7 @@
       "id": "S4.10",
       "sprint": 4,
       "title": "Implementar la tabla y el servicio de registro de auditoria",
-      "status": "pending",
+      "status": "claimed",
       "owner": "FD",
       "area": "db",
       "activity": "A8",
@@ -1272,9 +1274,10 @@
         "S6.7"
       ],
       "trello": "https://trello.com/c/3wVUVam1",
-      "branch": null,
+      "branch": "docmac",
       "evidence": [],
-      "notes": "Migracion.md:821-824 ya define el diseño de campos de auditoría (verbo HTTP + recurso, tipo de recurso: dossier/contact/user/billing/api_key). Partir de ese diseño en vez de diseñar de cero."
+      "notes": "Migracion.md:821-824 ya define el diseño de campos de auditoría (verbo HTTP + recurso, tipo de recurso: dossier/contact/user/billing/api_key). Partir de ese diseño en vez de diseñar de cero.",
+      "owner_session": "FD"
     },
     {
       "id": "S5.1",
@@ -1444,7 +1447,7 @@
       "id": "S5.8",
       "sprint": 5,
       "title": "Implementar limitacion de tasa en autenticacion y generacion",
-      "status": "pending",
+      "status": "claimed",
       "owner": "FD",
       "area": "security",
       "activity": "A8",
@@ -1456,9 +1459,10 @@
         "S6.8"
       ],
       "trello": "https://trello.com/c/S6I7pjQn",
-      "branch": null,
+      "branch": "docmac",
       "evidence": [],
-      "notes": ""
+      "notes": "",
+      "owner_session": "FD"
     },
     {
       "id": "S5.9",
@@ -1646,7 +1650,7 @@
       "id": "S6.7",
       "sprint": 6,
       "title": "Pruebas negativas de aislamiento entre organizaciones",
-      "status": "pending",
+      "status": "claimed",
       "owner": "FD",
       "area": "quality",
       "activity": "A9",
@@ -1659,9 +1663,10 @@
       ],
       "blocks": [],
       "trello": "https://trello.com/c/kbGIl5Hl",
-      "branch": null,
+      "branch": "docmac",
       "evidence": [],
-      "notes": ""
+      "notes": "",
+      "owner_session": "FD"
     },
     {
       "id": "S6.8",
@@ -2351,7 +2356,7 @@
       "id": "SEC-2026-10-19-01",
       "sprint": 2,
       "title": "Actualizar pyjwt y next por vulnerabilidades conocidas",
-      "status": "pending",
+      "status": "claimed",
       "owner": "FD",
       "area": "security",
       "activity": "A8",
@@ -2361,10 +2366,10 @@
       "depends_on": [],
       "blocks": [],
       "trello": null,
-      "branch": null,
+      "branch": "docmac",
       "evidence": [],
       "notes": "Registrada el 2026-10-19. pip-audit informa 2 avisos en pyjwt 2.14.0, corregidos en 2.15.0. npm audit --omit=dev informa 6 (5 altas y 1 moderada), entre ellas next 16.3.6. Evidencia: docs/evidencias/fase2/calidad/05-pip-audit.txt y 06-npm-audit.txt. El informe de la Fase 2 lo declara como deuda con plazo el 2026-11-01.",
-      "owner_session": null
+      "owner_session": "FD"
     },
     {
       "id": "CHORE-2026-10-19-04",

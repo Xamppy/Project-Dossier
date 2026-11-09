@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 import time
 from contextlib import asynccontextmanager
 from typing import Annotated, Any
@@ -22,6 +21,7 @@ from sqlalchemy.orm import Session
 from starlette.requests import Request
 
 from dossier.api.admin_routes import router as admin_router
+from dossier.api.audit_middleware import AuditMiddleware
 from dossier.api.auth_routes import (
     OrgAuthContext,
     auth_payload_and_user,
@@ -33,6 +33,7 @@ from dossier.api.auth_routes import (
 from dossier.api.auth_routes import (
     router as auth_router,
 )
+from dossier.api.cors_config import build_cors_settings
 from dossier.api.dashboard_routes import router as dashboard_router
 from dossier.api.dossier_job_routes import router as dossier_jobs_router
 from dossier.api.dossier_routes import router as dossiers_router
@@ -66,6 +67,7 @@ from dossier.security.jwt_tokens import (
     decode_google_oauth_state,
     decode_microsoft_oauth_state,
 )
+from dossier.security.rate_limit import limit_generation
 from dossier.services import listar_reuniones, obtener_reunion_por_id
 from dossier.services.calendar_automation_worker import start_calendar_automation_thread
 from dossier.services.calendar_event_dossiers import (
@@ -107,34 +109,6 @@ from dossier.services.output_language import effective_output_language
 load_env()
 
 logger = logging.getLogger(__name__)
-
-
-def _parse_cors_origins(raw: str) -> list[str]:
-    """
-    Normaliza CORS_ORIGINS: quita BOM/espacios, comillas (ASCII/tipográficas) y barra final.
-    El navegador envía Origin sin barra final; si en Railway dejaste una, no coincidía.
-    """
-    # Comillas “curvas” típicas al copiar desde Word/Slack
-    t = (
-        raw.strip()
-        .strip("\ufeff")
-        .translate(
-            str.maketrans(
-                {  # type: ignore[arg-type]  # dict[str,str] literal, maketrans acepta str|int|None en el valor
-                    "\u201c": '"',
-                    "\u201d": '"',
-                    "\u2018": "'",
-                    "\u2019": "'",
-                }
-            )
-        )
-    )
-    out: list[str] = []
-    for part in t.split(","):
-        o = part.strip().strip('"').strip("'").rstrip("/")
-        if o:
-            out.append(o)
-    return out
 
 
 @asynccontextmanager
@@ -184,47 +158,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Orígenes permitidos para el dashboard Next.js (navegador bloquea sin CORS).
-def _default_cors_origins_csv() -> str:
-    """Puertos 3000–3009 en localhost / 127.0.0.1 / ::1 (Next suele saltar de puerto si 3000 está ocupado)."""
-    parts: list[str] = []
-    for port in range(3000, 3010):
-        parts.extend(
-            [
-                f"http://localhost:{port}",
-                f"http://127.0.0.1:{port}",
-                f"http://[::1]:{port}",
-            ]
-        )
-    return ",".join(parts)
-
-
-_cors_raw = os.getenv("CORS_ORIGINS", _default_cors_origins_csv())
-_cors_origins = _parse_cors_origins(_cors_raw)
-# Cada preview en Vercel tiene un subdominio distinto (hash, rama, equipo).
-# fullmatch() sobre el header Origin (sin path). Desactivar: CORS_ALLOW_VERCEL_APP_REGEX=0
-_cors_vercel_re = os.getenv("CORS_ALLOW_VERCEL_APP_REGEX", "1").strip().lower()
-_cors_origin_regex: str | None = None
-if _cors_vercel_re not in ("0", "false", "no"):
-    _custom = (os.getenv("CORS_VERCEL_ORIGIN_REGEX") or "").strip()
-    if _custom:
-        try:
-            re.compile(_custom)
-        except re.error:
-            logger.warning("CORS_VERCEL_ORIGIN_REGEX inválida; se usa el patrón por defecto.")
-        else:
-            _cors_origin_regex = _custom
-    if _cors_origin_regex is None:
-        # Amplio pero solo host *.vercel.app (Origin nunca incluye path).
-        _cors_origin_regex = r"https://.+\.vercel\.app"
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_cors_origins,
-    allow_origin_regex=_cors_origin_regex,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Política CORS (S3.8): métodos y cabeceras explícitos, sin credenciales entre sitios
+# y *.vercel.app solo con CORS_ALLOW_VERCEL_APP_REGEX=1. Ver api/cors_config.py.
+_cors_settings = build_cors_settings(os.environ)
+_cors_origins = _cors_settings.origins
+_cors_origin_regex = _cors_settings.origin_regex
+app.add_middleware(CORSMiddleware, **_cors_settings.middleware_kwargs())
+# S4.10: toda lectura y generación de dossier queda en audit_logs (api/audit_middleware.py).
+app.add_middleware(AuditMiddleware)
 
 app.include_router(auth_router)
 app.include_router(admin_router)
@@ -1194,8 +1135,8 @@ def _resolve_google_reuniones(
     return listar_reuniones_google(token, top=top, dias_adelante=90)
 
 
-@app.get("/calendario/generar-dossiers", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES)
-@app.get("/calendario/generar-dossiers-outlook", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES)
+@app.get("/calendario/generar-dossiers", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES, dependencies=[Depends(limit_generation)])
+@app.get("/calendario/generar-dossiers-outlook", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES, dependencies=[Depends(limit_generation)])
 def api_generar_dossiers_desde_calendario(
     ctx: Annotated[OrgAuthContext, Depends(require_mutator)],
     top: int = Query(5, ge=1, le=10, description="Máximo de reuniones a procesar con IA"),
@@ -1246,8 +1187,8 @@ def api_generar_dossiers_desde_calendario(
     }
 
 
-@app.post("/calendario/generar-dossiers", tags=["Calendario"])
-@app.post("/calendario/generar-dossiers-outlook", tags=["Calendario"])
+@app.post("/calendario/generar-dossiers", tags=["Calendario"], dependencies=[Depends(limit_generation)])
+@app.post("/calendario/generar-dossiers-outlook", tags=["Calendario"], dependencies=[Depends(limit_generation)])
 def api_generar_dossiers_desde_calendario_post(
     ctx: Annotated[OrgAuthContext, Depends(require_mutator)],
     body: CalendarGenerarDossiersBody,
@@ -1316,7 +1257,7 @@ def api_generar_dossiers_desde_calendario_post(
     }
 
 
-@app.get("/calendario/generar-dossiers-google", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES)
+@app.get("/calendario/generar-dossiers-google", tags=["Calendario"], responses=_CALENDAR_GET_RESPONSES, dependencies=[Depends(limit_generation)])
 def api_generar_dossiers_desde_google_calendar(
     ctx: Annotated[OrgAuthContext, Depends(require_mutator)],
     top: int = Query(5, ge=1, le=10, description="Máximo de eventos a procesar con IA"),
@@ -1367,7 +1308,7 @@ def api_generar_dossiers_desde_google_calendar(
     }
 
 
-@app.post("/calendario/generar-dossiers-google", tags=["Calendario"])
+@app.post("/calendario/generar-dossiers-google", tags=["Calendario"], dependencies=[Depends(limit_generation)])
 def api_generar_dossiers_desde_google_calendar_post(
     ctx: Annotated[OrgAuthContext, Depends(require_mutator)],
     body: CalendarGenerarDossiersBody,

@@ -23,6 +23,7 @@ from dossier.db.models import DossierGenerationJob, Organization, User
 from dossier.org_dossier_context import format_dossier_context_for_prompt
 from dossier.schemas.dossier_generation import DEPTH_CREDITS, DossierDepth
 from dossier.schemas.person_research import PersonResearchRequest
+from dossier.services.audit_log import AuditEvent, dossier_ids_from_result, record
 from dossier.services.calendar_event_dossiers import (
     build_calendar_meeting_label,
     generate_dossiers_from_calendar_event,
@@ -396,6 +397,40 @@ def process_dossier_generation_job(db: Session, job_id: UUID) -> None:
             _publicar_estado(job)
         else:
             db.rollback()
+    _auditar_job(db, job_id)
+
+
+def _auditar_job(db: Session, job_id: UUID) -> None:
+    """S4.10: la generación en segundo plano no pasa por HTTP; el trabajador deja su registro.
+
+    Solo ids (job y dossiers generados), nunca los datos de la persona o la empresa.
+    Un fallo al registrar no cambia el resultado del job.
+    """
+    try:
+        job = db.get(DossierGenerationJob, job_id, populate_existing=True)
+        if job is None:
+            return
+        resultado, _ = split_result_payload(job.result_payload)
+        record(
+            db,
+            AuditEvent(
+                action=f"JOB {job.job_type}",
+                resource_type="dossier_generation_job",
+                resource_id=job.id,
+                user_id=job.requested_by_user_id,
+                organization_id=job.organization_id,
+                success=job.status != "failed",
+                error_message=job.error_message if job.status == "failed" else None,
+                request_data={
+                    "status": job.status,
+                    "dossier_ids": dossier_ids_from_result(resultado if isinstance(resultado, dict) else None),
+                },
+            ),
+        )
+        db.commit()
+    except Exception:
+        logger.warning("No se pudo registrar la auditoría del job %s", job_id, exc_info=True)
+        db.rollback()
 
 
 def _process_person_manual_job(db: Session, job: DossierGenerationJob) -> None:

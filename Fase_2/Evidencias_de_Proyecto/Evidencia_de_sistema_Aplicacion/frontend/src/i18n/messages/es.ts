@@ -403,6 +403,7 @@ const messages = {
   "backend.error_plan_depth":
     "Tu plan no permite esta profundidad de dossier. Actualiza a Pro o Enterprise.",
   "errors.server_generic": "Error en el servidor. Inténtalo de nuevo más tarde.",
+  "errors.rate_limited": "Demasiados intentos. Espera {seconds} segundos y vuelve a intentarlo.",
   "errors.generation_failed": "No se pudo generar el informe. Inténtalo de nuevo más tarde.",
   "errors.service_unavailable": "Un servicio de datos no está disponible temporalmente.",
   "common.clear": "Limpiar",

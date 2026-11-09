@@ -400,6 +400,7 @@ const messages = {
   "backend.error_locale_unsupported": "Unsupported locale.",
   "backend.error_plan_depth": "Your plan does not allow this dossier depth. Upgrade to Pro or Enterprise.",
   "errors.server_generic": "Server error. Please try again later.",
+  "errors.rate_limited": "Too many attempts. Wait {seconds} seconds and try again.",
   "errors.generation_failed": "The report could not be generated. Please try again later.",
   "errors.service_unavailable": "A data service is temporarily unavailable.",
   "common.clear": "Clear",

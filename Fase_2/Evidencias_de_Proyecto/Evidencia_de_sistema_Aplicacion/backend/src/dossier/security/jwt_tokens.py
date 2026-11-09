@@ -37,13 +37,14 @@ def create_access_token(
     `organization_id`: tenant activo (organización primaria del usuario en registro/login).
     `role`: rol RBAC en la organización (`admin`, `user`, `viewer`).
     """
-    minutes = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "10080"))  # 7 días por defecto
-    expire = datetime.now(UTC) + timedelta(minutes=minutes)
+    # S3.9: vida corta; la sesión larga la sostiene el token de renovación (cookie HttpOnly).
+    minutes = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "15"))
+    now = datetime.now(UTC)
     payload: dict[str, Any] = {
         "sub": user_id,
         "email": email,
-        "exp": expire,
-        "iat": datetime.now(UTC),
+        "exp": now + timedelta(minutes=minutes),
+        "iat": now,
     }
     if organization_id:
         payload["org_id"] = organization_id

@@ -80,6 +80,21 @@ def entorno_de_pruebas():
 
 
 @pytest.fixture(autouse=True)
+def limites_de_tasa_limpios():
+    """S5.8: los contadores del limitador viven en memoria del proceso.
+
+    Sin esto, los inicios de sesión de una prueba consumirían el cupo de la siguiente
+    (todas comparten la IP del cliente de pruebas) y el orden de la suite cambiaría
+    los resultados.
+    """
+    from dossier.security import rate_limit
+
+    rate_limit.reset_all()
+    yield
+    rate_limit.reset_all()
+
+
+@pytest.fixture(autouse=True)
 def sin_red(request, monkeypatch):
     """Ninguna prueba sale a la red real (pero sí permite loopback).
 

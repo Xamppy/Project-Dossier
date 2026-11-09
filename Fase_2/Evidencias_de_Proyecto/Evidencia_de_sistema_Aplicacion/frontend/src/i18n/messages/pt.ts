@@ -1019,6 +1019,7 @@ const messages = {
   "backend.error_plan_depth":
     "O seu plano não permite esta profundidade de dossiê. Atualize para Pro ou Enterprise.",
   "errors.server_generic": "Erro no servidor. Tente novamente mais tarde.",
+  "errors.rate_limited": "Muitas tentativas. Aguarde {seconds} segundos e tente novamente.",
   "errors.generation_failed": "Não foi possível gerar o relatório. Tente novamente mais tarde.",
   "errors.service_unavailable": "Um serviço de dados está temporariamente indisponível.",
   "common.loading": "A carregar…",

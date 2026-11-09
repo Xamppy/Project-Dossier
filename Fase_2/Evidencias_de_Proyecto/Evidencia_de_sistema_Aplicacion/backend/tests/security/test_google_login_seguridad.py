@@ -45,11 +45,19 @@ def entorno(monkeypatch):
             SimpleNamespace(role="admin"),
         )
 
+    sesiones: list[dict] = []
+
+    def _abrir_sesion_renovable(db, request, response, **datos):
+        # S3.9: la base es falsa en estas pruebas; el flujo real con Postgres está en
+        # tests/integration/test_google_login_integracion.py.
+        sesiones.append(datos)
+
     monkeypatch.setattr(gl, "_canjear_codigo", _canjear)
     monkeypatch.setattr(gl, "_perfil_google", lambda token: perfil)
     monkeypatch.setattr(gl, "resolver_usuario_google", _resolver)
+    monkeypatch.setattr(gl, "open_refreshable_session", _abrir_sesion_renovable)
     app.dependency_overrides[get_db_if_configured] = lambda: iter([object()])
-    yield SimpleNamespace(llamadas=llamadas, perfil=perfil)
+    yield SimpleNamespace(llamadas=llamadas, perfil=perfil, sesiones=sesiones)
     app.dependency_overrides.pop(get_db_if_configured, None)
 
 
@@ -79,6 +87,7 @@ def test_flujo_valido_entrega_el_token_en_el_fragmento(entorno):
     assert "?" not in destino, "el token no debe viajar en la query"
     token = destino.split("#token=", 1)[1]
     assert decode_access_token(token)["email"] == "ana@example.test"
+    assert len(entorno.sesiones) == 1  # S3.9: se abre la sesión renovable (cookie, no URL)
 
 
 def test_sin_cookie_del_navegador_no_canjea_el_codigo(entorno):
@@ -86,6 +95,7 @@ def test_sin_cookie_del_navegador_no_canjea_el_codigo(entorno):
 
     assert r.headers["location"] == ERROR
     assert entorno.llamadas.canje == 0
+    assert entorno.sesiones == []  # S3.9: un callback rechazado no abre sesión
 
 
 def test_cookie_de_otro_navegador_no_sirve(entorno):

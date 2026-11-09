@@ -177,8 +177,34 @@ describe("openDossierJobStream · eventos", () => {
 });
 
 describe("openDossierJobStream · errores y política de reintento", () => {
+  it("HTTP 401 intenta renovar la sesión una vez y, si no puede, informa unauthorized sin más reintentos", async () => {
+    // S3.9: el token de acceso dura 15 min; antes de rendirse se pide uno nuevo con la cookie.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ detail: { code: "refresh_expired" } }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    const h = handlers();
+
+    openDossierJobStream(JOB_ID, h);
+    await vi.waitFor(() => expect(h.onError).toHaveBeenCalledTimes(1));
+    const err = h.onError.mock.calls[0][0];
+    expect(err).toBeInstanceOf(DossierJobStreamError);
+    expect(err.kind).toBe("unauthorized");
+    expect(err.status).toBe(401);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    const rutas = fetchMock.mock.calls.map(([u]) => new URL(String(u)).pathname);
+    expect(rutas).toEqual([`/dossier-generation-jobs/${JOB_ID}/stream`, "/auth/refresh"]);
+    expect(h.onError).toHaveBeenCalledTimes(1);
+    expect(h.onSnapshot).not.toHaveBeenCalled();
+  });
+
   it.each([
-    [401, "unauthorized"],
     [403, "forbidden"],
     [404, "not_found"],
     [429, "http"],

@@ -20,7 +20,6 @@ from dossier.security.jwt_tokens import (
     decode_access_token,
 )
 
-
 # --------------------------------------------------------------------------
 # Control de acceso — implementado
 # --------------------------------------------------------------------------
@@ -68,16 +67,21 @@ def test_token_con_otra_clave_es_rechazado():
         os.environ["JWT_SECRET"] = previo
 
 
-def test_vigencia_del_token_de_acceso_es_corta():
-    """La vigencia por omisión es de 7 días (10080 minutos) y debe bajar.
+def test_vigencia_del_token_de_acceso_es_corta(monkeypatch):
+    """La vigencia por omisión era de 7 días (10080 minutos); S3.9 la bajó a 15.
 
-    Esta prueba documenta el hallazgo de seguridad y **falla a propósito**
-    cuando S3.9 no está hecha. Se quita el `skip` al implementar S3.9: ese es el
-    momento en que pasa a verde y se queda para siempre como red de seguridad.
+    Habilitada con S3.9. Queda como red de seguridad: si alguien vuelve a subir
+    el valor por omisión por encima de 15 minutos, falla.
 
     Ver docs/security/README.md, "Token de acceso de 7 días en localStorage".
     """
-    pytest.skip("Se habilita con S3.9 — reducir vigencia del token e introducir renovación")
+    import jwt
+
+    monkeypatch.delenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", raising=False)
+    token = create_access_token(user_id="u-1", email="persona@ejemplo.cl")
+    claims = jwt.decode(token, options={"verify_signature": False})
+
+    assert claims["exp"] - claims["iat"] <= 15 * 60
 
 
 # --------------------------------------------------------------------------
@@ -93,44 +97,113 @@ def test_vigencia_del_token_de_acceso_es_corta():
 #   2. Autentica como la organización A
 #   3. Pide el recurso de la organización B
 #   4. Verifica que la respuesta es 404 o 403, NUNCA el recurso
-
-@pytest.mark.skip(reason="Se habilita con S6.7 — pruebas negativas de aislamiento")
-def test_una_organizacion_no_accede_a_dossiers_de_otra():
-    raise NotImplementedError
-
-
-@pytest.mark.skip(reason="Se habilita con S6.7, tras S4.5")
-def test_una_organizacion_no_accede_a_alertas_ni_prensa_de_otra():
-    raise NotImplementedError
-
-
-@pytest.mark.skip(reason="Se habilita con S6.7, tras S4.10")
-def test_una_organizacion_no_lee_la_auditoria_de_otra():
-    raise NotImplementedError
+#
+# Implementado en S6.7: tests/security/test_aislamiento_organizaciones.py (contra Postgres)
+# y tests/stress/test_aislamiento_organizaciones_estres.py (bajo carga). Las tres pruebas
+# que esperaban aquí viven allá con el mismo nombre.
 
 
 # --------------------------------------------------------------------------
 # Limitación de tasa — S5.8
 # --------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="Se habilita con S5.8 — limitación de tasa")
-def test_superado_el_umbral_la_api_responde_429():
-    raise NotImplementedError
+def _post_refresh_sin_db(veces: int) -> list[int]:
+    from fastapi.testclient import TestClient
+
+    from dossier.api.app import app
+    from dossier.api.auth_routes import get_db_if_configured
+
+    def _sin_db():
+        yield None
+
+    app.dependency_overrides[get_db_if_configured] = _sin_db
+    try:
+        cliente = TestClient(app, raise_server_exceptions=False)
+        return [cliente.post("/auth/refresh").status_code for _ in range(veces)]
+    finally:
+        app.dependency_overrides.pop(get_db_if_configured, None)
 
 
-@pytest.mark.skip(reason="Se habilita con S5.8")
-def test_pasada_la_ventana_la_api_vuelve_a_aceptar():
-    raise NotImplementedError
+def test_superado_el_umbral_la_api_responde_429(monkeypatch):
+    """Habilitada con S5.8."""
+    monkeypatch.setenv("AUTH_RATE_LIMIT", "2/60")
+    assert _post_refresh_sin_db(3) == [401, 401, 429]
+
+
+def test_pasada_la_ventana_la_api_vuelve_a_aceptar(monkeypatch):
+    """Habilitada con S5.8. El reloj del limitador se adelanta en vez de esperar un minuto."""
+    from dossier.security import rate_limit as rl
+
+    ahora = [1000.0]
+    monkeypatch.setattr(rl, "_reloj", lambda: ahora[0])
+    monkeypatch.setenv("AUTH_RATE_LIMIT", "1/60")
+    assert _post_refresh_sin_db(2) == [401, 429]
+
+    ahora[0] += 61
+
+    assert _post_refresh_sin_db(1) == [401]
 
 
 # --------------------------------------------------------------------------
 # Auditoría — S4.10 y S6.6
 # --------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="Se habilita con S4.10 — registro de auditoría")
 def test_leer_un_dossier_deja_registro_de_auditoria():
-    """Con actor, organización, recurso e instante."""
-    raise NotImplementedError
+    """Con actor, organización, recurso e instante. Habilitada con S4.10.
+
+    Sin Postgres: una sesión falsa recoge lo que el middleware registra. El flujo
+    completo contra la base está en tests/integration/test_audit_log_flujo.py.
+    """
+    import uuid
+
+    from fastapi.testclient import TestClient
+
+    from dossier.api.app import app
+    from dossier.api.auth_routes import get_db_if_configured
+    from dossier.db.models import AuditLog
+
+    registrados: list = []
+
+    class SesionQueRecoge:
+        def add(self, obj):
+            registrados.append(obj)
+
+        def flush(self):
+            pass
+
+        def commit(self):
+            pass
+
+        def rollback(self):
+            pass
+
+        def close(self):
+            pass
+
+        def get(self, *_args, **_kwargs):
+            return None
+
+    def _db():
+        yield SesionQueRecoge()
+
+    usuario, organizacion, dossier = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    token = create_access_token(
+        user_id=str(usuario), email="persona@ejemplo.cl", organization_id=str(organizacion), role="user"
+    )
+    app.dependency_overrides[get_db_if_configured] = _db
+    try:
+        TestClient(app, raise_server_exceptions=False).get(
+            f"/dossiers/{dossier}", headers={"Authorization": f"Bearer {token}"}
+        )
+    finally:
+        app.dependency_overrides.pop(get_db_if_configured, None)
+
+    auditoria = [r for r in registrados if isinstance(r, AuditLog)]
+    assert len(auditoria) == 1
+    fila = auditoria[0]
+    assert (fila.user_id, fila.organization_id) == (usuario, organizacion)
+    assert (fila.resource_type, fila.resource_id) == ("dossier", dossier)
+    assert fila.created_at is not None
 
 
 @pytest.mark.skip(reason="Se habilita con S6.6")

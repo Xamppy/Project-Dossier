@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTranslator } from "@/i18n";
 import { getApiBaseUrl } from "@/lib/dossier-api";
@@ -39,5 +39,31 @@ describe("/login · proveedores externos", () => {
     window.history.replaceState(null, "", "/login?error=google");
     render(<LoginPage />);
     expect(await screen.findByRole("alert")).toHaveTextContent(t("auth.error.google"));
+  });
+});
+
+describe("/login · límite de solicitudes (S5.8)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("explica cuánto esperar en vez de mostrar el código del error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({ detail: { code: "rate_limited", message: "x", retry_after: 37 } }),
+            { status: 429, headers: { "Content-Type": "application/json", "Retry-After": "37" } },
+          ),
+        ),
+      ),
+    );
+    render(<LoginPage />);
+    fireEvent.change(screen.getByPlaceholderText("tu@empresa.com"), { target: { value: "ana@example.com" } });
+    fireEvent.change(screen.getByPlaceholderText("••••••••"), { target: { value: "una-clave" } });
+    fireEvent.click(screen.getByRole("button", { name: t("auth.login.submit") }));
+
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent(t("errors.rate_limited", { seconds: 37 }));
+    expect(alerta).not.toHaveTextContent("rate_limited");
   });
 });

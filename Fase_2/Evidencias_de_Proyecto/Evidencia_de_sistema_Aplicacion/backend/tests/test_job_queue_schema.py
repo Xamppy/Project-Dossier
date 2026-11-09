@@ -15,6 +15,7 @@ from dossier.db import schema_patches
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 REVISION_S45 = "b7e2d4f1a9c3"
+REVISION_COLA = "c4d8a2f6b1e9"
 
 
 def _scripts() -> ScriptDirectory:
@@ -23,12 +24,18 @@ def _scripts() -> ScriptDirectory:
     return ScriptDirectory.from_config(cfg)
 
 
-def test_la_migracion_de_la_cola_es_la_cabeza_y_sigue_a_s45():
+def test_la_migracion_de_la_cola_sigue_a_s45_en_una_cadena_lineal():
+    """La cola debe quedar después de S4.5 y en la historia de la cabeza única.
+
+    Antes exigía ser la cabeza; dejó de serlo cuando S3.9 agregó d5a9e3c7f2b8.
+    """
     scripts = _scripts()
     cabezas = scripts.get_heads()
 
     assert len(cabezas) == 1
-    assert scripts.get_revision(cabezas[0]).down_revision == REVISION_S45
+    assert scripts.get_revision(REVISION_COLA).down_revision == REVISION_S45
+    historia = {r.revision for r in scripts.walk_revisions(base="base", head=cabezas[0])}
+    assert REVISION_COLA in historia
 
 
 def test_el_ddl_de_la_cola_es_idempotente():
