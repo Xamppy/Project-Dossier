@@ -726,7 +726,7 @@
       "id": "S2.4",
       "sprint": 2,
       "title": "Implementar tolerancia a fallos del agente europeo",
-      "status": "pending",
+      "status": "review",
       "owner": "FO",
       "area": "backend",
       "activity": "A4",
@@ -740,15 +740,18 @@
         "S2.6"
       ],
       "trello": "https://trello.com/c/lfFvmsBi",
-      "branch": null,
-      "evidence": [],
-      "notes": "ADR 0003 declara que el orquestador registrará agents_skipped para jurisdicciones no cubiertas. Esa columna NO existe en models.py (solo agents_activated y agents_failed). Requiere migración -> depende de S1.1, sin declarar en la ADR."
+      "branch": "feat/FO-cierre-europa-prensa",
+      "evidence": [
+        "backend/tests/test_corporate_fuentes_consultadas.py (fallo europeo con dossier emitido, timeout 10 s, persistencia en ambas rutas)"
+      ],
+      "notes": "ADR 0003 declara que el orquestador registrará agents_skipped para jurisdicciones no cubiertas. Esa columna NO existe en models.py (solo agents_activated y agents_failed). Requiere migración -> depende de S1.1, sin declarar en la ADR.",
+      "owner_session": "FO (agente)"
     },
     {
       "id": "S2.5",
       "sprint": 2,
       "title": "Registrar fuente y fecha de consulta por jurisdiccion",
-      "status": "pending",
+      "status": "review",
       "owner": "FO",
       "area": "backend",
       "activity": "A4",
@@ -760,15 +763,18 @@
       ],
       "blocks": [],
       "trello": "https://trello.com/c/zdrvV8i4",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/FO-cierre-europa-prensa",
+      "evidence": [
+        "backend/tests/test_corporate_fuentes_consultadas.py (fuentes por jurisdicción con fecha); backend/src/dossier/services/corporate_dossier_telemetry.py"
+      ],
+      "notes": "",
+      "owner_session": "FO (agente)"
     },
     {
       "id": "S2.6",
       "sprint": 2,
       "title": "Pruebas de contraste entre las tres jurisdicciones",
-      "status": "pending",
+      "status": "review",
       "owner": "FO",
       "area": "backend",
       "activity": "A4",
@@ -783,15 +789,17 @@
         "S2.7"
       ],
       "trello": "https://trello.com/c/ZWhZxKW5",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/FO-cierre-europa-prensa",
+      "evidence": [
+        "backend/tests/test_contraste_jurisdicciones.py (16 pruebas: UK, US, FR, DE, no encontrada, incompleta)"
+      ],
+      "notes": "Tomada en el mismo PR que S2.4: next.py --claim no la acepta mientras S2.4 no esté done (depends_on)."
     },
     {
       "id": "S2.7",
       "sprint": 2,
       "title": "Documentar el agente europeo: cobertura, limites y costo",
-      "status": "pending",
+      "status": "review",
       "owner": "FO",
       "area": "docs",
       "activity": "A9",
@@ -803,9 +811,11 @@
       ],
       "blocks": [],
       "trello": "https://trello.com/c/UkX5kX3I",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/FO-cierre-europa-prensa",
+      "evidence": [
+        "docs/registros-europeos.md"
+      ],
+      "notes": "Tomada en el mismo PR que S2.6: next.py --claim no la acepta mientras S2.6 no esté done (depends_on)."
     },
     {
       "id": "S3.1",
@@ -864,7 +874,7 @@
       "id": "S3.3",
       "sprint": 3,
       "title": "Implementar el filtro de homonimos",
-      "status": "pending",
+      "status": "review",
       "owner": "FO",
       "area": "backend",
       "activity": "A5",
@@ -876,15 +886,18 @@
       ],
       "blocks": [],
       "trello": "https://trello.com/c/9pip56Fk",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/FO-cierre-europa-prensa",
+      "evidence": [
+        "backend/tests/test_news_homonimos.py (13 pruebas); filtrar_homonimos en backend/src/dossier/news/agent.py"
+      ],
+      "notes": "",
+      "owner_session": "FO (agente)"
     },
     {
       "id": "S3.4",
       "sprint": 3,
       "title": "Registrar procedencia completa de cada mencion de prensa",
-      "status": "pending",
+      "status": "review",
       "owner": "FO",
       "area": "backend",
       "activity": "A5",
@@ -898,9 +911,12 @@
         "S3.6"
       ],
       "trello": "https://trello.com/c/pwolO3DM",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/FO-cierre-europa-prensa",
+      "evidence": [
+        "backend/tests/test_press_mentions_writer.py (11 pruebas); backend/src/dossier/services/press_mentions_writer.py"
+      ],
+      "notes": "",
+      "owner_session": "FO (agente)"
     },
     {
       "id": "S3.5",

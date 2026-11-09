@@ -87,6 +87,7 @@ _FUENTES: dict[JurisdiccionRegistro, _FuenteEuropea] = {
 }
 
 JURISDICCIONES_SOPORTADAS: tuple[JurisdiccionRegistro, ...] = tuple(_FUENTES)
+NOMBRES_FUENTE: dict[JurisdiccionRegistro, str] = {j: f.nombre_fuente for j, f in _FUENTES.items()}
 
 
 def _normalizar_jurisdicciones(

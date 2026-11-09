@@ -48,11 +48,12 @@ def mapear_registro_frances(fila: dict[str, Any]) -> RegistroCorporativo:
     ]
 
     codigo_actividad = _texto(fila.get("activite_principale"))
+    siren = _texto(fila.get("siren"))
 
     return RegistroCorporativo(
         jurisdiccion=JurisdiccionRegistro.fr,
         fuente="recherche_entreprises",
-        identificador_registro=_texto(fila.get("siren")) or _texto(fila.get("siret")) or "",
+        identificador_registro=siren or _texto(fila.get("siret")) or "",
         razon_social=_texto(fila.get("nom_complet")) or _texto(fila.get("nom_raison_sociale")) or "",
         estado=_texto(fila.get("etat_administratif")),
         forma_juridica=_texto(fila.get("nature_juridique")),
@@ -60,6 +61,8 @@ def mapear_registro_frances(fila: dict[str, Any]) -> RegistroCorporativo:
         domicilio=domicilio,
         codigos_actividad=[codigo_actividad] if codigo_actividad else [],
         directivos=directivos,
+        # Ficha pública del Annuaire des Entreprises (data.gouv.fr), la que la API no trae (S2.6).
+        url_fuente=f"https://annuaire-entreprises.data.gouv.fr/entreprise/{siren}" if siren else None,
         datos_brutos=fila,
     )
 

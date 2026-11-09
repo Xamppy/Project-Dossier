@@ -23,7 +23,8 @@ GERMANY_API_BASE = os.getenv("EU_REGISTRY_DE_API_BASE", "https://db.offeneregist
 GERMANY_DATABASE = os.getenv("EU_REGISTRY_DE_DATABASE", "openregister")
 GERMANY_TABLE = os.getenv("EU_REGISTRY_DE_TABLE", "company")
 
-DEFAULT_TIMEOUT = 20
+# CA-B2.4 (criterios-aceptacion-brechas.md): un registro que no responde en 10 s cuenta como fallido.
+DEFAULT_TIMEOUT = 10
 
 
 class RegistroEuropeoError(RuntimeError):
