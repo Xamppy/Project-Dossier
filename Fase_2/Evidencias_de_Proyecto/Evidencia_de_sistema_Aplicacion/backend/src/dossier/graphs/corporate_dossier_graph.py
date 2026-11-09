@@ -100,6 +100,8 @@ class CorporateDossierState(TypedDict, total=False):
     us_corporate_context: str
     eu_corporate_context: str
     news_context: str
+    # Menciones que pasaron el filtro de homónimos (S3.3), para persistirlas (S3.4).
+    menciones_prensa: list[Any]
 
     final_dossier_markdown: str
 
@@ -290,8 +292,12 @@ def _node_agent_news(state: CorporateDossierState) -> dict[str, Any]:
         bloque = "## Menciones de prensa recientes\n\n*No se pudo consultar la prensa.*\n"
         return {"news_context": bloque, "agents_failed": ["agent_news"]}
 
+    menciones, descartadas = agente_noticias.filtrar_homonimos(resultado.mentions, empresa)
+    if descartadas:
+        logger.info("agent_news descartó %d menciones homónimas de %r", descartadas, empresa)
+
     lineas = []
-    for m in resultado.mentions[:MAX_MENCIONES_PROMPT]:
+    for m in menciones[:MAX_MENCIONES_PROMPT]:
         fecha = f", {_texto_externo(m.published_date, 30)}" if m.published_date else ""
         lineas.append(
             f"- **{_texto_externo(m.headline, 200)}** — {_texto_externo(m.publisher, 100)}{fecha}. "
@@ -301,6 +307,7 @@ def _node_agent_news(state: CorporateDossierState) -> dict[str, Any]:
     logger.info("LangGraph nodo agent_news completado (%d menciones)", len(lineas))
     return {
         "news_context": f"## Menciones de prensa recientes\n\n{cuerpo}\n",
+        "menciones_prensa": menciones,
         "agents_succeeded": ["agent_news"],
         _PROGRESO: {
             "reason_code": None if lineas else "no_matches",
