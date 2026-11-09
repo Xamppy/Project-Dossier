@@ -6,6 +6,47 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-09 · S2.4–S2.7, S3.3 y S3.4 · Cierre de Europa y prensa · FO (agente)
+
+**Hecho.** Las seis tareas pendientes de FO, en la rama `feat/FO-cierre-europa-prensa`, con TDD:
+
+- **S3.3:** `filtrar_homonimos` en `news/agent.py`. Una mención entra solo si nombra al sujeto
+  (todas sus palabras significativas, sin forma jurídica) y, si hay contexto, uno de sus términos.
+  El nodo de prensa del grafo la aplica.
+- **S2.4 y S2.5:** cada nodo del grafo informa `fuentes_consultadas` (fuente, jurisdicción,
+  fecha y resultado). `services/corporate_dossier_telemetry.py` las convierte en
+  `agents_activated`, `agents_failed`, `data_sources_used` y `dossier_data["fuentes_consultadas"]`
+  en las dos rutas que guardan dossiers corporativos. El cliente europeo corta a 10 s.
+- **S3.4:** `services/press_mentions_writer.py` llena `dossier_media_mentions`. No guarda una
+  mención incompleta.
+- **S2.6:** `tests/test_contraste_jurisdicciones.py`. Hallazgo: Francia era el único registro sin
+  URL pública; ahora cita la ficha del Annuaire des Entreprises.
+- **S2.7:** `docs/registros-europeos.md`.
+
+Suite local: 1030 passed, 141 skipped; ruff y mypy sin errores.
+
+**Sin terminar.** Las seis quedan en `review`: falta la revisión de un segundo integrante. La CI
+no corre desde el 07-11-2026 («account is locked due to a billing issue»), así que el PR no tiene
+verificación de GitHub.
+
+**Lo que hay que saber.**
+- Las rutas de guardado escribían listas fijas: `data_sources_used` decía «gemini» aunque el
+  modelo es DeepSeek, y la generación manual descartaba los agentes fallidos del grafo. Si se
+  agrega una fuente al grafo, basta con que su nodo devuelva `fuentes_consultadas`.
+- Un dossier servido desde la caché de Redis no trae fuentes ni menciones nuevas: sus listas
+  quedan vacías a propósito.
+- Para correr las pruebas en este equipo con el Control de aplicaciones de Windows: un venv con
+  `--system-site-packages` sobre el Python del sistema funciona; el `.venv` anterior (Python de
+  uv) y un venv aislado quedan bloqueados.
+- Se ajustó el dato de entrada de una prueba anterior
+  (`test_titular_de_prensa_no_puede_fabricar_secciones_del_prompt`): su titular ahora nombra a la
+  empresa, porque una mención que no la nombra ya no llega al prompt. Sus aserciones no cambian.
+
+**Siguiente paso concreto.** Que DG o FD revisen el PR y, con la CI de vuelta, mezclarlo y pasar
+las seis a `done`. S3.6 (vista de prensa, DG) ya puede leer `dossier_media_mentions`.
+
+**Rama.** `feat/FO-cierre-europa-prensa` · **Estado.** review
+
 ### 2026-11-02 (noche) · S6.1 · Correo corto y ■ en el PDF · DG (agente)
 
 **Hecho.** Segunda revisión de DG, que probó el envío desde Dokploy. Dos cambios:
