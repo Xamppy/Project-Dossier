@@ -38,7 +38,7 @@ from dossier.db.models import Dossier, Organization
 from dossier.graphs.corporate_dossier_graph import (
     JurisdictionScope,
     infer_jurisdiction_scope,
-    run_corporate_dossier_langgraph,
+    run_corporate_dossier_langgraph_detailed,
 )
 from dossier.org_dossier_context import format_dossier_context_for_prompt
 from dossier.schemas.dossier_executive_payload import resumen_contenido_dossier
@@ -52,6 +52,7 @@ from dossier.schemas.person_research import PersonResearchRequest
 from dossier.security.rbac import normalize_org_role
 from dossier.services.calendar_event_dossiers import calendar_meeting_summary_from_dossier_data
 from dossier.services.corporate_company_search import search_corporate_company_candidates
+from dossier.services.corporate_dossier_telemetry import columnas_telemetria, telemetria_de
 from dossier.services.dossier_deletion_service import (
     delete_dossier_record,
     delete_dossiers_in_folder,
@@ -234,6 +235,7 @@ def generate_corporate_dossier(
 
     cache_hit = False
     markdown_neutral: str | None = None
+    telemetria: dict | None = None
     if redis_corporate_cache_available():
         hit = get_corporate_cached_markdown(key_hash)
         if hit is not None:
@@ -253,13 +255,13 @@ def generate_corporate_dossier(
     if not cache_hit:
 
         def _compute_under_lock() -> None:
-            nonlocal markdown_neutral, cache_hit
+            nonlocal markdown_neutral, cache_hit, telemetria
             hit2 = get_corporate_cached_markdown(key_hash)
             if hit2 is not None:
                 markdown_neutral = hit2
                 cache_hit = True
                 return
-            md = run_corporate_dossier_langgraph(
+            generado = run_corporate_dossier_langgraph_detailed(
                 tema_reunion=f"Dossier corporativo — {participantes[:200]}",
                 participantes=participantes,
                 descripcion=descripcion_neutral,
@@ -267,6 +269,8 @@ def generate_corporate_dossier(
                 output_language=out_lang,
                 empresa_objetivo=empresa_objetivo_de_solicitud(body),
             )
+            md = generado.markdown
+            telemetria = telemetria_de(generado)
             if not md.lstrip().startswith("# Error"):
                 set_corporate_cached_markdown(key_hash, md)
             markdown_neutral = md
@@ -282,6 +286,7 @@ def generate_corporate_dossier(
     status = "failed" if is_err else "complete"
 
     will_charge = charge and cost > 0 and not is_err and not cache_hit
+    columnas = columnas_telemetria(None if cache_hit else telemetria, es_error=is_err)
 
     dossier_id = uuid.uuid4()
     dossier_data_body: dict = {
@@ -297,6 +302,7 @@ def generate_corporate_dossier(
             "pipeline_version": (os.getenv("DOSSIER_CACHE_PIPELINE_VERSION") or "1").strip(),
         },
         "output_language": out_lang,
+        **columnas["dossier_data"],
     }
     if body.resolution is not None:
         dossier_data_body["resolution"] = body.resolution.model_dump(mode="json")
@@ -317,9 +323,9 @@ def generate_corporate_dossier(
         status=status,
         status_message="Error en síntesis o en el pipeline." if is_err else None,
         dossier_data=dossier_data_body,
-        agents_activated=["agent_corporate_uk", "agent_corporate_usa", "synthesize_llm"],
-        agents_failed=(["synthesize_llm"] if is_err else []),
-        data_sources_used=["companies_house", "sec_edgar", "sec_company_facts", "gemini"],
+        agents_activated=columnas["agents_activated"],
+        agents_failed=columnas["agents_failed"],
+        data_sources_used=columnas["data_sources_used"],
         generation_started_at=now,
         generation_completed_at=now,
         generation_duration_ms=elapsed_ms,

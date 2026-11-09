@@ -60,6 +60,7 @@ from dossier.services.calendar_meeting_labels import (
     SUBJECT_CON,
 )
 from dossier.services.corporate_company_search import find_companies_house_matches, find_sec_matches
+from dossier.services.corporate_dossier_telemetry import columnas_telemetria, telemetria_de
 from dossier.services.dossier_job_progress import NULL_JOB_PROGRESS, NULL_SCOPE
 from dossier.services.dossier_progress_model import (
     CORPORATE_AGENTS,
@@ -667,12 +668,12 @@ def _corporate_md_from_cache_or_langgraph(
     output_language: str = "es",
     empresa_objetivo: str | None = None,
     progress: Any = None,
-) -> tuple[str | None, bool, str | None, list[str] | None]:
-    """Devuelve (markdown, cache_hit, cache_key_redis, agents_failed).
+) -> tuple[str | None, bool, str | None, dict[str, Any] | None]:
+    """Devuelve (markdown, cache_hit, cache_key_redis, telemetria).
 
-    ``agents_failed`` es ``None`` cuando el resultado viene de caché (no se corrió el
-    grafo en esta llamada, así que no hay telemetría nueva de agentes) y una lista
-    (posiblemente vacía) cuando sí se ejecutó LangGraph. ``progress`` es el scope
+    ``telemetria`` (``telemetria_de``: agentes, fuentes consultadas y menciones de
+    prensa) es ``None`` cuando el resultado viene de caché (no se corrió el grafo en
+    esta llamada) y un dict cuando sí se ejecutó LangGraph. ``progress`` es el scope
     corporativo del job (S5.10).
     """
     progress = progress if progress is not None else NULL_SCOPE
@@ -685,7 +686,7 @@ def _corporate_md_from_cache_or_langgraph(
     )
     cache_hit = False
     md: str | None = None
-    agents_failed: list[str] | None = None
+    telemetria: dict[str, Any] | None = None
 
     if redis_corporate_cache_available():
         hit = get_corporate_cached_markdown(key_hash)
@@ -694,7 +695,7 @@ def _corporate_md_from_cache_or_langgraph(
             return hit, True, corporate_cache_redis_key(key_hash), None
 
     def _compute() -> None:
-        nonlocal md, cache_hit, agents_failed
+        nonlocal md, cache_hit, telemetria
         hit2 = get_corporate_cached_markdown(key_hash)
         if hit2 is not None:
             md = hit2
@@ -714,12 +715,12 @@ def _corporate_md_from_cache_or_langgraph(
         if not generado.markdown.lstrip().startswith("# Error"):
             set_corporate_cached_markdown(key_hash, generado.markdown)
         md = generado.markdown
-        agents_failed = generado.agents_failed
+        telemetria = telemetria_de(generado)
         cache_hit = False
 
     run_with_corporate_cache_lock(key_hash, _compute)
     redis_key = corporate_cache_redis_key(key_hash) if cache_hit else None
-    return md, cache_hit, redis_key, agents_failed
+    return md, cache_hit, redis_key, telemetria
 
 
 def _report_corporate_cache_hit(progress: Any, markdown: str) -> None:
@@ -961,6 +962,7 @@ def generate_dossiers_from_calendar_event(
     # None = sin telemetría de agentes (caché o rama no ejecutada); persist_calendar_dossiers
     # cae al criterio anterior (¿el markdown final es un error?) en ese caso.
     corporate_agents_failed: list[str] | None = None
+    corporate_telemetria: dict[str, Any] | None = None
     depth_key = depth if depth in DEPTH_CREDITS else "standard"
     include_corporate = plan_allows_calendar_corporate_dossier(organization_plan)
     corporate_skipped_plan_free = False
@@ -985,7 +987,7 @@ def generate_dossiers_from_calendar_event(
                 corporate_md,
                 corporate_cache_hit,
                 corporate_cache_key,
-                corporate_agents_failed,
+                corporate_telemetria,
             ) = _corporate_md_from_cache_or_langgraph(
                 participantes_brief=participantes_brief,
                 tema=tema,
@@ -996,6 +998,8 @@ def generate_dossiers_from_calendar_event(
                 empresa_objetivo=company_corporate,
                 progress=job_progress.scope("corporate:0"),
             )
+            if corporate_telemetria is not None:
+                corporate_agents_failed = corporate_telemetria["agents_failed"]
         except Exception as e:
             logger.exception("Fallo dossier corporativo desde calendario")
             errors.append(f"Corporativo: {e}")
@@ -1048,6 +1052,7 @@ def generate_dossiers_from_calendar_event(
         "corporate_cache_key": corporate_cache_key,
         "person_cache_key": person_cache_key,
         "corporate_agents_failed": corporate_agents_failed,
+        "corporate_telemetria": corporate_telemetria,
         "output_language": out_lang,
         "corporate_skipped_plan_free": corporate_skipped_plan_free,
     }
@@ -1248,10 +1253,9 @@ def persist_calendar_dossiers(
         # Telemetría real del grafo si se ejecutó en esta llamada (S4.9); si vino de
         # caché o de una excepción fuera del grafo, cae al criterio anterior.
         explicit_agents_failed = result.get("corporate_agents_failed")
+        telemetria = columnas_telemetria(result.get("corporate_telemetria"), es_error=is_err)
         corp_agents_failed = (
-            list(explicit_agents_failed)
-            if explicit_agents_failed is not None
-            else (["synthesize_llm"] if is_err else [])
+            list(explicit_agents_failed) if explicit_agents_failed is not None else telemetria["agents_failed"]
         )
         will_charge_corp = charge and not is_err and not corporate_cache_hit
         dossier_id = uuid.uuid4()
@@ -1292,10 +1296,11 @@ def persist_calendar_dossiers(
                 "calendar_folder_role": "corporate",
                 "output_language": output_lang,
                 **_progress_copy(corporate_progress),
+                **telemetria["dossier_data"],
             },
-            agents_activated=["agent_corporate_uk", "agent_corporate_usa", "synthesize_llm"],
+            agents_activated=telemetria["agents_activated"],
             agents_failed=corp_agents_failed,
-            data_sources_used=["companies_house", "sec_edgar", "sec_company_facts", "gemini"],
+            data_sources_used=telemetria["data_sources_used"],
             generation_started_at=now,
             generation_completed_at=now,
             generation_duration_ms=0 if corporate_cache_hit else generation_duration_ms,

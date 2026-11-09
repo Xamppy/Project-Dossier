@@ -14,6 +14,7 @@ import operator
 import re
 import unicodedata
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Annotated, Any, Literal, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -114,6 +115,22 @@ class CorporateDossierState(TypedDict, total=False):
     agents_succeeded: Annotated[list[str], operator.add]
     # Fuera de alcance: no consultaron la red (CA3 de S0.12).
     agents_skipped: Annotated[list[str], operator.add]
+    # Qué registro o proveedor se consultó, para qué jurisdicción, cuándo y con qué
+    # resultado (S2.5). Los agentes corren en paralelo: mismo reducer que agents_failed.
+    fuentes_consultadas: Annotated[list[dict[str, Any]], operator.add]
+
+
+def _fuente(
+    fuente: str, nombre: str, jurisdiccion: str | None, resultado: str, consultado_en: datetime | None = None
+) -> dict[str, Any]:
+    """Entrada de ``fuentes_consultadas``. ``resultado``: consultada, sin_resultados o error."""
+    return {
+        "fuente": fuente,
+        "nombre": nombre,
+        "jurisdiccion": jurisdiccion,
+        "resultado": resultado,
+        "consultado_en": (consultado_en or datetime.now(UTC)).isoformat(),
+    }
 
 
 def _agent_skip_reason(agente: str, state: CorporateDossierState) -> str | None:
@@ -159,10 +176,18 @@ def _node_agent_corporate_uk(state: CorporateDossierState) -> dict[str, Any]:
         logger.exception("Fallo agente UK (Companies House)")
         bloque = f"## Reino Unido (Companies House)\n\n*Error interno al construir contexto: {e}*\n"
         logger.info("LangGraph nodo agent_corporate_uk falló")
-        return {"uk_corporate_context": bloque, "agents_failed": ["agent_corporate_uk"]}
+        return {
+            "uk_corporate_context": bloque,
+            "agents_failed": ["agent_corporate_uk"],
+            "fuentes_consultadas": [_fuente("companies_house", "Companies House", "uk", "error")],
+        }
 
     logger.info("LangGraph nodo agent_corporate_uk completado")
-    return {"uk_corporate_context": bloque, "agents_succeeded": ["agent_corporate_uk"]}
+    return {
+        "uk_corporate_context": bloque,
+        "agents_succeeded": ["agent_corporate_uk"],
+        "fuentes_consultadas": [_fuente("companies_house", "Companies House", "uk", "consultada")],
+    }
 
 
 def _node_agent_corporate_usa(state: CorporateDossierState) -> dict[str, Any]:
@@ -190,10 +215,18 @@ def _node_agent_corporate_usa(state: CorporateDossierState) -> dict[str, Any]:
         logger.exception("Fallo agente USA (SEC)")
         bloque = f"## Estados Unidos (SEC EDGAR)\n\n*Error interno al construir contexto: {e}*\n"
         logger.info("LangGraph nodo agent_corporate_usa falló")
-        return {"us_corporate_context": bloque, "agents_failed": ["agent_corporate_usa"]}
+        return {
+            "us_corporate_context": bloque,
+            "agents_failed": ["agent_corporate_usa"],
+            "fuentes_consultadas": [_fuente("sec_edgar", "SEC EDGAR", "us", "error")],
+        }
 
     logger.info("LangGraph nodo agent_corporate_usa completado")
-    return {"us_corporate_context": bloque, "agents_succeeded": ["agent_corporate_usa"]}
+    return {
+        "us_corporate_context": bloque,
+        "agents_succeeded": ["agent_corporate_usa"],
+        "fuentes_consultadas": [_fuente("sec_edgar", "SEC EDGAR", "us", "consultada")],
+    }
 
 
 def _palabras(texto: str) -> set[str]:
@@ -231,6 +264,32 @@ def _registro_europeo_markdown(cita: Any) -> str:
     return linea
 
 
+def _fuentes_europeas(resultado: Any, empresa: str, *, todas_con_error: bool = False) -> list[dict[str, Any]]:
+    """Una entrada por país consultado (S2.5), con la fecha de consulta de sus registros."""
+    from dossier.eu_registry import agent as agente_europeo
+
+    fuentes = []
+    for jur in agente_europeo.JURISDICCIONES_SOPORTADAS:
+        citas = (
+            []
+            if todas_con_error
+            else [
+                c
+                for c in resultado.citas
+                if c.record.jurisdiccion == jur and _coincide_con_empresa(c.record.razon_social, empresa)
+            ]
+        )
+        if todas_con_error or jur.value in resultado.errores:
+            estado = "error"
+        else:
+            estado = "consultada" if citas else "sin_resultados"
+        momento = max((c.source.retrieved_at for c in citas), default=None)
+        fuentes.append(
+            _fuente(f"eu_registry_{jur.value}", agente_europeo.NOMBRES_FUENTE[jur], jur.value, estado, momento)
+        )
+    return fuentes
+
+
 def _node_agent_corporate_eu(state: CorporateDossierState) -> dict[str, Any]:
     """Agente Europa (registros FR/DE). Se omite si el usuario ya eligió un registro UK o US."""
     scope = state.get("jurisdiction_scope", "dual")
@@ -246,11 +305,19 @@ def _node_agent_corporate_eu(state: CorporateDossierState) -> dict[str, Any]:
     except Exception as e:
         logger.exception("Fallo agente Europa (registros FR/DE)")
         bloque = f"## Registros mercantiles europeos\n\n*Error interno al consultar: {e}*\n"
-        return {"eu_corporate_context": bloque, "agents_failed": ["agent_corporate_eu"]}
+        return {
+            "eu_corporate_context": bloque,
+            "agents_failed": ["agent_corporate_eu"],
+            "fuentes_consultadas": _fuentes_europeas(None, empresa, todas_con_error=True),
+        }
 
     if resultado.errores and not resultado.citas:
         bloque = "## Registros mercantiles europeos\n\n*No se pudieron consultar los registros europeos.*\n"
-        return {"eu_corporate_context": bloque, "agents_failed": ["agent_corporate_eu"]}
+        return {
+            "eu_corporate_context": bloque,
+            "agents_failed": ["agent_corporate_eu"],
+            "fuentes_consultadas": _fuentes_europeas(resultado, empresa),
+        }
 
     lineas = [
         _registro_europeo_markdown(c)
@@ -264,11 +331,34 @@ def _node_agent_corporate_eu(state: CorporateDossierState) -> dict[str, Any]:
     return {
         "eu_corporate_context": f"## Registros mercantiles europeos\n\n{cuerpo}\n",
         "agents_succeeded": ["agent_corporate_eu"],
+        "fuentes_consultadas": _fuentes_europeas(resultado, empresa),
         _PROGRESO: {
             "reason_code": None if lineas else "no_matches",
             "preview": "## Registros mercantiles europeos\n\n" + "\n".join(lineas) if lineas else None,
         },
     }
+
+
+_PROVEEDORES_PRENSA = (("gdelt_news", "GDELT DOC 2.0"), ("news_api", "NewsAPI"))
+_ORDEN_FUENTES = (
+    "companies_house", "sec_edgar", "eu_registry_fr", "eu_registry_de", "gdelt_news", "news_api", "deepseek",
+)
+
+
+def _orden_fuente(fuente: dict[str, Any]) -> int:
+    nombre = fuente.get("fuente")
+    return _ORDEN_FUENTES.index(nombre) if nombre in _ORDEN_FUENTES else len(_ORDEN_FUENTES)
+
+
+def _fuentes_prensa(caidos: set[str], menciones: list[Any]) -> list[dict[str, Any]]:
+    """Una entrada por proveedor de prensa (S2.5): caído, con menciones o sin ellas."""
+    fuentes = []
+    for proveedor, nombre in _PROVEEDORES_PRENSA:
+        propias = [m for m in menciones if m.source.source_type.value == proveedor]
+        estado = "error" if proveedor in caidos else ("consultada" if propias else "sin_resultados")
+        momento = max((m.source.retrieved_at for m in propias), default=None)
+        fuentes.append(_fuente(proveedor, nombre, None, estado, momento))
+    return fuentes
 
 
 def _node_agent_news(state: CorporateDossierState) -> dict[str, Any]:
@@ -286,11 +376,17 @@ def _node_agent_news(state: CorporateDossierState) -> dict[str, Any]:
         return {
             "news_context": f"## Menciones de prensa recientes\n\n*Error interno al consultar: {e}*\n",
             "agents_failed": ["agent_news"],
+            "fuentes_consultadas": _fuentes_prensa({p for p, _ in _PROVEEDORES_PRENSA}, []),
         }
 
+    caidos = {f.provider for f in resultado.failed_providers}
     if not resultado.mentions and len(resultado.failed_providers) >= 2:
         bloque = "## Menciones de prensa recientes\n\n*No se pudo consultar la prensa.*\n"
-        return {"news_context": bloque, "agents_failed": ["agent_news"]}
+        return {
+            "news_context": bloque,
+            "agents_failed": ["agent_news"],
+            "fuentes_consultadas": _fuentes_prensa(caidos, []),
+        }
 
     menciones, descartadas = agente_noticias.filtrar_homonimos(resultado.mentions, empresa)
     if descartadas:
@@ -309,6 +405,7 @@ def _node_agent_news(state: CorporateDossierState) -> dict[str, Any]:
         "news_context": f"## Menciones de prensa recientes\n\n{cuerpo}\n",
         "menciones_prensa": menciones,
         "agents_succeeded": ["agent_news"],
+        "fuentes_consultadas": _fuentes_prensa(caidos, menciones),
         _PROGRESO: {
             "reason_code": None if lineas else "no_matches",
             "preview": "## Menciones de prensa recientes\n\n" + "\n".join(lineas) if lineas else None,
@@ -486,11 +583,13 @@ def _node_synthesize_llm(state: CorporateDossierState) -> dict[str, Any]:
             "final_dossier_markdown": f"# Error en síntesis\n\n{err}",
             "agent_errors": [*state.get("agent_errors", []), err],
             "agents_failed": ["synthesize_llm"],
+            "fuentes_consultadas": [_fuente("deepseek", "DeepSeek", None, "error")],
         }
 
     return {
         "final_dossier_markdown": texto,
         "agents_succeeded": ["synthesize_llm"],
+        "fuentes_consultadas": [_fuente("deepseek", "DeepSeek", None, "consultada")],
         _PROGRESO: {"preview": texto},
     }
 
@@ -554,6 +653,10 @@ class CorporateDossierResult:
     agents_failed: list[str]
     agents_succeeded: list[str]
     agents_skipped: list[str] = field(default_factory=list)
+    # Qué registro o proveedor se consultó y cuándo (S2.5).
+    fuentes_consultadas: list[dict[str, Any]] = field(default_factory=list)
+    # Menciones que pasaron el filtro de homónimos (S3.3), para persistirlas (S3.4).
+    menciones_prensa: list[Any] = field(default_factory=list)
 
 
 def run_corporate_dossier_langgraph_detailed(
@@ -587,6 +690,7 @@ def run_corporate_dossier_langgraph_detailed(
             "agents_failed": [],
             "agents_succeeded": [],
             "agents_skipped": [],
+            "fuentes_consultadas": [],
         }
     )
     markdown = str(result.get("final_dossier_markdown") or "").strip()
@@ -598,6 +702,9 @@ def run_corporate_dossier_langgraph_detailed(
         agents_failed=agents_failed,
         agents_succeeded=list(result.get("agents_succeeded") or []),
         agents_skipped=list(result.get("agents_skipped") or []),
+        # Los agentes terminan en cualquier orden: se ordena para que el registro sea estable.
+        fuentes_consultadas=sorted(result.get("fuentes_consultadas") or [], key=_orden_fuente),
+        menciones_prensa=list(result.get("menciones_prensa") or []),
     )
 
 
