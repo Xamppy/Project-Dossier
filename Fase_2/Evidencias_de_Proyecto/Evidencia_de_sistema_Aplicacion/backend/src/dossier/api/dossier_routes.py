@@ -84,6 +84,7 @@ from dossier.services.email_service import (
 )
 from dossier.services.output_language import effective_output_language
 from dossier.services.person_research_pipeline import run_person_research_and_persist
+from dossier.services.press_mentions_writer import escribir_menciones_prensa
 from dossier.utils.html_text import strip_html_to_plain_line
 
 router = APIRouter(tags=["Dossiers"])
@@ -335,6 +336,13 @@ def generate_corporate_dossier(
     )
 
     db.add(dossier)
+    if not cache_hit and telemetria is not None:
+        escribir_menciones_prensa(
+            db,
+            dossier_id=dossier_id,
+            menciones=telemetria["menciones_prensa"],
+            consulta=empresa_objetivo_de_solicitud(body),
+        )
     db.commit()
     db.refresh(dossier)
     db.refresh(org)

@@ -86,6 +86,7 @@ from dossier.services.person_research_progress import (
     scope_copy,
 )
 from dossier.services.person_research_service import run_person_research
+from dossier.services.press_mentions_writer import escribir_menciones_prensa
 from dossier.services.summary_cache import SUMMARY_CACHE
 from dossier.utils.html_text import strip_html_to_plain_line, strip_html_to_text
 
@@ -1311,6 +1312,12 @@ def persist_calendar_dossiers(
             dossier_folder_id=folder_id,
         )
         db.add(dossier)
+        escribir_menciones_prensa(
+            db,
+            dossier_id=dossier_id,
+            menciones=(result.get("corporate_telemetria") or {}).get("menciones_prensa"),
+            consulta=subject,
+        )
         saved["corporate"] = {
             "id": str(dossier_id),
             "status": status,
