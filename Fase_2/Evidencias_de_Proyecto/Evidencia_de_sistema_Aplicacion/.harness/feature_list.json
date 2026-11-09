@@ -770,7 +770,7 @@
       "id": "S2.6",
       "sprint": 2,
       "title": "Pruebas de contraste entre las tres jurisdicciones",
-      "status": "pending",
+      "status": "in_progress",
       "owner": "FO",
       "area": "backend",
       "activity": "A4",
@@ -785,9 +785,9 @@
         "S2.7"
       ],
       "trello": "https://trello.com/c/ZWhZxKW5",
-      "branch": null,
+      "branch": "feat/FO-cierre-europa-prensa",
       "evidence": [],
-      "notes": ""
+      "notes": "Tomada en el mismo PR que S2.4: next.py --claim no la acepta mientras S2.4 no esté done (depends_on)."
     },
     {
       "id": "S2.7",
