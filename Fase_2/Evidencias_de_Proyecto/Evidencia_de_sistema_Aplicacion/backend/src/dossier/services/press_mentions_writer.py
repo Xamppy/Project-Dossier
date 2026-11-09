@@ -70,11 +70,11 @@ def escribir_menciones_prensa(
     como viajan en el resultado del job. Se llama antes del ``commit`` del dossier, para
     quedar en la misma transacción.
     """
-    guardadas = 0
-    for mencion in menciones or []:
-        fila = _fila(mencion, consulta)
-        if fila is None:
-            continue
+    filas = [f for f in (_fila(m, consulta) for m in menciones or []) if f is not None]
+    if filas:
+        # Sin relationship() entre los modelos, el ORM no garantiza insertar el dossier antes
+        # que sus menciones (FK): se vuelca primero.
+        db.flush()
+    for fila in filas:
         db.add(DossierMediaMention(dossier_id=dossier_id, **fila))
-        guardadas += 1
-    return guardadas
+    return len(filas)

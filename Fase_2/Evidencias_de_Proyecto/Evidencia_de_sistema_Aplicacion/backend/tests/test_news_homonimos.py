@@ -151,3 +151,50 @@ def test_si_todas_son_homonimas_el_nodo_informa_que_no_hay_menciones(monkeypatch
     assert "Sin menciones de prensa recientes" in salida["news_context"]
     assert salida["menciones_prensa"] == []
     assert salida["agents_succeeded"] == ["agent_news"]
+
+
+# --- Nombres oficiales del registro (revisión del PR #49) ---------------------------------
+# La empresa objetivo suele ser el título de Companies House o de la SEC, con puntos,
+# sufijos de estado y palabras genéricas que la prensa omite. Nombres ficticios.
+
+
+@pytest.mark.parametrize(
+    ("titulo_registro", "titular"),
+    [
+        ("BX P.L.C.", "BX shares jump after results"),
+        ("Ficticia Platforms, Inc.", "Ficticia fined by EU regulators"),
+        ("FICTICIA COM INC", "Ficticia opens a new warehouse"),
+        ("PRUEBA HOLDINGS PLC", "Prueba posts record profit"),
+        ("NORTE SUR & COMPANY/MN", "Norte Sur settles lawsuit"),
+        ("PRUEBA HOLDING N.V.", "Prueba wins a chip order"),
+        ("Ficticia Aktiengesellschaft", "Ficticia cuts jobs"),
+        ("CISCO PRUEBA SYSTEMS, INC.", "Cisco Prueba reports earnings"),
+        ("Acme Prueba Group S.A.", "Acme Prueba compra una rival"),
+    ],
+)
+def test_conserva_la_noticia_aunque_el_titular_omita_lo_generico_del_nombre(titulo_registro, titular):
+    conservadas, descartadas = filtrar_homonimos([_mencion(titular)], titulo_registro)
+
+    assert _titulares(conservadas) == [titular]
+    assert descartadas == 0
+
+
+def test_lo_distintivo_del_nombre_sigue_siendo_obligatorio():
+    menciones = [_mencion("Platforms see record growth"), _mencion("Holdings fall on Wall Street")]
+
+    conservadas, descartadas = filtrar_homonimos(menciones, "Ficticia Platforms Holdings, Inc.")
+
+    assert conservadas == []
+    assert descartadas == 2
+
+
+def test_el_nodo_entrega_solo_las_menciones_que_llegan_al_informe(monkeypatch):
+    muchas = [_mencion(f"Acme Prueba noticia {i}") for i in range(grafo.MAX_MENCIONES_PROMPT + 5)]
+    monkeypatch.setattr(
+        "dossier.news.agent.collect_press_mentions",
+        lambda consulta, **_: ResultadoRecoleccionPrensa(mentions=muchas),
+    )
+
+    salida = grafo._node_agent_news({"jurisdiction_scope": "dual", "empresa_objetivo": "Acme Prueba"})
+
+    assert len(salida["menciones_prensa"]) == grafo.MAX_MENCIONES_PROMPT

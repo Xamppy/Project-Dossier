@@ -190,24 +190,37 @@ def collect_press_mentions(
     return resultado
 
 
-# Formas jurídicas y conectores: un titular suele omitirlos («Acme» por «Acme SAS»).
+# Formas jurídicas, conectores y palabras genéricas de los nombres oficiales: un titular suele
+# omitirlas («Meta» por «Meta Platforms, Inc.», «HSBC» por «HSBC Holdings PLC»).
 _PALABRAS_NO_SIGNIFICATIVAS = frozenset(
     [
         "sa", "sas", "sarl", "sasu", "spa", "srl", "sl", "ltd", "ltda", "limited", "llc", "inc",
-        "corp", "corporation", "co", "plc", "ag", "gmbh", "kg", "ohg", "ug", "bv", "nv", "se",
-        "ab", "oy", "as", "eirl", "de", "del", "la", "las", "los", "el", "y", "e", "and", "the",
-        "of", "et", "und", "von",
+        "incorporated", "corp", "corporation", "co", "com", "plc", "ag", "gmbh", "kg", "ohg",
+        "ug", "bv", "nv", "se", "ab", "oy", "as", "eirl", "aktiengesellschaft", "gesellschaft",
+        "company", "companies", "compania", "compagnie", "societe", "sociedad", "anonima",
+        "holding", "holdings", "group", "groupe", "gruppe", "international", "intl",
+        "platforms", "systems", "technologies", "technology", "solutions", "services",
+        "industries", "enterprises", "de", "del", "la", "las", "los", "el", "y", "e", "and",
+        "the", "of", "et", "und", "von",
     ]
 )
 
+# Siglas con puntos («P.L.C.», «N.V.», «S.A.»): se unen antes de separar palabras.
+_SIGLA_CON_PUNTOS = re.compile(r"\b(?:[A-Za-z]\.){2,}")
+# Sufijo de estado de los títulos de la SEC («WELLS FARGO & COMPANY/MN»).
+_SUFIJO_ESTADO_SEC = re.compile(r"/[A-Za-z]{2}\s*$")
+
 
 def _palabras(texto: str) -> list[str]:
-    sin_tildes = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
+    sin_siglas = _SIGLA_CON_PUNTOS.sub(lambda m: m.group(0).replace(".", ""), texto)
+    sin_tildes = unicodedata.normalize("NFKD", sin_siglas).encode("ascii", "ignore").decode()
     return re.findall(r"[a-z0-9]+", sin_tildes.lower())
 
 
 def _significativas(texto: str) -> set[str]:
-    return {p for p in _palabras(texto) if p not in _PALABRAS_NO_SIGNIFICATIVAS}
+    """Palabras que identifican al nombre: sin genéricas, sin letras sueltas ni sufijo de estado."""
+    nombre = _SUFIJO_ESTADO_SEC.sub("", texto.strip())
+    return {p for p in _palabras(nombre) if len(p) > 1 and p not in _PALABRAS_NO_SIGNIFICATIVAS}
 
 
 def _texto_comparable(mencion: PressMention) -> set[str]:
@@ -230,14 +243,16 @@ def filtrar_homonimos(
     """Descarta las menciones que no corresponden al sujeto del dossier (S3.3, ADR 0004).
 
     Una mención se conserva si su texto nombra al sujeto (todas sus palabras
-    significativas, como palabras completas, sin distinguir mayúsculas ni tildes) y,
+    significativas, como palabras completas, sin distinguir mayúsculas ni tildes; la forma
+    jurídica y las palabras genéricas del nombre oficial no cuentan) y,
     cuando hay ``contexto`` (organización, cargo, sector, país), al menos uno de esos
     términos completo. Ante la duda se descarta: un dossier sin noticias es preferible
     a uno con imputaciones falsas. Devuelve las conservadas y cuántas se descartaron.
 
     shortcut: un nombre de una sola palabra común («Apple») pasa con cualquier titular
-    que la contenga; mejorar con señales del registro corporativo (país, sector) si
-    aparecen falsos positivos.
+    que la contenga, y uno cuya palabra genérica sí es distintiva («Banco» en «Banco
+    Santander») exige que el titular la repita; mejorar con señales del registro
+    corporativo (país, sector) si aparecen falsos positivos o negativos.
     """
     buscadas = _significativas(sujeto)
     terminos = [t for t in (_significativas(c) for c in contexto) if t]

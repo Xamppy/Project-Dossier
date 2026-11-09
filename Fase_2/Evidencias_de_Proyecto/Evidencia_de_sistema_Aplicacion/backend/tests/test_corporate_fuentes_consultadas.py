@@ -266,6 +266,9 @@ class _FakeSession:
     def commit(self):
         pass
 
+    def flush(self):
+        pass
+
 
 def test_calendario_guarda_agentes_y_fuentes_de_la_telemetria(agentes):
     from dossier.services.calendar_event_dossiers import persist_calendar_dossiers

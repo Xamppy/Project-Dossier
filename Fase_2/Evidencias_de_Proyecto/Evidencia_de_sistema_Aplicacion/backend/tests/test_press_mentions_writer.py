@@ -53,6 +53,9 @@ class _FakeSession:
     def commit(self):
         pass
 
+    def flush(self):
+        pass
+
 
 def _filas(db) -> list[DossierMediaMention]:
     return [o for o in db.added if isinstance(o, DossierMediaMention)]
@@ -192,3 +195,20 @@ def test_la_generacion_manual_guarda_las_menciones(monkeypatch):
     [fila] = _filas(db)
     assert fila.dossier_id == dossier.id
     assert fila.title == "Acme Prueba abre una oficina en Lyon"
+
+
+def test_vuelca_el_dossier_antes_de_agregar_las_menciones():
+    """La FK exige el dossier primero; sin relationship() el orden no lo garantiza el ORM."""
+    eventos: list[str] = []
+
+    class _Sesion(_FakeSession):
+        def flush(self):
+            eventos.append("flush")
+
+        def add(self, obj):
+            eventos.append(type(obj).__name__)
+            super().add(obj)
+
+    escribir_menciones_prensa(_Sesion(), dossier_id=uuid.uuid4(), menciones=[_mencion()], consulta="Acme")
+
+    assert eventos == ["flush", "DossierMediaMention"]

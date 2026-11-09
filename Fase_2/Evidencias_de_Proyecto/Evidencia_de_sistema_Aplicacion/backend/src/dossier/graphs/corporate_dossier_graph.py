@@ -391,9 +391,11 @@ def _node_agent_news(state: CorporateDossierState) -> dict[str, Any]:
     menciones, descartadas = agente_noticias.filtrar_homonimos(resultado.mentions, empresa)
     if descartadas:
         logger.info("agent_news descartó %d menciones homónimas de %r", descartadas, empresa)
+    # Solo las que llegan al informe: lo que se guarda (S3.4) coincide con lo que se citó.
+    menciones = menciones[:MAX_MENCIONES_PROMPT]
 
     lineas = []
-    for m in menciones[:MAX_MENCIONES_PROMPT]:
+    for m in menciones:
         fecha = f", {_texto_externo(m.published_date, 30)}" if m.published_date else ""
         lineas.append(
             f"- **{_texto_externo(m.headline, 200)}** — {_texto_externo(m.publisher, 100)}{fecha}. "

@@ -36,8 +36,9 @@ Datos que entrega cada país:
   romper nada.
 
 Para que el agente consulte Europa, el dossier corporativo debe tener una empresa objetivo y el
-usuario no debe haber elegido un registro de Reino Unido o de Estados Unidos. Con esa elección, el
-nodo queda en `agents_skipped` sin llamar a la red, para no mezclar homónimos.
+alcance no debe ser solo Reino Unido o solo Estados Unidos. Ese alcance lo fija el registro que
+eligió el usuario o, si no eligió ninguno, el que se deduce del texto del encargo. Fuera de
+alcance, el nodo queda en `agents_skipped` sin llamar a la red, para no mezclar homónimos.
 
 ## Límites
 
@@ -55,20 +56,24 @@ nodo queda en `agents_skipped` sin llamar a la red, para no mezclar homónimos.
   la tabla y la URL del servicio se cambian por variables de entorno (`EU_REGISTRY_DE_API_BASE`,
   `EU_REGISTRY_DE_DATABASE`, `EU_REGISTRY_DE_TABLE`), sin tocar código.
 - **Tribunal de registro alemán.** El criterio CA-B2.2 pide el número HRB/HRA y el tribunal de
-  registro. El tribunal no se separa en un campo propio: queda como prefijo del identificador
-  (por ejemplo `K1101R_HRB000001`).
+  registro. El tribunal no se extrae en un campo propio: el identificador se guarda tal como lo
+  entrega la fuente (`company_number`), sin interpretarlo, porque el esquema no está verificado.
 - **Homónimos.** La coincidencia por palabras evita la mayoría de los falsos positivos de la
   búsqueda difusa francesa, pero una empresa cuyo nombre esté contenido en otra más larga (por
   ejemplo «Acme» dentro de «Acme Holding Nord») pasa el filtro.
 - **Caché.** Un dossier servido desde la caché de Redis no vuelve a consultar los registros: no
-  trae fuentes consultadas nuevas.
+  trae fuentes consultadas nuevas y sus listas de agentes y fuentes quedan vacías.
+- **Reino Unido y Estados Unidos.** Sus agentes devuelven un texto en lugar de una excepción
+  cuando falta la clave de Companies House o la API responde con error, así que en esos casos
+  quedan como `consultada` aunque no hayan obtenido datos.
 
 ## Tolerancia a fallos y trazabilidad
 
 - Cada país se consulta por separado: si uno falla (HTTP, tiempo de espera o formato inesperado),
   el otro se entrega igual.
-- Si fallan los dos, o el agente lanza una excepción, el nodo queda en `agents_failed` y el dossier
-  se genera con las demás fuentes (criterio CA-B2.4).
+- Si no hay ningún registro y al menos un país falló (los dos caídos, o uno caído y el otro sin
+  filas), o si el agente lanza una excepción, el nodo queda en `agents_failed` y el dossier se
+  genera con las demás fuentes (criterio CA-B2.4).
 - Cada dossier corporativo guarda en `dossier_data["fuentes_consultadas"]` qué registro consultó,
   para qué jurisdicción, cuándo y con qué resultado (`consultada`, `sin_resultados` o `error`).
   `data_sources_used` lista las fuentes que respondieron (S2.4 y S2.5).
