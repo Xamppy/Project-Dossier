@@ -6,6 +6,22 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-10 · BUG-2026-10-19-08 · Saldo repetido en `credit_ledger` · FD (agente)
+
+**Hecho.** Rama `fix/BUG-2026-10-19-08-saldo-creditos`, desde `docmac`. Traspasada de FO.
+Migración `a9d3e5f7b1c4`: el descuento de créditos pasa del trigger BEFORE al AFTER, que descuenta
+con `UPDATE … RETURNING` y anota ese saldo. Prueba en
+`tests/integration/test_bug_08_saldo_creditos.py` (antes: `[4, 4]` y `[11, 11, 11]`).
+
+**Lo que hay que saber.**
+- **Causa:** Postgres corre los triggers AFTER de fila al final de la sentencia. Lo que el AFTER lee
+  de otra tabla ya tiene el efecto de todas las filas.
+- El AFTER vuelve a comprobar el saldo (`AND credits_balance >= …`): con varias filas en una
+  sentencia, el BEFORE ve el saldo de antes de todas y no basta.
+- El despliegue corre `alembic upgrade head` (`docker-entrypoint.sh`): la corrección llega sola.
+
+**Rama.** `fix/BUG-2026-10-19-08-saldo-creditos` · **Estado.** review
+
 ### 2026-11-10 · S6.4 · Reintento y registro de fallos de envío · FD (agente)
 
 **Hecho.** En la rama `feat/S6.4-reintento-correo`, desde `docmac`. Traspasada de DG. Decisión de

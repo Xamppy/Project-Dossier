@@ -1216,6 +1216,15 @@ CREATE INDEX IF NOT EXISTS idx_dossier_email_retries_next ON dossier_email_retri
 
 
 -- =============================================================================
+-- CORRECCIÓN: saldo por fila en credit_ledger (BUG-2026-10-19-08, Alembic a9d3e5f7b1c4)
+-- El descuento pasa de fn_debit_credits_on_dossier (BEFORE) a
+-- fn_credit_ledger_after_dossier_insert (AFTER), que descuenta con
+-- UPDATE ... RETURNING y anota ese saldo. Antes, con varios dossiers en un mismo
+-- INSERT, todas las filas anotaban el saldo final. Definiciones en la migración.
+-- =============================================================================
+
+
+-- =============================================================================
 -- FIN DEL SCHEMA
 -- Total de tablas: 16 principales + 2 vistas
 -- Extensiones: uuid-ossp, pgcrypto
