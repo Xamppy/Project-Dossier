@@ -1630,7 +1630,7 @@
       "id": "S6.5",
       "sprint": 6,
       "title": "Implementar retencion de 24 horas con borrado verificado",
-      "status": "claimed",
+      "status": "review",
       "owner": "FD",
       "area": "security",
       "activity": "A8",
@@ -1645,7 +1645,9 @@
       ],
       "trello": "https://trello.com/c/EOfroRV2",
       "branch": "feat/S6.5-retencion-24h",
-      "evidence": [],
+      "evidence": [
+        "specs/reports/S6.5-retencion-24h.md: CA1-CA13 con sus pruebas (unitarias, integración, seguridad y estrés contra PostgreSQL 18); Vitest 646 passed; ruff y mypy sin hallazgos"
+      ],
       "notes": "Decisión de FD (2026-11-10): 24 h fijas para todos los dossiers, sin elección del usuario; el plazo queda en una variable del servidor. Incluye retirar el selector de retención de Configuración (frontend), con acuerdo de FD.",
       "owner_session": "FD (agente)"
     },

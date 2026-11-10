@@ -1,23 +1,69 @@
-"""Worker en background que purga dossiers según la retención configurada por usuario."""
+"""Worker en background que borra los dossiers vencidos y verifica el borrado (S6.5).
+
+Cada vuelta toma el corte ``ahora − DOSSIER_RETENTION_HOURS`` y borra todo dossier creado antes,
+de cualquier usuario, y los jobs de generación terminados antes del corte. Después del commit
+vuelve a consultar para comprobar que no quedó nada: ni filas ni la entrada de Redis.
+"""
 from __future__ import annotations
 
 import logging
 import os
 import threading
-from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass, field
+from datetime import datetime
+from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import bindparam, delete, func, select, text
+from sqlalchemy.orm import Session
 
+from dossier.cache.corporate_dossier_redis import dossier_redis_key_exists
 from dossier.db.connection import is_database_configured
-from dossier.db.models import Dossier, User
+from dossier.db.models import Dossier, DossierGenerationJob
 from dossier.db.session import _factory
 from dossier.services.dossier_deletion_service import (
     delete_dossier_record,
     finalize_dossier_deletions,
 )
+from dossier.services.dossier_retention import dossier_retention_hours, retention_cutoff
 
 logger = logging.getLogger(__name__)
+
+# Mismos estados activos que ``dossier_generation_job_service._ACTIVE_STATUSES``: un job en curso
+# no se borra aunque sea antiguo.
+_JOBS_ACTIVOS = ("queued", "running")
+
+# Tablas que guardan datos de un dossier. Todas tienen ON DELETE CASCADE hacia ``dossiers``.
+_TABLAS_HIJAS = (
+    "dossier_alerts",
+    "dossier_media_mentions",
+    "dossier_corporate_records",
+    "dossier_career_entries",
+    "dossier_ice_breakers",
+    "dossier_shares",
+)
+
+
+# Candado de Postgres que comparten todos los procesos: con varios workers (réplicas o procesos
+# del servidor), solo uno borra por vuelta. El número es arbitrario y fijo.
+_CANDADO_RETENCION = 6_005_240
+
+
+@dataclass(frozen=True)
+class ResultadoRetencion:
+    """Lo que hizo una vuelta del worker. ``restos`` vacío significa borrado verificado.
+
+    ``omitido`` indica que otro proceso estaba borrando y esta vuelta no hizo nada.
+    """
+
+    dossiers_borrados: int = 0
+    jobs_borrados: int = 0
+    restos: dict[str, int] = field(default_factory=dict)
+    omitido: bool = False
+
+    @property
+    def verificado(self) -> bool:
+        return not self.restos
 
 
 def worker_enabled() -> bool:
@@ -26,64 +72,107 @@ def worker_enabled() -> bool:
 
 
 def poll_interval_seconds() -> float:
-    raw = os.getenv("DOSSIER_RETENTION_POLL_SECONDS", "3600").strip()
+    """Cada cuánto revisa. Es el atraso máximo del borrado: 10 minutos por omisión."""
+    raw = os.getenv("DOSSIER_RETENTION_POLL_SECONDS", "600").strip()
     try:
-        return max(300.0, float(raw))
+        return max(60.0, float(raw))
     except ValueError:
-        return 3600.0
+        return 600.0
 
 
-def purge_expired_dossiers(db) -> int:
+def _contar_por_dossier(db: Session, tabla: str, columna: str, ids: list[UUID]) -> int:
+    consulta = text(f"SELECT count(*) FROM {tabla} WHERE {columna} IN :ids").bindparams(
+        bindparam("ids", expanding=True)
+    )
+    return int(db.execute(consulta, {"ids": ids}).scalar_one())
+
+
+def verificar_borrado(
+    db: Session,
+    *,
+    dossier_ids: Iterable[UUID],
+    cache_keys: Iterable[str],
+    corte: datetime,
+) -> dict[str, int]:
+    """Cuenta lo que debería haber desaparecido. Devuelve solo lo que quedó, por tabla.
+
+    Nunca registra datos de la persona consultada: solo nombres de tabla y cantidades.
     """
-    Elimina dossiers cuya antigüedad supera ``users.dossier_retention_days``.
+    ids = list(dossier_ids)
+    restos: dict[str, int] = {}
+    if ids:
+        for tabla, columna in (("dossiers", "id"), *((t, "dossier_id") for t in _TABLAS_HIJAS)):
+            quedan = _contar_por_dossier(db, tabla, columna, ids)
+            if quedan:
+                restos[tabla] = quedan
+    jobs = db.execute(
+        select(func.count())
+        .select_from(DossierGenerationJob)
+        .where(
+            DossierGenerationJob.status.not_in(_JOBS_ACTIVOS),
+            func.coalesce(DossierGenerationJob.completed_at, DossierGenerationJob.created_at) < corte,
+        )
+    ).scalar_one()
+    if jobs:
+        restos["dossier_generation_jobs"] = int(jobs)
+    en_cache = sum(1 for clave in cache_keys if dossier_redis_key_exists(clave))
+    if en_cache:
+        restos["redis"] = en_cache
+    if restos:
+        logger.error("Retención: el borrado NO quedó verificado; quedan %s", restos)
+    return restos
 
-    Solo aplica a usuarios con retención numérica (7, 14, 30 o 90). ``NULL`` = sin purga.
-    """
-    now = datetime.now(UTC)
-    users = db.execute(
-        select(User).where(User.dossier_retention_days.is_not(None))
-    ).scalars().all()
-    if not users:
-        return 0
 
-    total_deleted = 0
-    for user in users:
-        days = user.dossier_retention_days
-        if days is None or days <= 0:
-            continue
-        cutoff = now - timedelta(days=int(days))
-        rows = db.execute(
-            select(Dossier).where(
-                Dossier.requested_by_user_id == user.id,
-                Dossier.created_at < cutoff,
-            )
-        ).scalars().all()
-        if not rows:
-            continue
+def purge_expired_dossiers(db: Session, *, now: datetime | None = None) -> ResultadoRetencion:
+    """Borra dossiers y jobs vencidos, hace commit y verifica que no quede nada."""
+    # El candado dura hasta el commit de esta transacción; si otro proceso lo tiene, se omite.
+    if not db.execute(text("SELECT pg_try_advisory_xact_lock(:k)"), {"k": _CANDADO_RETENCION}).scalar():
+        db.rollback()
+        logger.debug("Retención: otro proceso está borrando; se omite esta vuelta")
+        return ResultadoRetencion(omitido=True)
 
-        calendar_event_ids: set = set()
-        for dossier in rows:
-            calendar_event_ids.add(delete_dossier_record(db, dossier))
+    corte = retention_cutoff(now)
+    vencidos = db.execute(select(Dossier).where(Dossier.created_at < corte)).scalars().all()
 
+    dossier_ids = [d.id for d in vencidos]
+    cache_keys = [(d.cache_key or "").strip() for d in vencidos if (d.cache_key or "").strip()]
+    calendar_event_ids: set[UUID | None] = set()
+    for dossier in vencidos:
+        calendar_event_ids.add(delete_dossier_record(db, dossier))
+    if vencidos:
         db.flush()
         finalize_dossier_deletions(db, calendar_event_ids)
-        total_deleted += len(rows)
-        logger.info(
-            "Retención: %s dossier(s) purgados para user=%s (>%s días)",
-            len(rows),
-            user.id,
-            days,
-        )
 
-    if total_deleted:
-        db.commit()
-    return total_deleted
+    jobs = db.execute(
+        delete(DossierGenerationJob)
+        .where(
+            DossierGenerationJob.status.not_in(_JOBS_ACTIVOS),
+            func.coalesce(DossierGenerationJob.completed_at, DossierGenerationJob.created_at) < corte,
+        )
+        .execution_options(synchronize_session=False)
+    )
+    jobs_borrados = int(jobs.rowcount or 0)  # type: ignore[attr-defined]
+
+    db.commit()
+    restos = verificar_borrado(db, dossier_ids=dossier_ids, cache_keys=cache_keys, corte=corte)
+    resultado = ResultadoRetencion(
+        dossiers_borrados=len(dossier_ids), jobs_borrados=jobs_borrados, restos=restos
+    )
+    if resultado.verificado and (resultado.dossiers_borrados or resultado.jobs_borrados):
+        logger.info(
+            "Retención (%s h): %s dossier(s) y %s job(s) borrados; borrado verificado",
+            dossier_retention_hours(),
+            resultado.dossiers_borrados,
+            resultado.jobs_borrados,
+        )
+    return resultado
 
 
 def _worker_loop(stop: threading.Event) -> None:
     interval = poll_interval_seconds()
     logger.info(
-        "Worker retención dossiers: iniciado (intervalo=%ss, enabled=%s)",
+        "Worker retención dossiers: iniciado (plazo=%sh, intervalo=%ss, enabled=%s)",
+        dossier_retention_hours(),
         interval,
         worker_enabled(),
     )

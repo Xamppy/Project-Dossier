@@ -87,7 +87,7 @@ from dossier.services.account_service import (
     change_user_password,
     delete_user_account,
 )
-from dossier.services.dossier_retention import normalize_dossier_retention_days
+from dossier.services.dossier_retention import dossier_retention_hours
 from dossier.services.dossier_share_service import list_org_members
 from dossier.services.email_service import email_delivery_available
 from dossier.services.org_invite_service import (
@@ -361,7 +361,7 @@ def build_user_public(
         locale=user.locale or "es",
         timezone=user.timezone or "UTC",
         dossier_output_language=getattr(user, "dossier_output_language", None) or "match",
-        dossier_retention_days=getattr(user, "dossier_retention_days", None),
+        dossier_retention_hours=dossier_retention_hours(),
         email_delivery_available=email_delivery_available(),
     )
 
@@ -996,12 +996,7 @@ def patch_user_preferences(
     db: Session = Depends(get_db_if_configured),
 ) -> UserPublic:
     """Sincroniza idioma de interfaz, zona horaria e idioma de salida de dossiers."""
-    if (
-        body.locale is None
-        and body.timezone is None
-        and body.dossier_output_language is None
-        and "dossier_retention_days" not in body.model_fields_set
-    ):
+    if body.locale is None and body.timezone is None and body.dossier_output_language is None:
         raise HTTPException(status_code=400, detail="No hay campos para actualizar.")
 
     if body.locale is not None:
@@ -1024,14 +1019,6 @@ def patch_user_preferences(
                 detail="dossier_output_language no soportado.",
             )
         user.dossier_output_language = pref
-
-    if "dossier_retention_days" in body.model_fields_set:
-        try:
-            user.dossier_retention_days = normalize_dossier_retention_days(
-                body.dossier_retention_days
-            )
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
 
     db.add(user)
     db.commit()

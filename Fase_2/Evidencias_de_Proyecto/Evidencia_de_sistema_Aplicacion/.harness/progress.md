@@ -6,6 +6,48 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-10 · S6.5 · Retención de 24 horas con borrado verificado · FD (agente)
+
+**Hecho.** En la rama `feat/S6.5-retencion-24h`, con TDD y spec previa
+(`specs/proposals/S6.5-retencion-24h.md`). Decisión de FD: **24 h fijas para todos**.
+
+- `services/dossier_retention.py`: plazo único `DOSSIER_RETENTION_HOURS` (24 por omisión).
+- `services/dossier_retention_worker.py`: borra todo dossier creado antes del corte y los jobs de
+  generación terminados; después del `commit` verifica que no queden filas ni claves de Redis y
+  devuelve `ResultadoRetencion`. Revisa cada 600 s.
+- Caché: el TTL de Redis nunca supera la retención.
+- API: `GET /auth/me` expone `dossier_retention_hours`; las preferencias ignoran
+  `dossier_retention_days`.
+- Frontend: Configuración → General muestra el plazo en lugar del selector, en los 7 catálogos.
+- Las dos pruebas de seguridad que esperaban S6.5 ya corren; queda omitida solo la de S6.6.
+
+Verificación en `specs/reports/S6.5-retencion-24h.md`.
+
+**Sin terminar.** No se revisó la pantalla de Configuración en la app en ejecución. La CI sigue
+sin correr (cuenta bloqueada por facturación). La rama se fusiona a `docmac`, no a `main`: FD
+decide cuándo pasa a `main`.
+
+**Lo que hay que saber.**
+- **`backend/.env` rompe 7 pruebas de créditos.** Trae `DOSSIER_CHARGE_CREDITS=false` para demos.
+  Corre la suite completa sin ese archivo (por ejemplo, en un worktree limpio): así pasa, igual
+  que en la CI.
+- **Varios procesos, un candado.** Cada proceso arranca su worker; el borrado toma
+  `pg_try_advisory_xact_lock(6005240)`. Sin él, dos workers contaban dos veces los mismos dossiers.
+- **El trigger `fn_debit_credits_on_dossier` cobra al insertar.** Para sembrar muchos dossiers en
+  pruebas, usa `dossier_data = {"billing": "none"}` o se acaban los créditos de la organización.
+- **Dos pruebas que usan `pg_vacia` sobre la misma base se pisan**: el fixture borra el esquema.
+  No corras dos suites a la vez contra el mismo `TEST_DATABASE_URL`.
+- `users.dossier_retention_days` quedó sin uso, sin migración. Retirarla es limpieza pendiente.
+- Si el despliegue fija `DOSSIER_RETENTION_POLL_SECONDS=3600` (el ejemplo anterior), el borrado
+  puede atrasarse hasta una hora; conviene dejarlo en 600 o quitarlo.
+- S6.3 (calendario) debe generar dentro de la ventana de 24 h, o el dossier se borra antes de la
+  reunión.
+
+**Siguiente paso concreto.** Revisión de un segundo integrante y fusión a `docmac`. Después,
+S6.6 (auditoría de correos y borrados), que ya puede usar `ResultadoRetencion`.
+
+**Rama.** `feat/S6.5-retencion-24h` · **Estado.** review
+
 ### 2026-11-09 · S2.4–S2.7, S3.3 y S3.4 · Cierre de Europa y prensa · FO (agente)
 
 **Hecho.** Las seis tareas pendientes de FO, en la rama `feat/FO-cierre-europa-prensa`, con TDD:
