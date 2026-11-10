@@ -1655,7 +1655,7 @@
       "id": "S6.6",
       "sprint": 6,
       "title": "Extender la auditoria a envios de correo y borrados por retencion",
-      "status": "pending",
+      "status": "review",
       "owner": "FD",
       "area": "security",
       "activity": "A8",
@@ -1669,9 +1669,12 @@
       ],
       "blocks": [],
       "trello": "https://trello.com/c/Jr2hNSu4",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S6.6-auditoria-correo-borrado",
+      "evidence": [
+        "specs/reports/S6.6-auditoria-correo-borrado.md: CA1-CA11 con sus pruebas (unitarias, integración con SMTP de loopback, seguridad y estrés contra PostgreSQL 18); ruff y mypy sin hallazgos"
+      ],
+      "notes": "Tomada el 2026-11-10 sobre docmac: depende de S6.5 (en docmac) y de S6.1, que ya está en main aunque su estado siga en review.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S6.7",

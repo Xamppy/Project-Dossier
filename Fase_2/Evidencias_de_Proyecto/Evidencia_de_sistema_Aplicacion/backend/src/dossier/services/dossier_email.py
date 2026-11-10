@@ -20,6 +20,7 @@ from markdown_it import MarkdownIt
 from sqlalchemy.orm import Session
 
 from dossier.db.models import Dossier
+from dossier.services.audit_log import AuditEvent, record
 from dossier.services.dossier_pdf import dossier_pdf_filename, render_dossier_pdf
 from dossier.services.email_service import EmailAttachment, send_email
 from dossier.services.output_language import normalize_output_language
@@ -230,19 +231,61 @@ def send_dossier_email(dossier: Dossier, *, recipient: str, language: str | None
     dossier.email_recipients = list(dict.fromkeys([*(dossier.email_recipients or []), recipient]))
 
 
+def evento_envio(
+    dossier: Dossier,
+    *,
+    manual: bool,
+    user_id: UUID | None = None,
+    error: BaseException | None = None,
+) -> AuditEvent:
+    """Registro de auditoría de un envío (S6.6).
+
+    Nunca lleva el destinatario: de un error guarda solo su clase, porque el texto del servidor
+    SMTP puede traer la dirección.
+    """
+    return AuditEvent(
+        action="EMAIL dossier_manual" if manual else "EMAIL dossier_auto",
+        resource_type="dossier",
+        resource_id=dossier.id,
+        user_id=user_id if manual else dossier.requested_by_user_id,
+        organization_id=dossier.organization_id,
+        success=error is None,
+        error_message=type(error).__name__ if error is not None else None,
+    )
+
+
+def auditar_envio(db: Session, evento: AuditEvent, *, commit: bool = False) -> None:
+    """Escribe el registro del envío. Nunca lanza: un fallo de auditoría no cambia el envío."""
+    try:
+        with db.begin_nested():
+            record(db, evento)
+        if commit:
+            db.commit()
+    except Exception:  # la auditoría no puede tumbar el envío (criterio de S4.10)
+        logger.warning("No se pudo auditar el envío del dossier %s", evento.resource_id, exc_info=True)
+        if commit:
+            db.rollback()
+
+
 def deliver_dossier_after_generation(db: Session, *, dossier_id: UUID | str, recipient: str) -> bool:
     """Envío automático al terminar una generación (S6.1). Nunca lanza: un fallo de correo no
     puede cambiar el resultado del job ni del dossier. Devuelve si se envió.
+
+    Cada intento, exitoso o fallido, queda en ``audit_logs`` (S6.6).
     """
+    dossier: Dossier | None = None
     try:
         dossier = db.get(Dossier, UUID(str(dossier_id)))
         if dossier is None:
             logger.warning("Correo automático omitido: dossier %s no encontrado", dossier_id)
             return False
         send_dossier_email(dossier, recipient=recipient)
+        auditar_envio(db, evento_envio(dossier, manual=False))
         db.commit()
         return True
     except Exception as exc:  # noqa: BLE001 - el correo es accesorio: ningún fallo sube al job
         db.rollback()
         logger.warning("No se pudo enviar por correo el dossier %s: %s", dossier_id, exc)
+        if dossier is not None:
+            auditar_envio(db, evento_envio(dossier, manual=False, error=exc), commit=True)
         return False

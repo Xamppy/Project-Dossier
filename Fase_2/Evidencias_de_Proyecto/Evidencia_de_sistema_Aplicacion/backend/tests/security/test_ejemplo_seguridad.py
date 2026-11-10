@@ -206,9 +206,54 @@ def test_leer_un_dossier_deja_registro_de_auditoria():
     assert fila.created_at is not None
 
 
-@pytest.mark.skip(reason="Se habilita con S6.6")
-def test_enviar_y_borrar_dejan_registro_de_auditoria():
-    raise NotImplementedError
+def test_enviar_y_borrar_dejan_registro_de_auditoria(pg_vacia, alembic_cfg, servidor_smtp):
+    """S6.6 (CA4, CA6, CA10): el envío por correo y el borrado por retención quedan en
+    ``audit_logs``, firmados y sin la dirección del destinatario."""
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import select, text
+    from sqlalchemy.orm import Session
+
+    from alembic import command
+    from dossier.db.models import AuditLog
+    from dossier.services.audit_log import verify_log_hash
+    from dossier.services.dossier_email import deliver_dossier_after_generation
+    from dossier.services.dossier_retention_worker import purge_expired_dossiers
+
+    destino = "ana.perez@cliente-prueba.example"
+    command.upgrade(alembic_cfg, "head")
+    with pg_vacia.begin() as conn:
+        org, user = _org_y_usuario_s65(conn, None)
+        d = conn.execute(
+            text(
+                "INSERT INTO dossiers (organization_id, requested_by_user_id, status, dossier_data) "
+                "VALUES (:o, :u, 'complete', CAST(:j AS JSONB)) RETURNING id"
+            ),
+            {"o": org, "u": user, "j": '{"format": "markdown", "body": "# Informe", "billing": "none"}'},
+        ).scalar_one()
+
+    with Session(pg_vacia) as db:
+        assert deliver_dossier_after_generation(db, dossier_id=d, recipient=destino) is True
+    with pg_vacia.begin() as conn:
+        conn.execute(
+            text("UPDATE dossiers SET created_at = :c WHERE id = :d"),
+            {"c": datetime.now(UTC) - timedelta(hours=25), "d": d},
+        )
+    with Session(pg_vacia) as db:
+        assert purge_expired_dossiers(db).verificado is True
+
+    with Session(pg_vacia) as db:
+        filas = db.scalars(select(AuditLog)).all()
+    acciones = {f.action for f in filas}
+    assert {"EMAIL dossier_auto", "RETENTION dossier_deleted", "RETENTION verification"} <= acciones
+    borrado = next(f for f in filas if f.action == "RETENTION dossier_deleted")
+    assert borrado.resource_id == d
+    assert borrado.user_id is None
+    assert borrado.user_role_at_time == "sistema"
+    for f in filas:
+        assert verify_log_hash(f), f"{f.action} no verifica su firma"
+        texto = " ".join(str(v) for v in (f.request_data, f.error_message, f.user_agent))
+        assert destino not in texto, f"{f.action} guarda la dirección del destinatario"
 
 
 # --------------------------------------------------------------------------
