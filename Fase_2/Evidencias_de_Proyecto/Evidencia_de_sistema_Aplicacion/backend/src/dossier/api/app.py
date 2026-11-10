@@ -85,6 +85,7 @@ from dossier.services.calendar_range import (
     ResultadoRango,
     parse_rango,
 )
+from dossier.services.dossier_email_retry import start_dossier_email_retry_worker
 from dossier.services.dossier_generation_job_service import (
     enqueue_calendar_dossier_job,
     estimate_reunion_credits,
@@ -143,9 +144,11 @@ async def lifespan(app: FastAPI):
     stop_automation = start_calendar_automation_thread()
     stop_generation = start_dossier_generation_worker()
     stop_retention = start_dossier_retention_worker()
+    stop_email_retry = start_dossier_email_retry_worker()
     try:
         yield
     finally:
+        stop_email_retry()
         stop_retention()
         stop_generation()
         stop_automation()
