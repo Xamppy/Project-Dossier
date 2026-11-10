@@ -831,7 +831,7 @@ const messages = {
   "theme.light": "Claro",
   "theme.system": "Sistema",
   "settings.expiry": "Retenção de dossiês",
-  "settings.expiry_fixed": "Os dossiês e os seus dados são apagados automaticamente {hours} horas após serem gerados.",
+  "settings.expiry_fixed": "Os dossiês e os seus dados são apagados automaticamente {hours} horas após serem gerados. Os de uma reunião do calendário, {hours} horas após o início da reunião.",
   "settings.language_title": "Idioma e Região",
   "locale.en": "Inglês (EUA)",
   "locale.en_gb": "Inglês (RU)",

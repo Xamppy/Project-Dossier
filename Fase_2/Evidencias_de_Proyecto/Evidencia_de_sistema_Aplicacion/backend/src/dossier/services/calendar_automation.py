@@ -24,6 +24,8 @@ from dossier.services.calendar_event_dossiers import (
     persist_calendar_dossiers,
 )
 from dossier.services.calendar_event_filters import calendar_event_passes_filters
+from dossier.services.dossier_email import deliver_meeting_dossiers
+from dossier.services.email_service import email_delivery_available
 from dossier.services.google_calendar_api import (
     listar_reuniones_google,
     obtener_reunion_google_por_id,
@@ -487,6 +489,36 @@ def suppress_calendar_event_if_no_dossiers_remain(
     )
 
 
+def _enviar_dossiers_de_la_reunion(
+    db: Session,
+    event: CalendarEvent,
+    integration: CalendarIntegration,
+    user: User | None,
+    guardados: dict[str, Any] | None,
+    idioma: str,
+) -> None:
+    """S6.3: un solo correo con los dossiers de la reunión al dueño del calendario.
+
+    Respeta ``auto_send_email`` de la integración. Nunca va a los asistentes, y un fallo de
+    correo no cambia el estado del evento (``deliver_meeting_dossiers`` no lanza).
+    """
+    if not integration.auto_send_email or user is None or not (user.email or "").strip():
+        return
+    if not email_delivery_available():
+        return
+    ids = saved_dossier_ids(guardados)
+    if not ids:
+        return
+    deliver_meeting_dossiers(
+        db,
+        dossier_ids=ids,
+        recipient=user.email,
+        meeting_title=event.title,
+        language=idioma,
+        calendar_event_id=event.id,
+    )
+
+
 def process_due_calendar_events(db: Session) -> dict[str, int]:
     """Genera dossiers para eventos cuya ventana de anticipación ya venció."""
     now = datetime.now(UTC)
@@ -594,6 +626,8 @@ def process_due_calendar_events(db: Session) -> dict[str, int]:
 
         _auditar_generacion_automatica(db, event, org_id, guardados)
         db.commit()
+        if event.processing_status == "completed":
+            _enviar_dossiers_de_la_reunion(db, event, integration, user, guardados, out_lang)
 
     stats["skipped"] = _mark_past_unprocessed_skipped(db)
     return stats

@@ -21,6 +21,9 @@ o conservar indefinidamente, y el borrado no se verificaba.
 
 - **Plazo fijo:** `DOSSIER_RETENTION_HOURS` (24 por omisión) para todos los dossiers. El usuario
   ya no elige; `users.dossier_retention_days` quedó sin uso.
+- **Dossiers de una reunión (S6.3):** si el dossier está ligado a un evento del calendario, las 24 h
+  se cuentan desde lo más tardío entre su creación y el inicio de la reunión. Así un dossier
+  generado 1 día antes no se borra antes de usarse.
 - **Qué borra** `services/dossier_retention_worker.py`: cada dossier creado antes del corte, con
   sus alertas, prensa, registros, trayectoria, ice breakers y enlaces compartidos (por
   `ON DELETE CASCADE`) y su entrada de Redis; y los jobs de generación terminados antes del corte,

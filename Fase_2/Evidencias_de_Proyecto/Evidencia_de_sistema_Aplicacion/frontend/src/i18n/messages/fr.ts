@@ -892,7 +892,7 @@ const messages = {
   "theme.light": "Clair",
   "theme.system": "Système",
   "settings.expiry": "Conservation des dossiers",
-  "settings.expiry_fixed": "Les dossiers et leurs données sont supprimés automatiquement {hours} heures après leur génération.",
+  "settings.expiry_fixed": "Les dossiers et leurs données sont supprimés automatiquement {hours} heures après leur génération. Ceux d'une réunion du calendrier, {hours} heures après le début de la réunion.",
   "settings.language_title": "Langue & Région",
   "locale.en": "Anglais (États-Unis)",
   "locale.en_gb": "Anglais (R.-U.)",

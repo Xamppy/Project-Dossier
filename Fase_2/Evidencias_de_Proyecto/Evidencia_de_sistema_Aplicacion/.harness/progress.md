@@ -6,6 +6,42 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-10 · S6.3 · Envío automático de los dossiers de una reunión · FD (agente)
+
+**Hecho.** En la rama `feat/S6.3-calendario-correo`, desde `docmac` (depende de S6.5 y S6.6).
+Traspasada de DG. Decisiones de FD: un solo correo por reunión, y la retención de los dossiers de
+una reunión cuenta desde su inicio. Spec en `specs/proposals/S6.3-calendario-correo.md`.
+
+- `dossier_email.build_meeting_email` y `deliver_meeting_dossiers`: un correo con el PDF de cada
+  dossier completo, en 6 idiomas, solo al dueño del calendario; marca los dossiers y audita cada
+  envío (`EMAIL dossier_auto`, `origen = calendario`).
+- `calendar_automation._enviar_dossiers_de_la_reunion`: tras generar, si `auto_send_email` y hay
+  SMTP. Un fallo de correo no cambia el evento.
+- Retención: vence 24 h después de lo más tardío entre la creación y `calendar_events.starts_at`.
+- Frontend: Configuración explica la regla; `createTranslator` ahora reemplaza todas las
+  apariciones de un parámetro.
+
+Verificación en `specs/reports/S6.3-calendario-correo.md`.
+
+**Sin terminar.** No se probó con un calendario real ni con la IA real. `auto_send_email` no tiene
+interruptor en la interfaz.
+
+**Lo que hay que saber.**
+- **Probar la automatización sin IA:** `tests/integration/test_calendario_correo_integracion.py`
+  (fixture `generacion_simulada`) reemplaza `_reunion_for_processing`,
+  `calendar_event_passes_filters`, `generate_dossiers_from_calendar_event` y
+  `persist_calendar_dossiers` en el módulo `calendar_automation`. Sirve para cualquier prueba
+  futura del ciclo completo.
+- **`createTranslator` usaba `String.replace`:** un texto con el mismo parámetro dos veces dejaba
+  el segundo sin llenar. Corregido con `split/join`.
+- Los dossiers `calendar_manual` no guardan `calendar_event_id`; ni se envían solos ni cuentan la
+  retención desde la reunión.
+
+**Siguiente paso concreto.** Revisión y fusión a `docmac`. S7.1 (aceptación de punta a punta) ya no
+espera a S6.3. Después: S6.4 (reintento de correos).
+
+**Rama.** `feat/S6.3-calendario-correo` · **Estado.** review
+
 ### 2026-11-10 · S6.6 · Auditoría de envíos por correo y borrados por retención · FD (agente)
 
 **Hecho.** En la rama `feat/S6.6-auditoria-correo-borrado`, creada desde `docmac` porque depende

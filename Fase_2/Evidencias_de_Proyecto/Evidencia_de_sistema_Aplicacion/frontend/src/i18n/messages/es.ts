@@ -1050,7 +1050,7 @@ const messages = {
   "theme.light": "Claro",
   "theme.system": "Sistema",
   "settings.expiry": "Retención de dossiers",
-  "settings.expiry_fixed": "Los dossiers y sus datos se borran automáticamente {hours} horas después de generarse.",
+  "settings.expiry_fixed": "Los dossiers y sus datos se borran automáticamente {hours} horas después de generarse. Los de una reunión del calendario, {hours} horas después de que empieza la reunión.",
   "settings.language_title": "Idioma y Región",
   "locale.en": "Inglés (EE. UU.)",
   "locale.en_gb": "Inglés (RU)",

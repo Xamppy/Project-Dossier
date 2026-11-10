@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from dossier.cache.corporate_dossier_redis import dossier_redis_key_exists
 from dossier.db.connection import is_database_configured
-from dossier.db.models import Dossier, DossierGenerationJob
+from dossier.db.models import CalendarEvent, Dossier, DossierGenerationJob
 from dossier.db.session import _factory
 from dossier.services.audit_log import AuditEvent, record
 from dossier.services.dossier_deletion_service import (
@@ -175,7 +175,14 @@ def purge_expired_dossiers(db: Session, *, now: datetime | None = None) -> Resul
 
     corte = retention_cutoff(now)
     horas = dossier_retention_hours()
-    vencidos = db.execute(select(Dossier).where(Dossier.created_at < corte)).scalars().all()
+    # S6.3: un dossier de una reunión vence 24 h después de lo más tardío entre su creación y el
+    # inicio de la reunión; sin reunión, 24 h después de crearse.
+    desde = func.greatest(Dossier.created_at, func.coalesce(CalendarEvent.starts_at, Dossier.created_at))
+    vencidos = db.execute(
+        select(Dossier)
+        .outerjoin(CalendarEvent, Dossier.calendar_event_id == CalendarEvent.id)
+        .where(desde < corte)
+    ).scalars().all()
 
     dossier_ids = [d.id for d in vencidos]
     cache_keys = [(d.cache_key or "").strip() for d in vencidos if (d.cache_key or "").strip()]
