@@ -38,6 +38,24 @@ o conservar indefinidamente, y el borrado no se verificaba.
 Pruebas: `tests/security/test_ejemplo_seguridad.py` (no recuperable y sin huérfanos),
 `tests/integration/test_retencion_24h_integracion.py` y `tests/test_retencion_24h.py`.
 
+## Enlace de un solo uso (S6.2)
+
+El correo abre el dossier sin iniciar sesión, con un enlace que es la credencial. Por eso:
+
+- **Alcance mínimo:** solo ese dossier, en solo lectura. La respuesta trae nombre, informe, fecha e
+  idioma; nada de la organización ni de otros dossiers.
+- **Un solo uso y 24 horas:** el canje es un `UPDATE … RETURNING` atómico; dos canjes simultáneos
+  nunca ganan los dos.
+- **Token fuera de los logs:** 256 bits aleatorios, en el fragmento de la URL del frontend y en el
+  cuerpo del `POST`, nunca en una ruta ni en una query. En la base, solo su SHA-256.
+- **Sin pistas:** inexistente, usado, vencido o borrado responden igual (410).
+- **Fuerza bruta:** `ACCESS_LINK_RATE_LIMIT` (20 canjes por minuto por IP) → 429.
+- **Auditoría:** cada canje, exitoso o no, queda como `ACCESS dossier_link`, sin el token.
+- **Retención:** los enlaces caen con el dossier y entran en la verificación del borrado (S6.5).
+
+Pruebas: `tests/test_enlace_acceso.py`, `tests/integration/test_enlace_acceso_integracion.py`,
+`tests/security/test_enlace_acceso_seguridad.py` y `tests/stress/test_enlace_acceso_estres.py`.
+
 ## Hallazgos abiertos
 
 ### Rutas legadas

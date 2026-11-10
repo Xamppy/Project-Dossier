@@ -499,6 +499,34 @@ class DossierShare(Base):
     )
 
 
+class DossierAccessLink(Base):
+    """Enlace de un solo uso para leer un dossier desde el correo (S6.2). DDL en ``schema_patches``.
+
+    Solo guarda el SHA-256 del token; el token viaja únicamente en el correo.
+    """
+
+    __tablename__ = "dossier_access_links"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    dossier_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("dossiers.id", ondelete="CASCADE")
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE")
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE")
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class DossierEmailRetry(Base):
     """Envío automático de correo en espera de reintento (S6.4). DDL en ``schema_patches``.
 

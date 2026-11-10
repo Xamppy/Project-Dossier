@@ -128,3 +128,18 @@ Para ver lo que está en espera:
 ```sql
 SELECT kind, attempts, next_attempt_at, last_error FROM dossier_email_retries ORDER BY next_attempt_at;
 ```
+
+## 7. Enlace de un solo uso (S6.2)
+
+El botón del correo (y cada nombre, en el de una reunión) abre el dossier **sin iniciar sesión**,
+en una página de solo lectura (`/acceso`). Debajo va el enlace normal al dashboard.
+
+- Abre **solo ese dossier**, una vez. Se gasta al pulsar **Ver dossier**, no al abrir la página: los
+  filtros de los servidores de correo abren los enlaces solos para revisarlos.
+- **Vence en 24 horas** (`DOSSIER_ACCESS_LINK_HOURS`).
+- El token va en el **fragmento** de la URL (`/acceso#t=…`), que no llega a ningún servidor. En la
+  base (`dossier_access_links`) solo queda su SHA-256.
+- Si crear el enlace falla, el correo sale igual con el enlace al dashboard.
+- Canje: `POST /dossier-access` con `{"token": "…"}`; 410 si no sirve (sin decir por qué) y 429
+  pasado `ACCESS_LINK_RATE_LIMIT` (20 por minuto por IP). Cada canje queda en `audit_logs`
+  (`ACCESS dossier_link`).

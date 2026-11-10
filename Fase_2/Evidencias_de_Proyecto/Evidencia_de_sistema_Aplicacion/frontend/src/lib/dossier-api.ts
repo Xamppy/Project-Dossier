@@ -400,6 +400,19 @@ export async function authForgotPassword(payload: {
   return postJson<ForgotPasswordResponse>("/auth/forgot-password", payload);
 }
 
+/** S6.2: dossier abierto con un enlace de un solo uso, en solo lectura. */
+export type DossierAccessResult = {
+  subject_name: string | null;
+  body: string;
+  created_at: string | null;
+  output_language: string;
+};
+
+/** S6.2: gasta el enlace de un solo uso del correo. Sin sesión; 410 si ya no sirve. */
+export async function redeemDossierAccessLink(token: string): Promise<DossierAccessResult> {
+  return postJson<DossierAccessResult>("/dossier-access", { token });
+}
+
 /** Perfil del usuario autenticado (JWT). */
 export async function fetchAuthMe(): Promise<AuthUser> {
   const token = getStoredAccessToken();

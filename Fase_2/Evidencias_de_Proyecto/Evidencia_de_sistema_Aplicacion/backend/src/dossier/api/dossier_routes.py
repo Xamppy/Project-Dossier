@@ -54,6 +54,7 @@ from dossier.security.rbac import normalize_org_role
 from dossier.services.calendar_event_dossiers import calendar_meeting_summary_from_dossier_data
 from dossier.services.corporate_company_search import search_corporate_company_candidates
 from dossier.services.corporate_dossier_telemetry import columnas_telemetria, telemetria_de
+from dossier.services.dossier_access_links import url_de_acceso_o_nada
 from dossier.services.dossier_deletion_service import (
     delete_dossier_record,
     delete_dossiers_in_folder,
@@ -483,7 +484,9 @@ def send_dossier_by_email(
         )
     # S6.6: cada intento de envío, exitoso o fallido, queda en audit_logs (sin el destinatario).
     try:
-        send_dossier_email(d, recipient=user.email)
+        # S6.2: el botón del correo abre el dossier con un enlace de un solo uso.
+        acceso = url_de_acceso_o_nada(db, d, user_id=user.id)
+        send_dossier_email(d, recipient=user.email, access_url=acceso)
     except EmailNotConfiguredError as e:
         db.rollback()
         auditar_envio(db, evento_envio(d, manual=True, user_id=user.id, error=e), commit=True)
