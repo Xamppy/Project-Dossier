@@ -6,6 +6,20 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-10 · BUG-2026-10-19-10 · El saneador HTML borraba un `<correo>` · FD (agente)
+
+**Hecho.** Rama `fix/BUG-2026-10-19-10-correo-en-descripcion`, desde `docmac`. Traspasada de FO.
+`utils/html_text.strip_html_to_text` escapa los correos entre ángulos antes de quitar etiquetas, y
+`html.unescape` les devuelve los ángulos. Prueba en `tests/test_html_text.py`.
+
+**Lo que hay que saber.**
+- Se conservan los ángulos a propósito: el lector de participantes del calendario usa el formato
+  «Nombre <correo>» (`_split_name_and_email`, BUG-2026-10-19-05).
+- El patrón excluye comillas e `=`: `<img alt="x@y.z">` sigue siendo una etiqueta y se quita.
+- El resultado es texto plano: donde se muestra como HTML (correos, frontend) se escapa.
+
+**Rama.** `fix/BUG-2026-10-19-10-correo-en-descripcion` · **Estado.** review
+
 ### 2026-11-10 · BUG-2026-10-19-08 · Saldo repetido en `credit_ledger` · FD (agente)
 
 **Hecho.** Rama `fix/BUG-2026-10-19-08-saldo-creditos`, desde `docmac`. Traspasada de FO.
