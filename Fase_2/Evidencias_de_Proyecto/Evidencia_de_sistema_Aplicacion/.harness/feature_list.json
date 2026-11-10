@@ -3,7 +3,7 @@
   "project": "Project Dossier - Continuidad (Proyecto APT)",
   "plan": "docs/documentos-capstone/Plan_de_Trabajo_Detallado_Dossier.pdf",
   "board": "https://trello.com/b/XTSgfWKi/capstone-dossier-plan-de-sprints",
-  "updated": "2026-10-22",
+  "updated": "2026-11-10",
   "status_values": [
     "pending",
     "claimed",
@@ -987,7 +987,7 @@
       "id": "S3.8",
       "sprint": 3,
       "title": "Endurecer la politica de origenes permitidos (CORS)",
-      "status": "claimed",
+      "status": "done",
       "owner": "FD",
       "area": "security",
       "activity": "A8",
@@ -1000,15 +1000,17 @@
       ],
       "trello": "https://trello.com/c/yxFNmUet",
       "branch": "docmac",
-      "evidence": [],
-      "notes": "",
+      "evidence": [
+        "PR #47 (rama docmac) mezclado en main el 2026-11-09 (264dee0) tras la revisión de FO"
+      ],
+      "notes": "Cerrada el 2026-11-10: revisó y mezcló FO (PR #47).",
       "owner_session": "FD"
     },
     {
       "id": "S3.9",
       "sprint": 3,
       "title": "Reducir la vigencia del token e introducir renovacion",
-      "status": "claimed",
+      "status": "done",
       "owner": "FD",
       "area": "security",
       "activity": "A8",
@@ -1021,8 +1023,10 @@
       ],
       "trello": "https://trello.com/c/JNkEtd4k",
       "branch": "docmac",
-      "evidence": [],
-      "notes": "",
+      "evidence": [
+        "PR #47 (rama docmac) mezclado en main el 2026-11-09 (264dee0) tras la revisión de FO"
+      ],
+      "notes": "Cerrada el 2026-11-10: revisó y mezcló FO (PR #47).",
       "owner_session": "FD"
     },
     {
@@ -1275,7 +1279,7 @@
       "id": "S4.10",
       "sprint": 4,
       "title": "Implementar la tabla y el servicio de registro de auditoria",
-      "status": "claimed",
+      "status": "done",
       "owner": "FD",
       "area": "db",
       "activity": "A8",
@@ -1291,8 +1295,10 @@
       ],
       "trello": "https://trello.com/c/3wVUVam1",
       "branch": "docmac",
-      "evidence": [],
-      "notes": "Migracion.md:821-824 ya define el diseño de campos de auditoría (verbo HTTP + recurso, tipo de recurso: dossier/contact/user/billing/api_key). Partir de ese diseño en vez de diseñar de cero.",
+      "evidence": [
+        "PR #47 (rama docmac) mezclado en main el 2026-11-09 (264dee0) tras la revisión de FO"
+      ],
+      "notes": "Migracion.md:821-824 ya define el diseño de campos de auditoría (verbo HTTP + recurso, tipo de recurso: dossier/contact/user/billing/api_key). Partir de ese diseño en vez de diseñar de cero. Cerrada el 2026-11-10: revisó y mezcló FO (PR #47).",
       "owner_session": "FD"
     },
     {
@@ -1463,7 +1469,7 @@
       "id": "S5.8",
       "sprint": 5,
       "title": "Implementar limitacion de tasa en autenticacion y generacion",
-      "status": "claimed",
+      "status": "done",
       "owner": "FD",
       "area": "security",
       "activity": "A8",
@@ -1476,8 +1482,10 @@
       ],
       "trello": "https://trello.com/c/S6I7pjQn",
       "branch": "docmac",
-      "evidence": [],
-      "notes": "",
+      "evidence": [
+        "PR #47 (rama docmac) mezclado en main el 2026-11-09 (264dee0) tras la revisión de FO"
+      ],
+      "notes": "Cerrada el 2026-11-10: revisó y mezcló FO (PR #47).",
       "owner_session": "FD"
     },
     {
@@ -1559,7 +1567,7 @@
       "sprint": 6,
       "title": "Implementar acceso al dossier por enlace de un solo uso",
       "status": "pending",
-      "owner": "DG",
+      "owner": "FD",
       "area": "backend",
       "activity": "A7",
       "objective": "OE7",
@@ -1574,14 +1582,14 @@
       "trello": "https://trello.com/c/bRkzSIe3",
       "branch": null,
       "evidence": [],
-      "notes": ""
+      "notes": "Traspasada de DG a FD el 2026-11-10: FD toma el backend del equipo."
     },
     {
       "id": "S6.3",
       "sprint": 6,
       "title": "Habilitar la automatizacion previa a la reunion desde el calendario",
       "status": "pending",
-      "owner": "DG",
+      "owner": "FD",
       "area": "backend",
       "activity": "A7",
       "objective": "OE7",
@@ -1596,7 +1604,7 @@
       "trello": "https://trello.com/c/wpSv6BzC",
       "branch": null,
       "evidence": [],
-      "notes": ""
+      "notes": "Traspasada de DG a FD el 2026-11-10: FD toma el backend del equipo."
     },
     {
       "id": "S6.4",
@@ -1622,7 +1630,7 @@
       "id": "S6.5",
       "sprint": 6,
       "title": "Implementar retencion de 24 horas con borrado verificado",
-      "status": "pending",
+      "status": "claimed",
       "owner": "FD",
       "area": "security",
       "activity": "A8",
@@ -1636,9 +1644,10 @@
         "S6.6"
       ],
       "trello": "https://trello.com/c/EOfroRV2",
-      "branch": null,
+      "branch": "feat/S6.5-retencion-24h",
       "evidence": [],
-      "notes": ""
+      "notes": "Decisión de FD (2026-11-10): 24 h fijas para todos los dossiers, sin elección del usuario; el plazo queda en una variable del servidor. Incluye retirar el selector de retención de Configuración (frontend), con acuerdo de FD.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S6.6",
@@ -1666,7 +1675,7 @@
       "id": "S6.7",
       "sprint": 6,
       "title": "Pruebas negativas de aislamiento entre organizaciones",
-      "status": "claimed",
+      "status": "done",
       "owner": "FD",
       "area": "quality",
       "activity": "A9",
@@ -1680,8 +1689,10 @@
       "blocks": [],
       "trello": "https://trello.com/c/kbGIl5Hl",
       "branch": "docmac",
-      "evidence": [],
-      "notes": "",
+      "evidence": [
+        "PR #47 (rama docmac) mezclado en main el 2026-11-09 (264dee0) tras la revisión de FO"
+      ],
+      "notes": "Cerrada el 2026-11-10: revisó y mezcló FO (PR #47).",
       "owner_session": "FD"
     },
     {
@@ -2372,7 +2383,7 @@
       "id": "SEC-2026-10-19-01",
       "sprint": 2,
       "title": "Actualizar pyjwt y next por vulnerabilidades conocidas",
-      "status": "claimed",
+      "status": "done",
       "owner": "FD",
       "area": "security",
       "activity": "A8",
@@ -2383,8 +2394,10 @@
       "blocks": [],
       "trello": null,
       "branch": "docmac",
-      "evidence": [],
-      "notes": "Registrada el 2026-10-19. pip-audit informa 2 avisos en pyjwt 2.14.0, corregidos en 2.15.0. npm audit --omit=dev informa 6 (5 altas y 1 moderada), entre ellas next 16.3.6. Evidencia: docs/evidencias/fase2/calidad/05-pip-audit.txt y 06-npm-audit.txt. El informe de la Fase 2 lo declara como deuda con plazo el 2026-11-01.",
+      "evidence": [
+        "PR #47 (rama docmac) mezclado en main el 2026-11-09 (264dee0) tras la revisión de FO"
+      ],
+      "notes": "Registrada el 2026-10-19. pip-audit informa 2 avisos en pyjwt 2.14.0, corregidos en 2.15.0. npm audit --omit=dev informa 6 (5 altas y 1 moderada), entre ellas next 16.3.6. Evidencia: docs/evidencias/fase2/calidad/05-pip-audit.txt y 06-npm-audit.txt. El informe de la Fase 2 lo declara como deuda con plazo el 2026-11-01. Cerrada el 2026-11-10: revisó y mezcló FO (PR #47).",
       "owner_session": "FD"
     },
     {
