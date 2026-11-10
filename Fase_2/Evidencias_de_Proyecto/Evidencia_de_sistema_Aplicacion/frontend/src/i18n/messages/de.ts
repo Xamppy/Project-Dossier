@@ -894,7 +894,7 @@ const messages = {
   "theme.light": "Hell",
   "theme.system": "System",
   "settings.expiry": "Aufbewahrung von Dossiers",
-  "settings.expiry_fixed": "Dossiers und ihre Daten werden {hours} Stunden nach ihrer Erstellung automatisch gelöscht.",
+  "settings.expiry_fixed": "Dossiers und ihre Daten werden {hours} Stunden nach ihrer Erstellung automatisch gelöscht. Dossiers zu einem Kalendertermin werden {hours} Stunden nach Beginn des Termins gelöscht.",
   "settings.language_title": "Sprache & Region",
   "locale.en": "Englisch (US)",
   "locale.en_gb": "Englisch (UK)",

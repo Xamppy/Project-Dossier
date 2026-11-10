@@ -444,7 +444,7 @@ const messages = {
   "theme.light": "Light",
   "theme.system": "System",
   "settings.expiry": "Dossier retention",
-  "settings.expiry_fixed": "Dossiers and their data are deleted automatically {hours} hours after they are generated.",
+  "settings.expiry_fixed": "Dossiers and their data are deleted automatically {hours} hours after they are generated. Dossiers for a calendar meeting are deleted {hours} hours after the meeting starts.",
   "settings.language_title": "Language & Region",
   "locale.en": "English (US)",
   "locale.en_gb": "English (UK)",

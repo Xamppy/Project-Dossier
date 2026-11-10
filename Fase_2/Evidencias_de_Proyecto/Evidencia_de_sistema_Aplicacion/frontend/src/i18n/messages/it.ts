@@ -888,7 +888,7 @@ const messages = {
   "theme.light": "Chiaro",
   "theme.system": "Sistema",
   "settings.expiry": "Conservazione dei dossier",
-  "settings.expiry_fixed": "I dossier e i loro dati vengono eliminati automaticamente {hours} ore dopo la generazione.",
+  "settings.expiry_fixed": "I dossier e i loro dati vengono eliminati automaticamente {hours} ore dopo la generazione. Quelli di una riunione del calendario, {hours} ore dopo l'inizio della riunione.",
   "settings.language_title": "Lingua e Regione",
   "locale.en": "Inglese (USA)",
   "locale.en_gb": "Inglese (UK)",

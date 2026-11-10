@@ -12,11 +12,14 @@ import html
 import logging
 import math
 import os
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from markdown_it import MarkdownIt
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from dossier.db.models import Dossier
@@ -101,6 +104,46 @@ _TEXTOS: dict[str, dict[str, str]] = {
             "Diese E-Mail enthält vertrauliche Informationen über eine Person. "
             "Leiten Sie sie nicht außerhalb Ihrer Organisation weiter."
         ),
+    },
+}
+
+# S6.3: el correo único con los dossiers de una reunión del calendario.
+_TEXTOS_REUNION: dict[str, dict[str, str]] = {
+    "es": {
+        "untitled": "tu reunión",
+        "ready": "Tus dossiers para la reunión están listos",
+        "intro": "Estos son los dossiers de «{meeting}» generados en Project Dossier:",
+        "attached": "Adjuntamos cada dossier en PDF para que los consultes sin entrar a la plataforma.",
+    },
+    "en": {
+        "untitled": "your meeting",
+        "ready": "Your meeting dossiers are ready",
+        "intro": "These are the dossiers for “{meeting}” generated in Project Dossier:",
+        "attached": "Each dossier is attached as a PDF so you can read them without signing in.",
+    },
+    "pt": {
+        "untitled": "a sua reunião",
+        "ready": "Os dossiês da sua reunião estão prontos",
+        "intro": "Estes são os dossiês de «{meeting}» gerados no Project Dossier:",
+        "attached": "Segue cada dossiê em PDF para os consultar sem entrar na plataforma.",
+    },
+    "it": {
+        "untitled": "la tua riunione",
+        "ready": "I dossier per la tua riunione sono pronti",
+        "intro": "Questi sono i dossier di «{meeting}» generati in Project Dossier:",
+        "attached": "In allegato trovi ogni dossier in PDF da consultare senza accedere alla piattaforma.",
+    },
+    "fr": {
+        "untitled": "votre réunion",
+        "ready": "Les dossiers de votre réunion sont prêts",
+        "intro": "Voici les dossiers de « {meeting} » générés dans Project Dossier :",
+        "attached": "Chaque dossier est joint en PDF pour le consulter sans vous connecter.",
+    },
+    "de": {
+        "untitled": "Ihr Meeting",
+        "ready": "Die Dossiers für Ihr Meeting sind fertig",
+        "intro": "Dies sind die Dossiers zu „{meeting}“, erstellt in Project Dossier:",
+        "attached": "Jedes Dossier ist als PDF angehängt, damit Sie es ohne Anmeldung lesen können.",
     },
 }
 
@@ -192,6 +235,77 @@ def build_dossier_email(dossier: Dossier, *, language: str | None, dossier_url: 
     return DossierEmail(subject=f"Dossier: {nombre}", text=text, html=html_doc, attachments=adjuntos)
 
 
+def build_meeting_email(
+    dossiers: Sequence[Dossier],
+    *,
+    meeting_title: str | None,
+    language: str | None,
+    url_for: Callable[[UUID], str] = dossier_detail_url,
+) -> DossierEmail:
+    """Un solo correo con todos los dossiers de una reunión (S6.3).
+
+    Lleva el PDF de cada uno; el informe de un dossier cuyo PDF falló va en el cuerpo, como en
+    ``build_dossier_email``.
+    """
+    if not dossiers:
+        raise ValueError("No hay dossiers para enviar.")
+    lang = _idioma(dossiers[0], language)
+    t, r = _TEXTOS[lang], _TEXTOS_REUNION[lang]
+    titulo = strip_html_to_plain_line(meeting_title, max_len=200) or r["untitled"]
+
+    filas: list[tuple[str, str]] = []
+    sin_pdf: list[tuple[str, str]] = []
+    adjuntos: list[EmailAttachment] = []
+    for dossier in dossiers:
+        body = _cuerpo(dossier)
+        nombre = strip_html_to_plain_line(dossier.subject_name, max_len=255) or t["untitled"]
+        filas.append((nombre, url_for(dossier.id)))
+        pdf = _pdf_adjunto(dossier, lang)
+        if pdf:
+            adjuntos.extend(pdf)
+        else:
+            sin_pdf.append((nombre, body))
+
+    intro = r["intro"].format(meeting=titulo)
+    nota = [r["attached"]] if adjuntos else []
+    lista_texto = "\n".join(f"- {nombre}: {url}" for nombre, url in filas)
+    informes_texto = ["\n\n".join(["-" * 40, nombre, body, "-" * 40]) for nombre, body in sin_pdf]
+    text = "\n\n".join([r["ready"], intro, lista_texto, *nota, *informes_texto, t["footer"]])
+
+    lista_html = "".join(
+        f'<li style="margin:0 0 6px;"><a href="{html.escape(url, quote=True)}">{html.escape(nombre)}</a></li>'
+        for nombre, url in filas
+    )
+    nota_html = f'<p style="margin:16px 0 0;">{html.escape(nota[0])}</p>\n' if nota else ""
+    informes_html = "".join(
+        '<hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0 16px;">\n'
+        f'<p style="font-weight:bold;margin:0 0 8px;">{html.escape(nombre)}</p>\n'
+        f'<div class="informe">\n{_MARKDOWN.render(body)}\n</div>\n'
+        for nombre, body in sin_pdf
+    )
+    html_doc = f"""<!DOCTYPE html>
+<html lang="{lang}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{html.escape(titulo)}</title>
+<style>{_ESTILOS}</style>
+</head>
+<body>
+<div class="contenedor">
+<div class="tarjeta">
+<p style="font-size:18px;font-weight:bold;margin:0 0 8px;">{html.escape(r["ready"])}</p>
+<p style="margin:0 0 12px;">{html.escape(intro)}</p>
+<ul style="margin:0;padding-left:20px;">{lista_html}</ul>
+{nota_html}{informes_html}</div>
+<p class="pie">{html.escape(t["footer"])}</p>
+</div>
+</body>
+</html>
+"""
+    return DossierEmail(subject=f"Dossiers: {titulo}", text=text, html=html_doc, attachments=tuple(adjuntos))
+
+
 def _pdf_adjunto(dossier: Dossier, lang: str) -> tuple[EmailAttachment, ...]:
     """El PDF del dossier, o nada si no se pudo generar: el correo sale igual con el informe
     completo en el cuerpo."""
@@ -226,9 +340,63 @@ def send_dossier_email(dossier: Dossier, *, recipient: str, language: str | None
         html=correo.html,
         attachments=list(correo.attachments),
     )
+    _marcar_enviado(dossier, recipient)
+
+
+def _marcar_enviado(dossier: Dossier, recipient: str) -> None:
     dossier.email_sent = True
     dossier.email_sent_at = datetime.now(UTC)
     dossier.email_recipients = list(dict.fromkeys([*(dossier.email_recipients or []), recipient]))
+
+
+def deliver_meeting_dossiers(
+    db: Session,
+    *,
+    dossier_ids: Sequence[UUID | str],
+    recipient: str,
+    meeting_title: str | None,
+    language: str | None,
+    calendar_event_id: UUID | None,
+) -> bool:
+    """Envío automático de los dossiers de una reunión en un solo correo (S6.3).
+
+    Solo van los dossiers completos, y solo al ``recipient`` (el dueño del calendario). Nunca
+    lanza: un fallo de correo no cambia el evento ni los dossiers. Cada dossier deja su registro
+    ``EMAIL dossier_auto`` (S6.6). Devuelve si se envió.
+    """
+    datos = {"origen": "calendario", "calendar_event_id": str(calendar_event_id) if calendar_event_id else None}
+    completos: list[Dossier] = []
+    try:
+        ids = [UUID(str(i)) for i in dossier_ids]
+        if not ids:
+            return False
+        encontrados = {
+            d.id: d
+            for d in db.scalars(select(Dossier).where(Dossier.id.in_(ids), Dossier.status == "complete"))
+        }
+        completos = [encontrados[i] for i in ids if i in encontrados]
+        if not completos:
+            logger.info("Correo de reunión omitido: ningún dossier completo (evento %s)", calendar_event_id)
+            return False
+        correo = build_meeting_email(completos, meeting_title=meeting_title, language=language)
+        send_email(
+            to=[recipient],
+            subject=correo.subject,
+            text=correo.text,
+            html=correo.html,
+            attachments=list(correo.attachments),
+        )
+        for dossier in completos:
+            _marcar_enviado(dossier, recipient)
+            auditar_envio(db, evento_envio(dossier, manual=False, datos=datos))
+        db.commit()
+        return True
+    except Exception as exc:  # noqa: BLE001 - el correo es accesorio: ningún fallo sube a la automatización
+        db.rollback()
+        logger.warning("No se pudo enviar el correo de la reunión %s: %s", calendar_event_id, exc)
+        for dossier in completos:
+            auditar_envio(db, evento_envio(dossier, manual=False, error=exc, datos=datos), commit=True)
+        return False
 
 
 def evento_envio(
@@ -237,6 +405,7 @@ def evento_envio(
     manual: bool,
     user_id: UUID | None = None,
     error: BaseException | None = None,
+    datos: dict[str, Any] | None = None,
 ) -> AuditEvent:
     """Registro de auditoría de un envío (S6.6).
 
@@ -251,6 +420,7 @@ def evento_envio(
         organization_id=dossier.organization_id,
         success=error is None,
         error_message=type(error).__name__ if error is not None else None,
+        request_data=datos,
     )
 
 

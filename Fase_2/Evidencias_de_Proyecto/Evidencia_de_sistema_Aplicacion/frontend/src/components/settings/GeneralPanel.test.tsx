@@ -29,6 +29,12 @@ describe("GeneralPanel · retención de dossiers (S6.5)", () => {
     expect(screen.queryByText("Nunca")).toBeNull();
   });
 
+  it("explica que los dossiers de una reunión cuentan desde que empieza (S6.3)", () => {
+    horas.valor = 24;
+    render(<GeneralPanel />);
+    expect(screen.getByText(/24 horas después de que empieza la reunión/)).toBeInTheDocument();
+  });
+
   it("muestra el plazo que informa el servidor", () => {
     horas.valor = 6;
     render(<GeneralPanel />);

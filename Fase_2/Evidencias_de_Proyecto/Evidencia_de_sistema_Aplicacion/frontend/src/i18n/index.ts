@@ -41,7 +41,8 @@ export function createTranslator(locale: Locale) {
     let text = dict[key] ?? fallback[key] ?? key;
     if (params) {
       for (const [k, v] of Object.entries(params)) {
-        text = text.replace(`{${k}}`, String(v));
+        // Todas las apariciones: un texto puede repetir el mismo parámetro.
+        text = text.split(`{${k}}`).join(String(v));
       }
     }
     return text;
