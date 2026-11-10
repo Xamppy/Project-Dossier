@@ -5,14 +5,13 @@ objetivo OE8 se van cerrando.
 
 ## Estado de los cuatro controles comprometidos
 
-El objetivo específico 8 compromete cuatro controles. Los cuatro existen; a la auditoría le falta
-sumar correos y borrados (S6.6).
+El objetivo específico 8 compromete cuatro controles. Los cuatro existen.
 
 | Control | Estado | Tarea | Evidencia |
 |---|---|---|---|
 | Control de acceso | **implementado** | S6.7 verifica el aislamiento | JWT firmado, RBAC con roles admin/user/viewer, aislamiento por organización; pruebas en `test_rbac.py` y `test_aislamiento_organizaciones.py` |
 | Limitación de tasa | **implementado** | S5.8 | 429 con `Retry-After` en autenticación y generación; ver «Sin limitación de tasa» |
-| Registro de auditoría | **implementado** (lectura y generación) | S4.10; S6.6 suma correos y borrados por retención | `audit_logs` de solo inserción y firmada; ver «Sin rastro de acceso a datos personales» |
+| Registro de auditoría | **implementado** (lectura, generación, correos y borrados) | S4.10; S6.6 | `audit_logs` de solo inserción y firmada; ver «Sin rastro de acceso a datos personales» |
 | Retención de 24 h con borrado verificado | **implementado** | S6.5 | Plazo fijo para todos los dossiers; ver «Retención de 24 horas» |
 
 ## Retención de 24 horas
@@ -73,7 +72,7 @@ proceso, `--workers 1`):
 Pruebas: `tests/test_rate_limit.py`, `tests/integration/test_rate_limit_rutas.py`,
 `tests/security/test_rate_limit_seguridad.py` y `tests/stress/test_rate_limit_estres.py`.
 
-### Sin rastro de acceso a datos personales — cerrado en S4.10 (S6.6 lo extiende)
+### Sin rastro de acceso a datos personales — cerrado en S4.10 y S6.6
 
 Antes, el sistema trataba datos de personas identificables (PDL, Lusha, registros
 corporativos, prensa) sin registrar quién accedía a qué. La tabla `audit_logs` existía desde
@@ -101,7 +100,41 @@ Pruebas: `tests/test_audit_log.py`, `tests/integration/test_audit_log_flujo.py`,
 `tests/integration/test_audit_log_migracion.py`, `tests/security/test_audit_log_seguridad.py`
 y `tests/stress/test_audit_log_estres.py`.
 
-**Pendiente en S6.6:** envíos de correo (depende de S6.1) y borrados por retención (S6.5).
+**Envíos y borrados (S6.6).** Lo que sale del sistema o desaparece también queda registrado:
+
+| `action` | Cuándo | Quién |
+|---|---|---|
+| `EMAIL dossier_manual` | Envío desde el botón del dossier, exitoso o fallido | el usuario de la sesión |
+| `EMAIL dossier_auto` | Envío automático al terminar una generación | quien pidió la generación |
+| `POST /dossiers/{dossier_id}/email` | Toda llamada a la ruta de envío, también 404 y 429 (middleware) | el usuario de la sesión |
+| `RETENTION dossier_deleted` | Cada dossier borrado por la retención de 24 h | `sistema`, sin usuario |
+| `RETENTION jobs_deleted` | Jobs de generación borrados en una vuelta, con la cantidad | `sistema` |
+| `RETENTION verification` | Resultado de la verificación; `success = false` si quedaron restos | `sistema` |
+
+Un envío nunca guarda la dirección del destinatario: de un error solo queda su clase
+(`EmailDeliveryError`), porque el texto del servidor SMTP puede traer la dirección. El registro del
+borrado va en la misma transacción que el borrado: si no se puede registrar, no se borra.
+
+Consultas de ejemplo:
+
+```sql
+-- Qué pasó con un dossier: lecturas, envíos y su borrado
+SELECT created_at, action, user_role_at_time, success, error_message
+FROM audit_logs WHERE resource_id = '<id del dossier>' ORDER BY created_at;
+
+-- Envíos fallidos de la última semana
+SELECT created_at, action, resource_id, error_message FROM audit_logs
+WHERE action LIKE 'EMAIL %' AND NOT success AND created_at > now() - interval '7 days';
+
+-- Vueltas de retención que no pudieron verificar el borrado
+SELECT created_at, request_data FROM audit_logs
+WHERE action = 'RETENTION verification' AND NOT success;
+```
+
+Pruebas de S6.6: `tests/test_auditoria_correo.py`,
+`tests/integration/test_auditoria_correo_borrado_integracion.py`,
+`tests/security/test_ejemplo_seguridad.py::test_enviar_y_borrar_dejan_registro_de_auditoria` y
+`tests/stress/test_retencion_24h_estres.py::test_volumen_alto_deja_un_registro_de_auditoria_por_dossier`.
 
 ### Token de acceso de 7 días en `localStorage` — cerrado en S3.9
 

@@ -6,6 +6,40 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-10 · S6.6 · Auditoría de envíos por correo y borrados por retención · FD (agente)
+
+**Hecho.** En la rama `feat/S6.6-auditoria-correo-borrado`, creada desde `docmac` porque depende
+de S6.5. Spec previa (`specs/proposals/S6.6-auditoria-correo-borrado.md`) y TDD.
+
+- Envíos: `EMAIL dossier_manual` (ruta `POST /dossiers/{dossier_id}/email`) y `EMAIL dossier_auto`
+  (`deliver_dossier_after_generation`), exitosos y fallidos, sin la dirección del destinatario.
+  La ruta de envío entra además en `AUDITED_ROUTES` del middleware.
+- Retención: `RETENTION dossier_deleted` (uno por dossier, en la transacción del borrado),
+  `RETENTION jobs_deleted` y `RETENTION verification` (`success` = verificado).
+- `docs/security/README.md` con la tabla de acciones y consultas SQL de ejemplo.
+- Ya no queda ninguna prueba de seguridad omitida.
+
+Verificación en `specs/reports/S6.6-auditoria-correo-borrado.md`.
+
+**Sin terminar.** S6.1 (correo, DG) sigue en `review` aunque está en `main`: S6.6 se tomó igual
+porque el código del que depende ya existe. La CI sigue sin correr.
+
+**Lo que hay que saber.**
+- **Envío y auditoría:** un fallo de auditoría no cambia el envío (`auditar_envio` nunca lanza).
+  En la retención es al revés: sin registro no hay borrado.
+- **Nunca el destinatario en `audit_logs`.** `evento_envio` guarda la clase del error, no su
+  texto: el servidor SMTP repite la dirección en sus respuestas (por ejemplo, un 550).
+- Tras un `rollback`, el dossier de la sesión queda expirado: `evento_envio` lo vuelve a leer, así
+  que debe existir todavía. En una prueba, guarda los ids antes de borrar (si no,
+  `ObjectDeletedError`).
+- `tests/stress/test_ejemplo_estres.py` aún omite los esqueletos de S2.4 y S5.8, que ya están
+  cerrados con sus pruebas propias: conviene retirarlos.
+
+**Siguiente paso concreto.** Revisión y fusión a `docmac`. Después, S6.3 (envío automático desde el
+calendario), que ya puede auditar con `evento_envio`.
+
+**Rama.** `feat/S6.6-auditoria-correo-borrado` · **Estado.** review
+
 ### 2026-11-10 · S6.5 · Retención de 24 horas con borrado verificado · FD (agente)
 
 **Hecho.** En la rama `feat/S6.5-retencion-24h`, con TDD y spec previa

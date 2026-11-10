@@ -50,6 +50,8 @@ AUDITED_ROUTES: dict[str, AuditRule] = {
     "/dossiers/folders/{folder_id}": AuditRule("dossier_folder", "folder_id"),
     "/dossiers/{dossier_id}/shares": AuditRule("dossier", "dossier_id"),
     "/dossiers/{dossier_id}/shares/{target_user_id}": AuditRule("dossier", "dossier_id"),
+    # S6.6: enviar el dossier por correo también es un acceso (y deja ver los intentos ajenos).
+    "/dossiers/{dossier_id}/email": AuditRule("dossier", "dossier_id"),
     "/admin/dossiers": AuditRule("dossier"),
     "/dossier-generation-jobs": AuditRule("dossier_generation_job"),
     "/dossier-generation-jobs/{job_id}": AuditRule("dossier_generation_job", "job_id"),

@@ -3,6 +3,8 @@
 Cada vuelta toma el corte ``ahora − DOSSIER_RETENTION_HOURS`` y borra todo dossier creado antes,
 de cualquier usuario, y los jobs de generación terminados antes del corte. Después del commit
 vuelve a consultar para comprobar que no quedó nada: ni filas ni la entrada de Redis.
+
+Cada borrado y cada verificación quedan en ``audit_logs`` (S6.6).
 """
 from __future__ import annotations
 
@@ -12,6 +14,7 @@ import threading
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import bindparam, delete, func, select, text
@@ -21,6 +24,7 @@ from dossier.cache.corporate_dossier_redis import dossier_redis_key_exists
 from dossier.db.connection import is_database_configured
 from dossier.db.models import Dossier, DossierGenerationJob
 from dossier.db.session import _factory
+from dossier.services.audit_log import AuditEvent, record
 from dossier.services.dossier_deletion_service import (
     delete_dossier_record,
     finalize_dossier_deletions,
@@ -123,6 +127,44 @@ def verificar_borrado(
     return restos
 
 
+def _evento_retencion(
+    action: str, resource_id: UUID | None, organization_id: UUID | None, datos: dict[str, Any]
+) -> AuditEvent:
+    """Registro de auditoría de la retención (S6.6): lo hace el servidor, no una persona."""
+    return AuditEvent(
+        action=action,
+        resource_type="dossier" if resource_id else "dossier_generation_job",
+        resource_id=resource_id,
+        organization_id=organization_id,
+        user_role="sistema",
+        request_data=datos,
+    )
+
+
+def _auditar_verificacion(db: Session, resultado: ResultadoRetencion, horas: int) -> None:
+    """Deja el resultado de la verificación en ``audit_logs``. Un fallo aquí solo queda en el log."""
+    try:
+        record(
+            db,
+            AuditEvent(
+                action="RETENTION verification",
+                user_role="sistema",
+                success=resultado.verificado,
+                error_message=None if resultado.verificado else "borrado no verificado",
+                request_data={
+                    "retention_hours": horas,
+                    "dossiers": resultado.dossiers_borrados,
+                    "jobs": resultado.jobs_borrados,
+                    "restos": resultado.restos,
+                },
+            ),
+        )
+        db.commit()
+    except Exception:
+        logger.exception("Retención: no se pudo auditar la verificación")
+        db.rollback()
+
+
 def purge_expired_dossiers(db: Session, *, now: datetime | None = None) -> ResultadoRetencion:
     """Borra dossiers y jobs vencidos, hace commit y verifica que no quede nada."""
     # El candado dura hasta el commit de esta transacción; si otro proceso lo tiene, se omite.
@@ -132,12 +174,16 @@ def purge_expired_dossiers(db: Session, *, now: datetime | None = None) -> Resul
         return ResultadoRetencion(omitido=True)
 
     corte = retention_cutoff(now)
+    horas = dossier_retention_hours()
     vencidos = db.execute(select(Dossier).where(Dossier.created_at < corte)).scalars().all()
 
     dossier_ids = [d.id for d in vencidos]
     cache_keys = [(d.cache_key or "").strip() for d in vencidos if (d.cache_key or "").strip()]
     calendar_event_ids: set[UUID | None] = set()
     for dossier in vencidos:
+        # S6.6: el registro va en la misma transacción que el borrado; sin registro no hay borrado.
+        record(db, _evento_retencion("RETENTION dossier_deleted", dossier.id, dossier.organization_id,
+                                     {"retention_hours": horas}))
         calendar_event_ids.add(delete_dossier_record(db, dossier))
     if vencidos:
         db.flush()
@@ -152,12 +198,17 @@ def purge_expired_dossiers(db: Session, *, now: datetime | None = None) -> Resul
         .execution_options(synchronize_session=False)
     )
     jobs_borrados = int(jobs.rowcount or 0)  # type: ignore[attr-defined]
+    if jobs_borrados:
+        record(db, _evento_retencion("RETENTION jobs_deleted", None, None,
+                                     {"retention_hours": horas, "jobs": jobs_borrados}))
 
     db.commit()
     restos = verificar_borrado(db, dossier_ids=dossier_ids, cache_keys=cache_keys, corte=corte)
     resultado = ResultadoRetencion(
         dossiers_borrados=len(dossier_ids), jobs_borrados=jobs_borrados, restos=restos
     )
+    if resultado.dossiers_borrados or resultado.jobs_borrados or restos:
+        _auditar_verificacion(db, resultado, horas)
     if resultado.verificado and (resultado.dossiers_borrados or resultado.jobs_borrados):
         logger.info(
             "Retención (%s h): %s dossier(s) y %s job(s) borrados; borrado verificado",

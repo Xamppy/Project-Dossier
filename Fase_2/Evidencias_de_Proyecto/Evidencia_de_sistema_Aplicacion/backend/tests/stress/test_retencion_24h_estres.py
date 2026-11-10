@@ -87,6 +87,22 @@ def test_volumen_alto_se_borra_completo_y_verificado(base):
     assert duracion < 30, f"borrar {VENCIDOS} dossiers tardó {duracion:.1f} s"
 
 
+def test_volumen_alto_deja_un_registro_de_auditoria_por_dossier(base):
+    """S6.6: cada borrado queda en ``audit_logs``, más una fila de verificación por vuelta."""
+    _sembrar_vencidos(base, VENCIDOS)
+
+    with Session(base) as db:
+        purge_expired_dossiers(db)
+
+    with base.connect() as conn:
+        por_accion = dict(
+            conn.execute(
+                text("SELECT action, count(*) FROM audit_logs WHERE action LIKE 'RETENTION%' GROUP BY action")
+            ).all()
+        )
+    assert por_accion == {"RETENTION dossier_deleted": VENCIDOS, "RETENTION verification": 1}
+
+
 def test_dos_workers_a_la_vez_no_fallan_ni_dejan_restos(base):
     """Con varios procesos, cada uno corre su worker: no deben pisarse."""
     _sembrar_vencidos(base, VENCIDOS)

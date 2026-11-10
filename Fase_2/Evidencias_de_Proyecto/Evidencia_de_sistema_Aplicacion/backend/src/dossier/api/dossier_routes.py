@@ -59,7 +59,12 @@ from dossier.services.dossier_deletion_service import (
     delete_dossiers_in_folder,
     finalize_dossier_deletions,
 )
-from dossier.services.dossier_email import resend_wait_seconds, send_dossier_email
+from dossier.services.dossier_email import (
+    auditar_envio,
+    evento_envio,
+    resend_wait_seconds,
+    send_dossier_email,
+)
 from dossier.services.dossier_folder_utils import (
     build_dossier_list_entries,
     serialize_dossier_list_item,
@@ -476,20 +481,25 @@ def send_dossier_by_email(
             detail="Este dossier se acaba de enviar. Espera un momento antes de reenviarlo.",
             headers={"Retry-After": str(espera)},
         )
+    # S6.6: cada intento de envío, exitoso o fallido, queda en audit_logs (sin el destinatario).
     try:
         send_dossier_email(d, recipient=user.email)
     except EmailNotConfiguredError as e:
         db.rollback()
+        auditar_envio(db, evento_envio(d, manual=True, user_id=user.id, error=e), commit=True)
         raise HTTPException(status_code=503, detail="El envío por correo no está disponible.") from e
     except EmailDeliveryError as e:
         db.rollback()
         logger.warning("Envío manual del dossier %s falló: %s", d.id, e)
+        auditar_envio(db, evento_envio(d, manual=True, user_id=user.id, error=e), commit=True)
         raise HTTPException(
             status_code=502, detail="No se pudo enviar el correo. Inténtalo de nuevo más tarde."
         ) from e
     except ValueError as e:
         db.rollback()
+        auditar_envio(db, evento_envio(d, manual=True, user_id=user.id, error=e), commit=True)
         raise HTTPException(status_code=409, detail="Solo se puede enviar un dossier completo.") from e
+    auditar_envio(db, evento_envio(d, manual=True, user_id=user.id))
     db.commit()
     return {
         "dossier_id": str(d.id),
