@@ -2434,8 +2434,8 @@
       "id": "BUG-2026-10-19-08",
       "sprint": 2,
       "title": "`credit_ledger.balance_after` repite el saldo cuando se insertan dos dossiers en la misma sentencia",
-      "status": "pending",
-      "owner": "FO",
+      "status": "claimed",
+      "owner": "FD",
       "area": "db",
       "activity": "A9",
       "objective": "OE2",
@@ -2444,10 +2444,10 @@
       "depends_on": [],
       "blocks": [],
       "trello": null,
-      "branch": null,
+      "branch": "fix/BUG-2026-10-19-08-saldo-creditos",
       "evidence": [],
-      "notes": "Defecto ad hoc registrado el 2026-10-19. Con dos dossiers insertados en la misma sentencia, las dos filas de credit_ledger quedan con el mismo balance_after. El saldo de la organización sí queda correcto. Evidencia: docs/evidencias/fase2/almacenamiento/README.md.",
-      "owner_session": null
+      "notes": "Defecto ad hoc registrado el 2026-10-19. Con dos dossiers insertados en la misma sentencia, las dos filas de credit_ledger quedan con el mismo balance_after. El saldo de la organización sí queda correcto. Evidencia: docs/evidencias/fase2/almacenamiento/README.md. Traspasada de FO a FD el 2026-11-10.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "BUG-2026-10-19-09",
