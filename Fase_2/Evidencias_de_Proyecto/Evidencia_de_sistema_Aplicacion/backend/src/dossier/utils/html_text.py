@@ -4,12 +4,17 @@ from __future__ import annotations
 import html
 import re
 
+# Un correo entre ángulos («Ana <ana@acme.test>») no es una etiqueta HTML (BUG-2026-10-19-10).
+_CORREO_ENTRE_ANGULOS = re.compile(r"<\s*([^<>\s@\"'=]+@[^<>\s@\"'=]+\.[^<>\s@\"'=]+)\s*>")
+
 
 def strip_html_to_text(raw: str | None) -> str:
-    """Convierte HTML a texto plano conservando saltos de línea."""
+    """Convierte HTML a texto plano conservando saltos de línea y los ``<correo>``."""
     if not raw or not str(raw).strip():
         return ""
     t = str(raw)
+    # Se escapa antes de quitar etiquetas; ``html.unescape`` le devuelve los ángulos al final.
+    t = _CORREO_ENTRE_ANGULOS.sub(r"&lt;\1&gt;", t)
     t = re.sub(r"(?i)<br\s*/?>", "\n", t)
     t = re.sub(r"(?i)</(p|div|li|tr|h[1-6]|pre)>", "\n", t)
     t = re.sub(r"<[^>]+>", " ", t)
