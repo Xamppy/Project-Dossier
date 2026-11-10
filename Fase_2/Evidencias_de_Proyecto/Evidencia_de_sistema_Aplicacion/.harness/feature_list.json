@@ -2434,7 +2434,7 @@
       "id": "BUG-2026-10-19-08",
       "sprint": 2,
       "title": "`credit_ledger.balance_after` repite el saldo cuando se insertan dos dossiers en la misma sentencia",
-      "status": "claimed",
+      "status": "review",
       "owner": "FD",
       "area": "db",
       "activity": "A9",
@@ -2445,7 +2445,9 @@
       "blocks": [],
       "trello": null,
       "branch": "fix/BUG-2026-10-19-08-saldo-creditos",
-      "evidence": [],
+      "evidence": [
+        "tests/integration/test_bug_08_saldo_creditos.py: 6 pruebas contra PostgreSQL 18 (antes [4, 4] y [11, 11, 11]); migración a9d3e5f7b1c4 con downgrade"
+      ],
       "notes": "Defecto ad hoc registrado el 2026-10-19. Con dos dossiers insertados en la misma sentencia, las dos filas de credit_ledger quedan con el mismo balance_after. El saldo de la organización sí queda correcto. Evidencia: docs/evidencias/fase2/almacenamiento/README.md. Traspasada de FO a FD el 2026-11-10.",
       "owner_session": "FD (agente)"
     },
