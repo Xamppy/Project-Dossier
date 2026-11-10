@@ -1225,6 +1225,25 @@ CREATE INDEX IF NOT EXISTS idx_dossier_email_retries_next ON dossier_email_retri
 
 
 -- =============================================================================
+-- MIGRACIÓN INCREMENTAL: enlaces de un solo uso (S6.2, Alembic b4e8f2a6c0d3)
+-- Leer un dossier desde el correo sin iniciar sesión. Solo el SHA-256 del
+-- token; caen con el dossier. DDL en schema_patches.ACCESS_LINK_PATCHES.
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS dossier_access_links (
+    id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
+    token_hash          VARCHAR(64)     NOT NULL UNIQUE,
+    dossier_id          UUID            NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+    user_id             UUID            NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    organization_id     UUID            NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    expires_at          TIMESTAMPTZ     NOT NULL,
+    used_at             TIMESTAMPTZ,
+    created_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_dossier_access_links_dossier ON dossier_access_links (dossier_id);
+
+
+-- =============================================================================
 -- FIN DEL SCHEMA
 -- Total de tablas: 16 principales + 2 vistas
 -- Extensiones: uuid-ossp, pgcrypto

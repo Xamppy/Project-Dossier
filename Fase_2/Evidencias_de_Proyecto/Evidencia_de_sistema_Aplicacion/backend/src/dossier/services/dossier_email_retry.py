@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from dossier.db.connection import is_database_configured
 from dossier.db.models import Dossier, DossierEmailRetry, User
 from dossier.db.session import _factory
+from dossier.services.dossier_access_links import url_de_acceso_o_nada
 from dossier.services.email_service import EmailDeliveryError
 
 logger = logging.getLogger(__name__)
@@ -132,12 +133,14 @@ def _procesar_fila(db: Session, fila: DossierEmailRetry, now: datetime) -> str:
     def _enviar() -> None:
         if fila.kind == "reunion":
             correo = correo_mod.build_meeting_email(
-                dossiers, meeting_title=fila.meeting_title, language=fila.language
+                dossiers, meeting_title=fila.meeting_title, language=fila.language,
+                access_for=correo_mod._enlaces_de(db),
             )
         else:
             d = dossiers[0]
             correo = correo_mod.build_dossier_email(
-                d, language=fila.language, dossier_url=correo_mod.dossier_detail_url(d.id)
+                d, language=fila.language, dossier_url=correo_mod.dossier_detail_url(d.id),
+                access_url=url_de_acceso_o_nada(db, d, user_id=fila.user_id),
             )
         correo_mod.send_email(
             to=[destino],
@@ -148,7 +151,9 @@ def _procesar_fila(db: Session, fila: DossierEmailRetry, now: datetime) -> str:
         )
 
     try:
-        _enviar()
+        # Savepoint (S6.2): si el envío falla, los enlaces de acceso creados se descartan.
+        with db.begin_nested():
+            _enviar()
     except Exception as exc:  # noqa: BLE001 - un fallo se reprograma o se da por perdido
         agotado = not _es_transitorio(exc) or reintento >= REINTENTOS_MAXIMOS
         for d in dossiers:

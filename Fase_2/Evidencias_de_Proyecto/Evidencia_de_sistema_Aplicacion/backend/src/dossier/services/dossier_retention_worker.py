@@ -45,6 +45,7 @@ _TABLAS_HIJAS = (
     "dossier_career_entries",
     "dossier_ice_breakers",
     "dossier_shares",
+    "dossier_access_links",  # S6.2
 )
 
 

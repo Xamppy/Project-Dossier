@@ -150,10 +150,12 @@ class SlidingWindowLimiter:
 AUTH_LIMITER = SlidingWindowLimiter(lambda: limit_from_env("AUTH_RATE_LIMIT", Limit(20, 60)))
 LOGIN_FAILURE_LIMITER = SlidingWindowLimiter(lambda: limit_from_env("LOGIN_FAILURE_RATE_LIMIT", Limit(5, 300)))
 GENERATION_LIMITER = SlidingWindowLimiter(lambda: limit_from_env("GENERATION_RATE_LIMIT", Limit(10, 60)))
+# S6.2: canjes de enlaces de un solo uso por IP (frena que alguien pruebe tokens al azar).
+ACCESS_LINK_LIMITER = SlidingWindowLimiter(lambda: limit_from_env("ACCESS_LINK_RATE_LIMIT", Limit(20, 60)))
 
 
 def reset_all() -> None:
-    for limitador in (AUTH_LIMITER, LOGIN_FAILURE_LIMITER, GENERATION_LIMITER):
+    for limitador in (AUTH_LIMITER, LOGIN_FAILURE_LIMITER, GENERATION_LIMITER, ACCESS_LINK_LIMITER):
         limitador.reset()
 
 
@@ -187,6 +189,13 @@ def too_many_requests(espera: int) -> HTTPException:
 def limit_auth(request: Request) -> None:
     """Dependencia: límite por IP en las rutas de autenticación."""
     espera = AUTH_LIMITER.hit(f"ip:{client_ip(request)}")
+    if espera is not None:
+        raise too_many_requests(espera)
+
+
+def limit_access_link(request: Request) -> None:
+    """Dependencia: límite por IP al canjear enlaces de un solo uso (S6.2)."""
+    espera = ACCESS_LINK_LIMITER.hit(f"ip:{client_ip(request)}")
     if espera is not None:
         raise too_many_requests(espera)
 

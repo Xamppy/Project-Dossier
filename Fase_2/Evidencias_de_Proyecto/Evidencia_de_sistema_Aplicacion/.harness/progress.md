@@ -6,6 +6,39 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-10 · S6.2 · Enlace de un solo uso en el correo · FD (agente)
+
+**Hecho.** Rama `feat/S6.2-enlace-un-solo-uso`, desde `docmac`. Traspasada de DG. Diseño aprobado
+por FD: solo ese dossier, en solo lectura, sin iniciar sesión; se gasta al pulsar «Ver dossier»;
+vence en 24 h. Spec en `specs/proposals/S6.2-enlace-un-solo-uso.md`.
+
+- Tabla `dossier_access_links` (Alembic `b4e8f2a6c0d3`, `schema_patches.ACCESS_LINK_PATCHES`):
+  solo el SHA-256 del token; cae con el dossier y entra en la verificación de S6.5.
+- `services/dossier_access_links.py` y `POST /dossier-access` (`api/dossier_access_routes.py`):
+  canje atómico, 410 sin pistas, límite `ACCESS_LINK_RATE_LIMIT` y auditoría `ACCESS dossier_link`.
+- Los tres correos (botón, Personas y reunión) y los reintentos de S6.4 crean el enlace al armarse.
+- Frontend: página pública `app/acceso/page.tsx` (token en el fragmento) y textos en 7 catálogos.
+
+Verificación en `specs/reports/S6.2-enlace-un-solo-uso.md`.
+
+**Sin terminar.** No se revisó la página en la app en ejecución ni en un cliente de correo real.
+S6.8 (pruebas de seguridad en la CI) ya no espera a S6.2, pero sí a que vuelva la CI.
+
+**Lo que hay que saber.**
+- **El token nunca va en una ruta ni en una query:** fragmento en el frontend (`/acceso#t=…`) y
+  cuerpo del `POST` en la API. Así no queda en logs de acceso.
+- `url_de_acceso_o_nada` crea el enlace en un savepoint: si falla, el correo usa el dashboard.
+- En los reintentos de S6.4, `_enviar` va dentro de `db.begin_nested()`: si el envío falla, los
+  enlaces creados se descartan.
+- `audit_logs.ip_address` es INET: valida la IP antes de guardarla o el registro falla en silencio.
+- Frontend: para leer algo de `window` sin desajuste de hidratación, `useSyncExternalStore`
+  (el linter rechaza `setState` dentro de `useEffect`).
+
+**Siguiente paso concreto.** Revisión y fusión a `docmac`. Probar el flujo en la app real: correo
+→ `/acceso` → «Ver dossier».
+
+**Rama.** `feat/S6.2-enlace-un-solo-uso` · **Estado.** review
+
 ### 2026-11-10 · BUG-2026-10-19-10 · El saneador HTML borraba un `<correo>` · FD (agente)
 
 **Hecho.** Rama `fix/BUG-2026-10-19-10-correo-en-descripcion`, desde `docmac`. Traspasada de FO.

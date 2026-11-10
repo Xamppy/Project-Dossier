@@ -1566,7 +1566,7 @@
       "id": "S6.2",
       "sprint": 6,
       "title": "Implementar acceso al dossier por enlace de un solo uso",
-      "status": "pending",
+      "status": "review",
       "owner": "FD",
       "area": "backend",
       "activity": "A7",
@@ -1580,9 +1580,12 @@
         "S6.8"
       ],
       "trello": "https://trello.com/c/bRkzSIe3",
-      "branch": null,
-      "evidence": [],
-      "notes": "Traspasada de DG a FD el 2026-11-10: FD toma el backend del equipo."
+      "branch": "feat/S6.2-enlace-un-solo-uso",
+      "evidence": [
+        "specs/reports/S6.2-enlace-un-solo-uso.md: CA1-CA14 con sus pruebas (unitarias, integración con API y SMTP de loopback, seguridad, estrés y migración contra PostgreSQL 18; Vitest de la página /acceso); ruff, mypy, tsc y eslint sin hallazgos"
+      ],
+      "notes": "Traspasada de DG a FD el 2026-11-10: FD toma el backend del equipo. Diseño aprobado por FD (2026-11-10): enlace de solo lectura a un único dossier, sin iniciar sesión; se gasta al pulsar «Ver dossier» (no al abrir la página); vence en 24 h; token en el fragmento de la URL y solo su hash en la base.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S6.3",
