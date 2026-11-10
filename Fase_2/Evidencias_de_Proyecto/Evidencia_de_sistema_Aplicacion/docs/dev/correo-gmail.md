@@ -105,3 +105,26 @@ levantan su propio servidor SMTP en loopback (fixture `servidor_smtp` en `backen
 
 El correo es una copia que sale del sistema: no se borra con la retención de dossiers. Se aceptó
 así porque el usuario ya puede descargar el dossier (DG, 2026-11-02).
+
+## 6. Reintentos (S6.4)
+
+Los envíos **automáticos** (Personas al terminar y reuniones del calendario) reintentan solos:
+
+1. **3 intentos seguidos**, esperando 2 s y luego 5 s.
+2. Si siguen fallando por algo **pasajero** (sin conexión, tiempo agotado, respuesta 4xx), el envío
+   queda en `dossier_email_retries` y se reintenta **cada 10 minutos, hasta 1 hora** (6 veces).
+3. Un fallo **definitivo** (5xx, como un buzón inexistente, o usuario y contraseña rechazados) no se
+   reintenta.
+
+Cada ronda queda en `audit_logs` (`EMAIL dossier_auto`) con `intentos`, `reintento` y `agotado`.
+La fila en espera no guarda la dirección del destinatario: se lee de `users.email` al reintentar.
+Si los dossiers se borraron entretanto (retención o el usuario), el envío se descarta.
+
+El botón **Enviar por correo** no reintenta: el usuario ve el error y puede volver a pulsar.
+
+Variables: `DOSSIER_EMAIL_RETRY_WORKER_ENABLED` (1) y `DOSSIER_EMAIL_RETRY_POLL_SECONDS` (60).
+Para ver lo que está en espera:
+
+```sql
+SELECT kind, attempts, next_attempt_at, last_error FROM dossier_email_retries ORDER BY next_attempt_at;
+```

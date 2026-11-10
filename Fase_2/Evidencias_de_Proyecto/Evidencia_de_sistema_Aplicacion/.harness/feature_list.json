@@ -1613,8 +1613,8 @@
       "id": "S6.4",
       "sprint": 6,
       "title": "Implementar reintento y registro de fallos de envio",
-      "status": "pending",
-      "owner": "DG",
+      "status": "review",
+      "owner": "FD",
       "area": "backend",
       "activity": "A7",
       "objective": "OE7",
@@ -1625,9 +1625,12 @@
       ],
       "blocks": [],
       "trello": "https://trello.com/c/V0Idtuzh",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S6.4-reintento-correo",
+      "evidence": [
+        "specs/reports/S6.4-reintento-correo.md: CA1-CA14 con sus pruebas (unitarias, integración con SMTP de loopback y servidor caído, seguridad, estrés y migración contra PostgreSQL 18); ruff y mypy sin hallazgos"
+      ],
+      "notes": "Traspasada de DG a FD el 2026-11-10. Decisión de FD: 3 intentos seguidos y después uno cada 10 minutos, hasta 1 hora; los fallos definitivos no se reintentan.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S6.5",

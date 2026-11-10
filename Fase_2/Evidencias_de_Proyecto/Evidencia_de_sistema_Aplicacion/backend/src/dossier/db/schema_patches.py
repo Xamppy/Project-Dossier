@@ -194,6 +194,29 @@ AUDIT_LOG_PATCHES = (
     """,
 )
 
+# S6.4: envíos automáticos de correo en espera de reintento (uno cada 10 min, hasta 1 hora).
+# Sin la dirección del destinatario: se lee de users.email al reintentar.
+EMAIL_RETRY_PATCHES = (
+    """
+    CREATE TABLE IF NOT EXISTS dossier_email_retries (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        kind VARCHAR(20) NOT NULL CHECK (kind IN ('persona', 'reunion')),
+        dossier_ids UUID[] NOT NULL,
+        calendar_event_id UUID REFERENCES calendar_events(id) ON DELETE SET NULL,
+        meeting_title VARCHAR(500),
+        language VARCHAR(10),
+        attempts INTEGER NOT NULL DEFAULT 0,
+        next_attempt_at TIMESTAMPTZ NOT NULL,
+        last_error VARCHAR(100),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_dossier_email_retries_next "
+    "ON dossier_email_retries (next_attempt_at);",
+)
+
 
 def apply_schema_patches(engine: Engine) -> None:
     with engine.begin() as conn:
@@ -203,5 +226,6 @@ def apply_schema_patches(engine: Engine) -> None:
             + JOB_QUEUE_PATCHES
             + REFRESH_TOKEN_PATCHES
             + AUDIT_LOG_PATCHES
+            + EMAIL_RETRY_PATCHES
         ):
             conn.execute(text(sql))

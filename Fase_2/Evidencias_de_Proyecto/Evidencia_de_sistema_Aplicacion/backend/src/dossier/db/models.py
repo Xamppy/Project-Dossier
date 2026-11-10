@@ -499,6 +499,39 @@ class DossierShare(Base):
     )
 
 
+class DossierEmailRetry(Base):
+    """Envío automático de correo en espera de reintento (S6.4). DDL en ``schema_patches``.
+
+    No guarda la dirección del destinatario: al reintentar se lee de ``users.email``.
+    """
+
+    __tablename__ = "dossier_email_retries"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE")
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE")
+    )
+    kind: Mapped[str] = mapped_column(String(20))
+    dossier_ids: Mapped[list[uuid.UUID]] = mapped_column(ARRAY(UUID(as_uuid=True)))
+    calendar_event_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("calendar_events.id", ondelete="SET NULL"), nullable=True
+    )
+    meeting_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    language: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    # Índice idx_dossier_email_retries_next en schema_patches.
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class DossierGenerationJob(Base):
     """Cola de generación asíncrona (manual desde calendario u otros triggers)."""
 

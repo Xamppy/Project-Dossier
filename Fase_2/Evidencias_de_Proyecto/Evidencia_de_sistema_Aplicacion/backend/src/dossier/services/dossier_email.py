@@ -24,8 +24,13 @@ from sqlalchemy.orm import Session
 
 from dossier.db.models import Dossier
 from dossier.services.audit_log import AuditEvent, record
+from dossier.services.dossier_email_retry import (
+    ResultadoIntentos,
+    encolar_reintento,
+    enviar_con_reintentos,
+)
 from dossier.services.dossier_pdf import dossier_pdf_filename, render_dossier_pdf
-from dossier.services.email_service import EmailAttachment, send_email
+from dossier.services.email_service import EmailAttachment, EmailDeliveryError, send_email
 from dossier.services.output_language import normalize_output_language
 from dossier.utils.html_text import strip_html_to_plain_line
 
@@ -340,13 +345,86 @@ def send_dossier_email(dossier: Dossier, *, recipient: str, language: str | None
         html=correo.html,
         attachments=list(correo.attachments),
     )
-    _marcar_enviado(dossier, recipient)
+    marcar_enviado(dossier, recipient)
 
 
-def _marcar_enviado(dossier: Dossier, recipient: str) -> None:
+def marcar_enviado(dossier: Dossier, recipient: str) -> None:
     dossier.email_sent = True
     dossier.email_sent_at = datetime.now(UTC)
     dossier.email_recipients = list(dict.fromkeys([*(dossier.email_recipients or []), recipient]))
+
+
+def _entregar(
+    db: Session,
+    dossiers: Sequence[Dossier],
+    recipient: str,
+    armar: Callable[[], DossierEmail],
+    *,
+    kind: str,
+    calendar_event_id: UUID | None = None,
+    meeting_title: str | None = None,
+    language: str | None = None,
+) -> bool:
+    """Envío automático con reintentos (S6.4): hasta 3 intentos seguidos y, si siguen fallando
+    por algo pasajero, queda en espera (``dossier_email_retries``). Nunca lanza.
+
+    Cada ronda deja un registro ``EMAIL dossier_auto`` por dossier (S6.6).
+    """
+    base: dict[str, Any] = {
+        "origen": "calendario" if kind == "reunion" else "persona",
+        "calendar_event_id": str(calendar_event_id) if calendar_event_id else None,
+    }
+    try:
+        correo = armar()
+    except Exception as exc:  # noqa: BLE001 - un dossier sin contenido no se envía ni se reintenta
+        resultado = ResultadoIntentos(intentos=1, error=exc)
+    else:
+        resultado = enviar_con_reintentos(
+            lambda: send_email(
+                to=[recipient],
+                subject=correo.subject,
+                text=correo.text,
+                html=correo.html,
+                attachments=list(correo.attachments),
+            )
+        )
+    datos = {**base, "intentos": resultado.intentos, "reintento_programado": False}
+
+    if resultado.error is None:
+        for dossier in dossiers:
+            marcar_enviado(dossier, recipient)
+            auditar_envio(db, evento_envio(dossier, manual=False, datos=datos))
+        db.commit()
+        return True
+
+    db.rollback()
+    programar = isinstance(resultado.error, EmailDeliveryError) and resultado.error.transitorio
+    datos["reintento_programado"] = programar
+    logger.warning(
+        "No se pudo enviar por correo el dossier %s (%s, %s intento(s)); reintento programado: %s",
+        ", ".join(str(d.id) for d in dossiers),
+        type(resultado.error).__name__,
+        resultado.intentos,
+        programar,
+    )
+    try:
+        for dossier in dossiers:
+            auditar_envio(db, evento_envio(dossier, manual=False, error=resultado.error, datos=datos))
+        if programar:
+            encolar_reintento(
+                db,
+                kind=kind,
+                dossiers=dossiers,
+                error=resultado.error,
+                calendar_event_id=calendar_event_id,
+                meeting_title=meeting_title,
+                language=language,
+            )
+        db.commit()
+    except Exception:  # el registro del fallo no puede tumbar a quien llama
+        logger.exception("No se pudo registrar el fallo de envío")
+        db.rollback()
+    return False
 
 
 def deliver_meeting_dossiers(
@@ -362,41 +440,33 @@ def deliver_meeting_dossiers(
 
     Solo van los dossiers completos, y solo al ``recipient`` (el dueño del calendario). Nunca
     lanza: un fallo de correo no cambia el evento ni los dossiers. Cada dossier deja su registro
-    ``EMAIL dossier_auto`` (S6.6). Devuelve si se envió.
+    ``EMAIL dossier_auto`` (S6.6) y un fallo pasajero queda en espera de reintento (S6.4).
+    Devuelve si se envió.
     """
-    datos = {"origen": "calendario", "calendar_event_id": str(calendar_event_id) if calendar_event_id else None}
-    completos: list[Dossier] = []
     try:
         ids = [UUID(str(i)) for i in dossier_ids]
-        if not ids:
-            return False
         encontrados = {
             d.id: d
             for d in db.scalars(select(Dossier).where(Dossier.id.in_(ids), Dossier.status == "complete"))
-        }
-        completos = [encontrados[i] for i in ids if i in encontrados]
-        if not completos:
-            logger.info("Correo de reunión omitido: ningún dossier completo (evento %s)", calendar_event_id)
-            return False
-        correo = build_meeting_email(completos, meeting_title=meeting_title, language=language)
-        send_email(
-            to=[recipient],
-            subject=correo.subject,
-            text=correo.text,
-            html=correo.html,
-            attachments=list(correo.attachments),
-        )
-        for dossier in completos:
-            _marcar_enviado(dossier, recipient)
-            auditar_envio(db, evento_envio(dossier, manual=False, datos=datos))
-        db.commit()
-        return True
-    except Exception as exc:  # noqa: BLE001 - el correo es accesorio: ningún fallo sube a la automatización
+        } if ids else {}
+    except Exception:  # ids inválidos o base no disponible: no hay nada que enviar
+        logger.warning("Correo de reunión omitido: no se pudieron leer los dossiers", exc_info=True)
         db.rollback()
-        logger.warning("No se pudo enviar el correo de la reunión %s: %s", calendar_event_id, exc)
-        for dossier in completos:
-            auditar_envio(db, evento_envio(dossier, manual=False, error=exc, datos=datos), commit=True)
         return False
+    completos = [encontrados[i] for i in ids if i in encontrados]
+    if not completos:
+        logger.info("Correo de reunión omitido: ningún dossier completo (evento %s)", calendar_event_id)
+        return False
+    return _entregar(
+        db,
+        completos,
+        recipient,
+        lambda: build_meeting_email(completos, meeting_title=meeting_title, language=language),
+        kind="reunion",
+        calendar_event_id=calendar_event_id,
+        meeting_title=meeting_title,
+        language=language,
+    )
 
 
 def evento_envio(
@@ -441,21 +511,22 @@ def deliver_dossier_after_generation(db: Session, *, dossier_id: UUID | str, rec
     """Envío automático al terminar una generación (S6.1). Nunca lanza: un fallo de correo no
     puede cambiar el resultado del job ni del dossier. Devuelve si se envió.
 
-    Cada intento, exitoso o fallido, queda en ``audit_logs`` (S6.6).
+    Cada ronda, exitosa o fallida, queda en ``audit_logs`` (S6.6), y un fallo pasajero queda en
+    espera de reintento (S6.4).
     """
-    dossier: Dossier | None = None
     try:
         dossier = db.get(Dossier, UUID(str(dossier_id)))
-        if dossier is None:
-            logger.warning("Correo automático omitido: dossier %s no encontrado", dossier_id)
-            return False
-        send_dossier_email(dossier, recipient=recipient)
-        auditar_envio(db, evento_envio(dossier, manual=False))
-        db.commit()
-        return True
-    except Exception as exc:  # noqa: BLE001 - el correo es accesorio: ningún fallo sube al job
+    except Exception:  # id inválido o base no disponible
+        logger.warning("Correo automático omitido: no se pudo leer el dossier %s", dossier_id, exc_info=True)
         db.rollback()
-        logger.warning("No se pudo enviar por correo el dossier %s: %s", dossier_id, exc)
-        if dossier is not None:
-            auditar_envio(db, evento_envio(dossier, manual=False, error=exc), commit=True)
         return False
+    if dossier is None:
+        logger.warning("Correo automático omitido: dossier %s no encontrado", dossier_id)
+        return False
+
+    def _armar() -> DossierEmail:
+        if dossier.status != "complete":
+            raise ValueError("Solo se envían dossiers completos.")
+        return build_dossier_email(dossier, language=None, dossier_url=dossier_detail_url(dossier.id))
+
+    return _entregar(db, [dossier], recipient, _armar, kind="persona")

@@ -1192,6 +1192,30 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS is_platform_admin BOOLEAN NOT NULL DE
 
 
 -- =============================================================================
+-- MIGRACIÓN INCREMENTAL: reintentos de correo (S6.4, Alembic f3a7c1e9b5d2)
+-- Envíos automáticos en espera: uno cada 10 minutos, hasta 1 hora. Sin la
+-- dirección del destinatario (se lee de users.email al reintentar).
+-- DDL completo en schema_patches.EMAIL_RETRY_PATCHES.
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS dossier_email_retries (
+    id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id     UUID            NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    user_id             UUID            NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind                VARCHAR(20)     NOT NULL CHECK (kind IN ('persona', 'reunion')),
+    dossier_ids         UUID[]          NOT NULL,
+    calendar_event_id   UUID            REFERENCES calendar_events(id) ON DELETE SET NULL,
+    meeting_title       VARCHAR(500),
+    language            VARCHAR(10),
+    attempts            INTEGER         NOT NULL DEFAULT 0,
+    next_attempt_at     TIMESTAMPTZ     NOT NULL,
+    last_error          VARCHAR(100),
+    created_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_dossier_email_retries_next ON dossier_email_retries (next_attempt_at);
+
+
+-- =============================================================================
 -- FIN DEL SCHEMA
 -- Total de tablas: 16 principales + 2 vistas
 -- Extensiones: uuid-ossp, pgcrypto

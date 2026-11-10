@@ -71,6 +71,7 @@ def entorno_de_pruebas():
             "CALENDAR_AUTOMATION_ENABLED": "0",
             "DOSSIER_GENERATION_WORKER_ENABLED": "0",
             "DOSSIER_RETENTION_WORKER_ENABLED": "0",
+            "DOSSIER_EMAIL_RETRY_WORKER_ENABLED": "0",
             "DOSSIER_REDIS_ENABLED": "0",
         }
     )

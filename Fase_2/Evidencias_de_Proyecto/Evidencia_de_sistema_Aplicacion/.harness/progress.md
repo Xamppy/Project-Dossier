@@ -6,6 +6,39 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-10 · S6.4 · Reintento y registro de fallos de envío · FD (agente)
+
+**Hecho.** En la rama `feat/S6.4-reintento-correo`, desde `docmac`. Traspasada de DG. Decisión de
+FD: 3 intentos seguidos (2 s y 5 s) y después uno cada 10 minutos, hasta 1 hora. Spec en
+`specs/proposals/S6.4-reintento-correo.md`.
+
+- `email_service`: `EmailDeliveryError.transitorio` y `error_transitorio` (sin conexión y 4xx sí;
+  5xx y credenciales no).
+- `services/dossier_email_retry.py`: `enviar_con_reintentos`, la cola `dossier_email_retries`
+  (migración `f3a7c1e9b5d2`) y el worker `dossier-email-retry-worker` (cada 60 s, de a una fila con
+  `FOR UPDATE SKIP LOCKED`).
+- `dossier_email._entregar`: los envíos automáticos de Personas y de reunión pasan por aquí.
+- El botón de envío manual sigue intentando una vez.
+
+Verificación en `specs/reports/S6.4-reintento-correo.md`.
+
+**Sin terminar.** El worker no se probó corriendo en un hilo con su intervalo real.
+
+**Lo que hay que saber.**
+- **Tabla nueva:** `dossier_email_retries` (Alembic `f3a7c1e9b5d2`, DDL en
+  `schema_patches.EMAIL_RETRY_PATCHES`, documentada al final de `db/Migracion.md`). Al desplegar,
+  la app la crea sola al arrancar.
+- **Variables nuevas:** `DOSSIER_EMAIL_RETRY_WORKER_ENABLED` (1) y
+  `DOSSIER_EMAIL_RETRY_POLL_SECONDS` (60). `conftest.py` apaga el worker en las pruebas.
+- `smtplib.SMTPRecipientsRefused` no trae `smtp_code`: los códigos van por destinatario.
+- En pruebas, `dossier_email_retry._dormir` se reemplaza para no esperar 7 s por cada fallo.
+- Para simular un servidor caído, un puerto cerrado (en Windows tarda ~2 s en rechazar).
+
+**Siguiente paso concreto.** Revisión y fusión a `docmac`. Quedan del backend: BUG-08, BUG-10,
+S6.2 y las pruebas de cierre (S7.2, S7.3, S7.5).
+
+**Rama.** `feat/S6.4-reintento-correo` · **Estado.** review
+
 ### 2026-11-10 · S6.3 · Envío automático de los dossiers de una reunión · FD (agente)
 
 **Hecho.** En la rama `feat/S6.3-calendario-correo`, desde `docmac` (depende de S6.5 y S6.6).
