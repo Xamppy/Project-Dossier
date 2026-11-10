@@ -2474,8 +2474,8 @@
       "id": "BUG-2026-10-19-10",
       "sprint": 2,
       "title": "El saneador HTML borra un `<correo>` escrito tal cual en la descripción del evento",
-      "status": "pending",
-      "owner": "FO",
+      "status": "claimed",
+      "owner": "FD",
       "area": "backend",
       "activity": "A9",
       "objective": "OE2",
@@ -2484,10 +2484,10 @@
       "depends_on": [],
       "blocks": [],
       "trello": null,
-      "branch": null,
+      "branch": "fix/BUG-2026-10-19-10-correo-en-descripcion",
       "evidence": [],
-      "notes": "Defecto ad hoc registrado el 2026-10-19 (anotado en el PR #28). strip_html_to_text elimina un <correo> escrito tal cual como si fuera una etiqueta; solo sobrevive escapado (&lt;…&gt;).",
-      "owner_session": null
+      "notes": "Defecto ad hoc registrado el 2026-10-19 (anotado en el PR #28). strip_html_to_text elimina un <correo> escrito tal cual como si fuera una etiqueta; solo sobrevive escapado (&lt;…&gt;). Traspasada de FO a FD el 2026-11-10.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "CHORE-2026-10-19-05",
