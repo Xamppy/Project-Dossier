@@ -1588,7 +1588,7 @@
       "id": "S6.3",
       "sprint": 6,
       "title": "Habilitar la automatizacion previa a la reunion desde el calendario",
-      "status": "pending",
+      "status": "claimed",
       "owner": "FD",
       "area": "backend",
       "activity": "A7",
@@ -1602,9 +1602,10 @@
         "S7.1"
       ],
       "trello": "https://trello.com/c/wpSv6BzC",
-      "branch": null,
+      "branch": "feat/S6.3-calendario-correo",
       "evidence": [],
-      "notes": "Traspasada de DG a FD el 2026-11-10: FD toma el backend del equipo."
+      "notes": "Traspasada de DG a FD el 2026-11-10: FD toma el backend del equipo. Decisiones de FD (2026-11-10): un solo correo por reunión con todos los PDFs; la retención de los dossiers de una reunión cuenta 24 h desde su inicio.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S6.4",
