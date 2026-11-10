@@ -39,8 +39,11 @@ def redis_corporate_cache_available() -> bool:
 
 
 def redis_ttl_seconds() -> int:
+    """TTL de la caché. Nunca supera la retención de dossiers (S6.5): lo vencido no se recupera."""
+    from dossier.services.dossier_retention import dossier_retention_hours
+
     ttl = int(os.getenv("DOSSIER_REDIS_TTL_SECONDS", "86400"))
-    return max(60, min(ttl, 2592000))
+    return max(60, min(ttl, 2592000, dossier_retention_hours() * 3600))
 
 
 def _redis_log_target(url: str) -> str:
@@ -224,6 +227,21 @@ def run_with_corporate_cache_lock(key_hash: str, fn) -> Any:
     except Exception as e:  # noqa: BLE001 - Redis opcional: cualquier fallo degrada a sin lock
         logger.warning("Redis lock dossier corporativo: %s. Ejecutando sin lock.", e)
         return fn()
+
+
+def dossier_redis_key_exists(redis_key: str) -> bool:
+    """Indica si la clave sigue en Redis. Sin Redis disponible, no existe (S6.5, verificación)."""
+    key = (redis_key or "").strip()
+    if not key:
+        return False
+    r = _client()
+    if r is None:
+        return False
+    try:
+        return int(r.exists(key)) > 0
+    except Exception as e:  # noqa: BLE001 - Redis opcional: cualquier fallo degrada a sin cache
+        logger.warning("Redis EXISTS dossier cache (%s): %s", key, e)
+        return False
 
 
 def delete_dossier_redis_cache(redis_key: str) -> bool:

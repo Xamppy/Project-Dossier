@@ -1,34 +1,42 @@
 # Seguridad
 
-Estado verificado el **07-09-2026**. Este archivo se actualiza a medida que las tareas del
+Estado verificado el **10-11-2026**. Este archivo se actualiza a medida que las tareas del
 objetivo OE8 se van cerrando.
 
 ## Estado de los cuatro controles comprometidos
 
-El objetivo específico 8 compromete cuatro controles. Existen tres (control de acceso, limitación de tasa y auditoría).
+El objetivo específico 8 compromete cuatro controles. Los cuatro existen; a la auditoría le falta
+sumar correos y borrados (S6.6).
 
 | Control | Estado | Tarea | Evidencia |
 |---|---|---|---|
 | Control de acceso | **implementado** | S6.7 verifica el aislamiento | JWT firmado, RBAC con roles admin/user/viewer, aislamiento por organización; pruebas en `test_rbac.py` y `test_aislamiento_organizaciones.py` |
 | Limitación de tasa | **implementado** | S5.8 | 429 con `Retry-After` en autenticación y generación; ver «Sin limitación de tasa» |
 | Registro de auditoría | **implementado** (lectura y generación) | S4.10; S6.6 suma correos y borrados por retención | `audit_logs` de solo inserción y firmada; ver «Sin rastro de acceso a datos personales» |
-| Retención de 24 h con borrado verificado | **diverge** | S6.5 | Hoy 7 a 90 días, sin verificación de borrado |
+| Retención de 24 h con borrado verificado | **implementado** | S6.5 | Plazo fijo para todos los dossiers; ver «Retención de 24 horas» |
+
+## Retención de 24 horas
+
+Cerrada en S6.5 (`specs/proposals/S6.5-retencion-24h.md`). Antes, cada usuario elegía 7 a 90 días
+o conservar indefinidamente, y el borrado no se verificaba.
+
+- **Plazo fijo:** `DOSSIER_RETENTION_HOURS` (24 por omisión) para todos los dossiers. El usuario
+  ya no elige; `users.dossier_retention_days` quedó sin uso.
+- **Qué borra** `services/dossier_retention_worker.py`: cada dossier creado antes del corte, con
+  sus alertas, prensa, registros, trayectoria, ice breakers y enlaces compartidos (por
+  `ON DELETE CASCADE`) y su entrada de Redis; y los jobs de generación terminados antes del corte,
+  que guardan el nombre consultado y el resultado. `credit_ledger` conserva el movimiento con
+  `dossier_id` en `NULL`.
+- **Verificación:** tras el `commit` vuelve a contar filas y claves de Redis. Sin restos registra
+  «borrado verificado»; con restos, un `ERROR` con tabla y cantidad, nunca datos de la persona.
+- **Atraso máximo:** el intervalo del worker, `DOSSIER_RETENTION_POLL_SECONDS` (600 s por omisión).
+- **Caché:** el TTL de Redis nunca supera la retención.
+- **Fuera del sistema:** el PDF que llega por correo (S6.1) es la copia del usuario y no se borra.
+
+Pruebas: `tests/security/test_ejemplo_seguridad.py` (no recuperable y sin huérfanos),
+`tests/integration/test_retencion_24h_integracion.py` y `tests/test_retencion_24h.py`.
 
 ## Hallazgos abiertos
-
-### Retención por debajo de lo exigido
-
-`backend/src/dossier/services/dossier_retention.py`
-
-```python
-ALLOWED_DOSSIER_RETENTION_DAYS = frozenset({7, 14, 30, 90})
-DEFAULT_DOSSIER_RETENTION_DAYS = 30
-```
-
-`None` significa conservar indefinidamente. La especificación exige **24 horas con borrado
-verificado**. Hoy el mínimo es 7 días y el borrado no se verifica: solo se ejecuta.
-
-**Cierra en:** S6.5.
 
 ### Rutas legadas
 

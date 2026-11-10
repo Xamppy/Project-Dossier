@@ -45,8 +45,8 @@ export type AuthUser = {
   timezone?: string;
   /** match | es | en | pt | … — idioma de salida de dossiers. */
   dossier_output_language?: string;
-  /** 7, 14, 30, 90 o null (conservar indefinidamente). */
-  dossier_retention_days?: number | null;
+  /** S6.5: horas que el servidor conserva cada dossier antes de borrarlo (24 por omisión). */
+  dossier_retention_hours?: number;
   /** S6.1: la instancia tiene SMTP configurado y puede enviar dossiers por correo. */
   email_delivery_available?: boolean;
 };
@@ -473,7 +473,6 @@ export type AuthUserPreferencesPatch = {
   locale?: string;
   timezone?: string;
   dossier_output_language?: string;
-  dossier_retention_days?: number | null;
 };
 
 /** Sincroniza idioma de interfaz / zona horaria / idioma de dossiers con PostgreSQL. */

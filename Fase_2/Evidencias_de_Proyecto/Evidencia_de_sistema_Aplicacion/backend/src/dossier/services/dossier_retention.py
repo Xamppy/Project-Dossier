@@ -1,39 +1,26 @@
-"""Retención configurable de dossiers (7–90 días o sin límite)."""
+"""Retención de dossiers: un plazo fijo para todos (S6.5, objetivo específico 8).
+
+El plazo lo fija el servidor con ``DOSSIER_RETENTION_HOURS`` (24 por omisión). El usuario ya no
+elige: la columna ``users.dossier_retention_days`` quedó sin uso.
+"""
 from __future__ import annotations
 
-ALLOWED_DOSSIER_RETENTION_DAYS: frozenset[int] = frozenset({7, 14, 30, 90})
-DEFAULT_DOSSIER_RETENTION_DAYS = 30
+import os
+from datetime import UTC, datetime, timedelta
+
+DEFAULT_DOSSIER_RETENTION_HOURS = 24
 
 
-def normalize_dossier_retention_days(value: int | None) -> int | None:
-    """``None`` = conservar indefinidamente; entero = días hasta purga automática."""
-    if value is None:
-        return None
-    days = int(value)
-    if days <= 0:
-        return None
-    if days not in ALLOWED_DOSSIER_RETENTION_DAYS:
-        raise ValueError(
-            f"dossier_retention_days debe ser uno de {sorted(ALLOWED_DOSSIER_RETENTION_DAYS)} "
-            "o null para conservar indefinidamente."
-        )
-    return days
-
-
-def dossier_retention_days_to_frontend(value: int | None) -> str:
-    if value is None:
-        return "never"
-    return str(value)
-
-
-def dossier_retention_days_from_frontend(value: str | None) -> int | None:
-    raw = (value or "").strip().lower()
-    if not raw or raw == "never":
-        return None
+def dossier_retention_hours() -> int:
+    """Horas que vive un dossier antes de borrarse. Un valor inválido o ≤ 0 vuelve a 24."""
+    raw = os.getenv("DOSSIER_RETENTION_HOURS", "").strip()
     try:
-        return normalize_dossier_retention_days(int(raw))
+        horas = int(raw)
     except ValueError:
-        raise ValueError(
-            f"dossier_retention_days no soportado: {value!r}. "
-            f"Use never o {sorted(ALLOWED_DOSSIER_RETENTION_DAYS)}."
-        ) from None
+        return DEFAULT_DOSSIER_RETENTION_HOURS
+    return horas if horas > 0 else DEFAULT_DOSSIER_RETENTION_HOURS
+
+
+def retention_cutoff(now: datetime | None = None) -> datetime:
+    """Todo lo creado antes de este instante está vencido."""
+    return (now or datetime.now(UTC)) - timedelta(hours=dossier_retention_hours())

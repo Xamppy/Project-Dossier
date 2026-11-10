@@ -14,18 +14,8 @@ const OUTPUT_LANGUAGE_PREFS: OutputLanguage[] = [
   "de",
 ];
 
-const RETENTION_DAYS = new Set(["7", "14", "30", "90"]);
-
 function isOutputLanguagePref(value: string): value is OutputLanguage {
   return (OUTPUT_LANGUAGE_PREFS as readonly string[]).includes(value);
-}
-
-function retentionDaysToExpiry(days: number | null | undefined): string | undefined {
-  if (days === null || days === undefined) {
-    return "never";
-  }
-  const s = String(days);
-  return RETENTION_DAYS.has(s) ? s : undefined;
 }
 
 /** Campos de preferencias que vienen del backend (`GET /auth/me`). */
@@ -44,31 +34,25 @@ export function authUserToPreferencesPatch(me: AuthUser): Partial<UserPreference
   if (out && isOutputLanguagePref(out)) {
     patch.outputLanguage = out;
   }
-  const expiry = retentionDaysToExpiry(me.dossier_retention_days);
-  if (expiry) {
-    patch.dossierExpiry = expiry;
+  // S6.5: el plazo lo fija el servidor; aquí solo se muestra.
+  const horas = me.dossier_retention_hours;
+  if (typeof horas === "number" && horas > 0) {
+    patch.dossierRetentionHours = horas;
   }
   return patch;
 }
 
+/** Lo que el dashboard envía a `PATCH /auth/me/preferences`. La retención ya no viaja (S6.5). */
 export function preferencesToAuthPatch(
-  prefs: Pick<
-    UserPreferences,
-    "locale" | "timezone" | "timezoneFollowSystem" | "outputLanguage" | "dossierExpiry"
-  >
+  prefs: Pick<UserPreferences, "locale" | "timezone" | "timezoneFollowSystem" | "outputLanguage">
 ): {
   locale: string;
   timezone: string;
   dossier_output_language: string;
-  dossier_retention_days: number | null;
 } {
-  const raw = (prefs.dossierExpiry || "30").trim();
-  const dossier_retention_days =
-    raw === "never" ? null : RETENTION_DAYS.has(raw) ? Number(raw) : 30;
   return {
     locale: normalizeAppLocale(prefs.locale),
     timezone: getEffectiveTimezone(prefs.timezone, prefs.timezoneFollowSystem ?? false),
     dossier_output_language: prefs.outputLanguage,
-    dossier_retention_days,
   };
 }

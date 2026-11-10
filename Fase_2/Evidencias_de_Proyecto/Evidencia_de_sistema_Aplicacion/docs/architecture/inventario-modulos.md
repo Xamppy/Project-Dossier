@@ -18,7 +18,7 @@
 | `services/person_research_pipeline.py` | Pipeline de investigación de personas (PDL + LLM) | Persiste Markdown bajo clave `gemini_analysis_markdown` | Desacoplar shim Gemini (S1.6), emitir JSON estructurado (S4.2). |
 | `services/calendar_automation_worker.py` | Worker en segundo plano de sincronización de eventos | Funcional; busca reuniones cada 60s | Conectar generación automática de dossiers y envío de correo (S6.1). |
 | `services/dossier_generation_worker.py` | Worker asíncrono que procesa la cola de dossiers | Funcional; procesa tareas pendientes | Emitir eventos progresivos a Redis/SSE en S4.8. |
-| `services/dossier_retention_worker.py` | Purga periódica según días de retención | Retención de 7-90 días (por defecto 30) | Adaptar a retención estricta de 24h con borrado verificado en S6.5. |
+| `services/dossier_retention_worker.py` | Borra dossiers y jobs vencidos y verifica el borrado | Retención fija de 24 h (`DOSSIER_RETENTION_HOURS`), revisión cada 10 min | Hecho en S6.5. |
 | `services/corporate_registry_context.py` | Generadores de Markdown para UK y US | Devuelve cadenas Markdown formateadas | Normalizar a modelo común `RegistroCorporativo` en S1.9 / S2.3. |
 | `graphs/corporate_dossier_graph.py` | Orquestador LangGraph de dossiers corporativos | Solo orquesta UK (`companies_house`) y US (`sec_edgar`) | Incorporar nodo EU (S2.1) y nodo Noticias (S3.2) con tolerancia a fallos. |
 | `companies_house/` | Cliente API oficial Companies House (UK) | Funcional con caché | Integrar en modelo común de registro (S1.9). |

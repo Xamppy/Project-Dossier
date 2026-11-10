@@ -31,7 +31,8 @@ export type UserPreferences = {
   timezoneFollowSystem: boolean;
   dateFormat: DateFormat;
   outputLanguage: OutputLanguage;
-  dossierExpiry: string;
+  /** S6.5: horas que el servidor conserva cada dossier. Solo lectura: viene de `GET /auth/me`. */
+  dossierRetentionHours: number;
 };
 
 export const DEFAULT_PREFERENCES: UserPreferences = {
@@ -41,7 +42,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   timezoneFollowSystem: true,
   dateFormat: "dd/mm/yyyy",
   outputLanguage: "match",
-  dossierExpiry: "30",
+  dossierRetentionHours: 24,
 };
 
 export const LOCALE_LABELS: Record<Locale, string> = {
