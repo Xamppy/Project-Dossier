@@ -1333,7 +1333,7 @@
       "id": "S5.2",
       "sprint": 5,
       "title": "Consumir el canal en NotificationsProvider y retirar su setInterval",
-      "status": "claimed",
+      "status": "review",
       "owner": "FD",
       "area": "frontend",
       "activity": "A6",
@@ -1346,7 +1346,9 @@
       "blocks": [],
       "trello": "https://trello.com/c/wmseVTR9",
       "branch": "feat/S5.2-S5.3-notificaciones-canal",
-      "evidence": [],
+      "evidence": [
+        "specs/reports/S5.2-S5.3-notificaciones-canal.md: CA1-CA6 y CA8 con pruebas de backend (unitarias, integración, seguridad y estrés contra PostgreSQL 18) y Vitest del proveedor y del adaptador; prueba en la aplicación en ejecución (aviso en 2 s, sin GET /dossiers periódico)"
+      ],
       "notes": "Traspasada de DG a FD el 2026-11-10.",
       "owner_session": "FD (agente)"
     },
@@ -1354,7 +1356,7 @@
       "id": "S5.3",
       "sprint": 5,
       "title": "Implementar reconexion del canal con retroceso progresivo",
-      "status": "claimed",
+      "status": "review",
       "owner": "FD",
       "area": "frontend",
       "activity": "A6",
@@ -1367,7 +1369,9 @@
       "blocks": [],
       "trello": "https://trello.com/c/yUmmkdGV",
       "branch": "feat/S5.2-S5.3-notificaciones-canal",
-      "evidence": [],
+      "evidence": [
+        "specs/reports/S5.2-S5.3-notificaciones-canal.md: CA7-CA10 con Vitest (retroceso, 401/403, online, jobs de S5.1); prueba en la aplicación en ejecución (API apagada y vuelta a levantar: reconexión sola y aviso sin recargar)"
+      ],
       "notes": "Traspasada de DG a FD el 2026-11-10.",
       "owner_session": "FD (agente)"
     },
