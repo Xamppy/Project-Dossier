@@ -254,13 +254,13 @@ def _resolve_sec_cik(participantes: str) -> tuple[str | None, str | None, str]:
     if um:
         q = um.group(1).strip()
         if len(q) >= 2:
-            hits = find_sec_matches(q, limit=8)
+            hits = find_sec_matches(q, limit=8, estricto=True)
             if hits:
                 h0 = hits[0]
                 return h0["cik"], h0.get("ticker"), f"CIK por primera coincidencia SEC para «{q}»"
 
     if len(text) >= 2:
-        hits = find_sec_matches(text[:80], limit=5)
+        hits = find_sec_matches(text[:80], limit=5, estricto=True)
         if hits:
             h0 = hits[0]
             return h0["cik"], h0.get("ticker"), "CIK por heurística sobre primeros caracteres del brief"

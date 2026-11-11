@@ -35,7 +35,21 @@ def _normalize_sec_compare(s: str) -> str:
     return " ".join(re.sub(r"[^\w\s]", " ", (s or "").lower()).split())
 
 
-def _sec_search_candidates(query: str) -> list[str]:
+# Formas jurídicas: no identifican a la empresa («SAS» aparece dentro de «Kansas»).
+_FORMAS_JURIDICAS = {
+    "inc", "corp", "ltd", "llc", "plc", "sa", "ag", "sas", "sasu", "sarl", "eurl", "sca", "gmbh", "kg",
+    "ohg", "ug", "spa", "srl", "sl", "slu", "ltda", "bv", "nv", "ab", "oy", "aps", "as", "kft", "sae",
+}
+# Una palabra suelta del nombre solo sirve si es lo bastante específica.
+_LARGO_MINIMO_PALABRA = 4
+
+
+def _contiene_palabras(titulo_norm: str, consulta_norm: str) -> bool:
+    """``consulta_norm`` aparece en el título como palabras completas, no como trozo de otra."""
+    return bool(consulta_norm) and f" {consulta_norm} " in f" {titulo_norm} "
+
+
+def _sec_search_candidates(query: str, *, estricto: bool = False) -> list[str]:
     """Variantes del texto para resolver ticker/CIK (asuntos de calendario, briefs libres)."""
     q = (query or "").strip()
     if not q:
@@ -66,16 +80,25 @@ def _sec_search_candidates(query: str) -> list[str]:
         "reunión", "reunion", "meeting", "call", "demo", "comercial", "con", "de", "the", "inc",
         "corp", "ltd", "llc", "plc", "sa", "ag",
     }
-    for word in re.findall(r"\w{3,}", q):
+    largo = 3
+    if estricto:
+        stop |= _FORMAS_JURIDICAS
+        largo = _LARGO_MINIMO_PALABRA
+    for word in re.findall(rf"\w{{{largo},}}", q):
         if word.lower() not in stop:
             add(word)
     return out
 
 
-def find_sec_matches(query: str, limit: int = 30) -> list[dict[str, Any]]:
-    """Coincidencias en el listado de tickers SEC (nombre o ticker)."""
+def find_sec_matches(query: str, limit: int = 30, *, estricto: bool = False) -> list[dict[str, Any]]:
+    """Coincidencias en el listado de tickers SEC (nombre o ticker).
+
+    Sin ``estricto`` (buscador de Empresas: el usuario elige de la lista) basta un trozo del nombre.
+    Con ``estricto`` (resolución automática, nadie elige) el nombre tiene que aparecer como palabras
+    completas y las formas jurídicas sueltas no cuentan: «SAS» no puede elegir «Kansas City».
+    """
     companies = list(_load_sec_company_rows())
-    for cand in _sec_search_candidates(query):
+    for cand in _sec_search_candidates(query, estricto=estricto):
         q = cand.strip().lower()
         if len(q) < 2:
             continue
@@ -83,18 +106,31 @@ def find_sec_matches(query: str, limit: int = 30) -> list[dict[str, Any]]:
             if str(c["ticker"]).lower() == q:
                 return [_normalize_sec_row(c)]
         qnorm = _normalize_sec_compare(cand)
+        if estricto and qnorm in _FORMAS_JURIDICAS:
+            continue
         for c in companies:
             title_norm = _normalize_sec_compare(str(c.get("title", "")))
-            if qnorm == title_norm or qnorm in title_norm or title_norm.startswith(qnorm):
+            if estricto:
+                coincide = _contiene_palabras(title_norm, qnorm)
+            else:
+                coincide = qnorm == title_norm or qnorm in title_norm or title_norm.startswith(qnorm)
+            if coincide:
                 return [_normalize_sec_row(c)]
         for c in companies:
             if str(c["title"]).lower() == q:
                 return [_normalize_sec_row(c)]
-        hits = [
-            _normalize_sec_row(c)
-            for c in companies
-            if q in str(c["title"]).lower() or q in str(c["ticker"]).lower()
-        ]
+        if estricto:
+            hits = [
+                _normalize_sec_row(c)
+                for c in companies
+                if _contiene_palabras(_normalize_sec_compare(str(c["title"])), qnorm)
+            ]
+        else:
+            hits = [
+                _normalize_sec_row(c)
+                for c in companies
+                if q in str(c["title"]).lower() or q in str(c["ticker"]).lower()
+            ]
         if hits:
             return hits[:limit]
     return []
