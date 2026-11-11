@@ -1820,7 +1820,7 @@
       "id": "S7.3",
       "sprint": 7,
       "title": "Verificar descuento de creditos y aislamiento en el flujo completo",
-      "status": "pending",
+      "status": "claimed",
       "owner": "FD",
       "area": "quality",
       "activity": "A9",
@@ -1834,9 +1834,10 @@
         "S7.4"
       ],
       "trello": "https://trello.com/c/gxi7THee",
-      "branch": null,
+      "branch": "feat/S7.3-creditos-aislamiento",
       "evidence": [],
-      "notes": ""
+      "notes": "",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S7.4",
