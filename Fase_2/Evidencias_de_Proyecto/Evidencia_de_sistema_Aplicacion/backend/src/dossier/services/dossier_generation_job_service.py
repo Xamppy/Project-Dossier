@@ -1,14 +1,18 @@
 """Servicio de jobs de generación asíncrona de dossiers."""
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
+import os
+import threading
 import time
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import Engine, func, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from dossier.billing.credit_policy import (
@@ -21,7 +25,12 @@ from dossier.billing.credit_policy import (
 from dossier.billing.entitlements import assert_depth_allowed, plan_allows_calendar_corporate_dossier
 from dossier.db.models import DossierGenerationJob, Organization, User
 from dossier.org_dossier_context import format_dossier_context_for_prompt
-from dossier.schemas.dossier_generation import DEPTH_CREDITS, DossierDepth
+from dossier.schemas.dossier_generation import (
+    DEPTH_CREDITS,
+    CreateCorporateDossierRequest,
+    DossierDepth,
+    build_corporate_generation_strings,
+)
 from dossier.schemas.person_research import PersonResearchRequest
 from dossier.services.audit_log import AuditEvent, dossier_ids_from_result, record
 from dossier.services.calendar_event_dossiers import (
@@ -38,15 +47,17 @@ from dossier.services.dossier_job_progress import (
     split_result_payload,
 )
 from dossier.services.dossier_progress_events import event_name_for_status, publish_if_changed
-from dossier.services.dossier_progress_model import person_scope
+from dossier.services.dossier_progress_model import corporate_scope, person_scope
 from dossier.services.email_service import email_delivery_available
 from dossier.services.google_calendar_api import obtener_reunion_google_por_id
 from dossier.services.google_calendar_token import get_google_calendar_access_token_for_user
 from dossier.services.graph_calendar import merge_reunion_payload, obtener_reunion_por_id
 from dossier.services.microsoft_calendar_token import get_microsoft_graph_access_token_for_user
+from dossier.services.news_sources import creditos_extra_maximos, fuentes_aplicables
 from dossier.services.output_language import effective_output_language
 from dossier.services.person_dossier_dedup import person_research_fingerprint
 from dossier.services.person_research_pipeline import run_person_research_and_persist
+from dossier.services.plan_limits import assert_can_start_dossiers
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +97,8 @@ def estimate_reunion_credits(
     *,
     depth: DossierDepth = "standard",
     plan: str | None = None,
+    extra_empresa: int = 0,
+    extra_persona: int = 0,
 ) -> int:
     parsed = parse_calendar_event_for_dossiers(reunion)
     has_corporate = bool(parsed.get("company_corporate") or parsed.get("participantes"))
@@ -99,6 +112,8 @@ def estimate_reunion_credits(
         has_corporate=has_corporate,
         person_count=person_count,
         depth=depth,
+        extra_empresa=extra_empresa,
+        extra_persona=extra_persona,
     )
 
 
@@ -154,12 +169,16 @@ def enqueue_person_research_job(
     existing = find_active_person_job(db, user_id=user.id, dedup_key=dedup_key)
     if existing:
         return existing
+    # UX-ADMIN-01: tope de dossiers a la vez según el plan (bloquea la fila del usuario).
+    assert_can_start_dossiers(db, user=user, org=org)
 
     label = body.full_name.strip()[:512] or "Persona"
     charge = credit_charging_enabled()
     is_refinement = body.replace_dossier_id is not None
-    credits = 0 if is_refinement else person_research_credit_cost()
     db.refresh(org)
+    # UX-ADMIN-02: lo máximo que puede costar, con el extra de las fuentes de prensa.
+    prensa = fuentes_aplicables(db, tipo="person", profundidad="basic", plan=org.plan, cobrar=charge)
+    credits = 0 if is_refinement else person_research_credit_cost() + creditos_extra_maximos(prensa)
     if not is_refinement:
         assert_sufficient_credits(org, credits, charge=charge)
 
@@ -174,6 +193,64 @@ def enqueue_person_research_job(
         reunion_snapshot={"person_request": body.model_dump(mode="json")},
         depth_level="basic",
         meeting_label=label,
+        credits_estimated=credits,
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return job
+
+
+def enqueue_corporate_manual_job(
+    db: Session,
+    *,
+    user: User,
+    org: Organization,
+    body: CreateCorporateDossierRequest,
+) -> DossierGenerationJob:
+    """Encola un dossier de empresa (informe beta: avance real en vez de una petición larga).
+
+    Un pedido igual a uno activo del mismo usuario devuelve ese trabajo. Cuenta para el tope de
+    dossiers a la vez del plan (UX-ADMIN-01) y exige créditos como la ruta síncrona.
+    """
+    pedido = body.model_dump(mode="json", exclude={"async_mode"})
+    huella = hashlib.sha256(
+        json.dumps({"org": str(org.id), "pedido": pedido}, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    dedup_key = f"corporate:{huella}"
+    existente = db.scalars(
+        select(DossierGenerationJob)
+        .where(
+            DossierGenerationJob.requested_by_user_id == user.id,
+            DossierGenerationJob.external_event_id == dedup_key,
+            DossierGenerationJob.job_type == "corporate_manual",
+            DossierGenerationJob.status.in_(_ACTIVE_STATUSES),
+        )
+        .limit(1)
+    ).first()
+    if existente:
+        return existente
+    assert_can_start_dossiers(db, user=user, org=org)
+
+    charge = credit_charging_enabled()
+    db.refresh(org)
+    # UX-ADMIN-02: lo máximo que puede costar, con el extra de las fuentes de prensa.
+    prensa = fuentes_aplicables(db, tipo="corporate", profundidad=body.depth, plan=org.plan, cobrar=charge)
+    credits = DEPTH_CREDITS[body.depth] + creditos_extra_maximos(prensa) if charge else 0
+    assert_sufficient_credits(org, credits, charge=charge)
+    _participantes, etiqueta = build_corporate_generation_strings(body)
+
+    job = DossierGenerationJob(
+        id=uuid.uuid4(),
+        organization_id=org.id,
+        requested_by_user_id=user.id,
+        status="queued",
+        job_type="corporate_manual",
+        calendar_provider=None,
+        external_event_id=dedup_key,
+        reunion_snapshot={"corporate_request": pedido},
+        depth_level=body.depth,
+        meeting_label=(etiqueta or body.subject_query)[:512],
         credits_estimated=credits,
     )
     db.add(job)
@@ -222,10 +299,23 @@ def enqueue_calendar_dossier_job(
         existing = find_active_job_for_event(db, user_id=user.id, external_event_id=event_id)
         if existing:
             return existing
+    # UX-ADMIN-01: tope de dossiers a la vez según el plan (bloquea la fila del usuario).
+    assert_can_start_dossiers(db, user=user, org=org)
 
     charge = credit_charging_enabled()
-    credits = estimate_reunion_credits(reunion, depth=depth, plan=org.plan)
     db.refresh(org)
+    # UX-ADMIN-02: con el extra máximo de la prensa de la empresa y de cada asistente.
+    credits = estimate_reunion_credits(
+        reunion,
+        depth=depth,
+        plan=org.plan,
+        extra_empresa=creditos_extra_maximos(
+            fuentes_aplicables(db, tipo="corporate", profundidad=depth, plan=org.plan, cobrar=charge)
+        ),
+        extra_persona=creditos_extra_maximos(
+            fuentes_aplicables(db, tipo="person", profundidad="basic", plan=org.plan, cobrar=charge)
+        ),
+    )
     assert_depth_allowed(org, depth)
     assert_sufficient_credits(org, credits, charge=charge)
 
@@ -289,6 +379,11 @@ def _credits_consumed_from_saved(
 ) -> int:
     if not charge:
         return 0
+    # UX-ADMIN-02: cada dossier guardado informa lo que cobró (incluido el extra de prensa).
+    refs = [saved.get("corporate"), *(saved.get("persons") or [saved.get("person")])]
+    refs = [r for r in refs if isinstance(r, dict)]
+    if refs and all("credits_consumed" in r for r in refs):
+        return sum(int(r.get("credits_consumed") or 0) for r in refs)
     r = result or {}
     total = 0
     corp = saved.get("corporate")
@@ -367,6 +462,53 @@ def _final_payload(result: dict[str, Any] | None, job: DossierGenerationJob) -> 
     return merge_result_payload(result if result is not None else previo, job.result_payload, job.status)
 
 
+def _intervalo_latido() -> float:
+    try:
+        return max(0.2, float((os.getenv("DOSSIER_JOB_HEARTBEAT_SECONDS") or "").strip() or 30))
+    except ValueError:
+        return 30.0
+
+
+class _Latido:
+    """Actualiza ``heartbeat_at`` en otro hilo mientras el trabajo se genera.
+
+    Con su propia conexión: la sesión del worker está ocupada con la generación. Si la sesión no
+    está ligada a un ``Engine`` (pruebas con una conexión compartida), no hace nada.
+    """
+
+    def __init__(self, db: Session, job_id: UUID) -> None:
+        bind = db.get_bind()
+        self._engine = bind if isinstance(bind, Engine) else None
+        self._job_id = job_id
+        self._stop = threading.Event()
+        self._hilo: threading.Thread | None = None
+
+    def __enter__(self) -> _Latido:
+        if self._engine is not None:
+            self._hilo = threading.Thread(target=self._correr, name=f"latido-{self._job_id}", daemon=True)
+            self._hilo.start()
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self._stop.set()
+        if self._hilo is not None:
+            self._hilo.join(timeout=5)
+
+    def _correr(self) -> None:
+        assert self._engine is not None
+        intervalo = _intervalo_latido()
+        while not self._stop.wait(intervalo):
+            try:
+                with self._engine.begin() as conn:
+                    conn.execute(
+                        update(DossierGenerationJob)
+                        .where(DossierGenerationJob.id == self._job_id, DossierGenerationJob.status == "running")
+                        .values(heartbeat_at=func.now())
+                    )
+            except Exception:  # un latido perdido no corta la generación
+                logger.warning("No se pudo registrar el latido del job %s", self._job_id, exc_info=True)
+
+
 def process_dossier_generation_job(db: Session, job_id: UUID) -> None:
     job = db.get(DossierGenerationJob, job_id)
     if job is None or job.status not in ("queued", "running"):
@@ -376,19 +518,24 @@ def process_dossier_generation_job(db: Session, job_id: UUID) -> None:
         now = datetime.now(UTC)
         job.status = "running"
         job.started_at = now
+        job.heartbeat_at = now
         db.commit()
         _publicar_estado(job)
 
     try:
-        if job.job_type == "person_manual":
-            _process_person_manual_job(db, job)
-        else:
-            _process_calendar_manual_job(db, job)
+        with _Latido(db, job_id):
+            if job.job_type == "person_manual":
+                _process_person_manual_job(db, job)
+            elif job.job_type == "corporate_manual":
+                _process_corporate_manual_job(db, job)
+            else:
+                _process_calendar_manual_job(db, job)
     except Exception as exc:
         logger.exception("Job dossier %s falló", job_id)
         db.rollback()
         job = db.get(DossierGenerationJob, job_id, with_for_update=True, populate_existing=True)
-        if job is not None and job.status != "cancelled":
+        # Cancelado por el usuario o recuperado como colgado: no se pisa su estado.
+        if job is not None and job.status == "running":
             job.status = "failed"
             job.error_message = str(exc)[:2000]
             job.completed_at = datetime.now(UTC)
@@ -457,9 +604,10 @@ def _process_person_manual_job(db: Session, job: DossierGenerationJob) -> None:
         raise
 
     db.refresh(job, with_for_update=True)
-    if job.status == "cancelled":
+    if job.status != "running":
+        # Cancelado por el usuario, o marcado como colgado por la recuperación.
         db.rollback()
-        logger.info("Job persona %s cancelado; no se actualiza el resultado", job.id)
+        logger.info("Job persona %s ya está %s; no se actualiza el resultado", job.id, job.status)
         return
 
     saved = result.get("saved_dossier")
@@ -485,6 +633,49 @@ def _process_person_manual_job(db: Session, job: DossierGenerationJob) -> None:
         enviar_dossier_al_solicitante(db, result=result, user=user)
 
 
+def _process_corporate_manual_job(db: Session, job: DossierGenerationJob) -> None:
+    """Dossier de empresa desde la cola: mismo grafo y guardado que la ruta síncrona."""
+    # Import diferido: la ruta importa este módulo (encolar) y aquí se reutiliza su lógica.
+    from dossier.api.dossier_routes import generar_dossier_corporativo
+
+    org = db.get(Organization, job.organization_id)
+    user = db.get(User, job.requested_by_user_id)
+    if org is None or user is None:
+        raise RuntimeError("Organización o usuario del job no encontrados.")
+    raw = (job.reunion_snapshot or {}).get("corporate_request")
+    if not isinstance(raw, dict):
+        raise RuntimeError("Snapshot corporativo inválido en el job.")
+    body = CreateCorporateDossierRequest.model_validate(raw)
+
+    progress = _job_progress(db, job.id)
+    progress.declare([corporate_scope("corporate:0", job.meeting_label or body.subject_query)])
+
+    def sigue_en_curso() -> bool:
+        db.refresh(job)
+        return job.status == "running"
+
+    result = generar_dossier_corporativo(
+        db, user=user, org=org, body=body, progress=progress.scope("corporate:0"), antes_de_guardar=sigue_en_curso
+    )
+    if result is None:
+        logger.info("Job empresa %s ya no está en curso; no se guardó el dossier", job.id)
+        return
+
+    db.refresh(job, with_for_update=True)
+    if job.status != "running":
+        db.rollback()
+        return
+    fallido = result.get("status") == "failed"
+    job.status = "failed" if fallido else "completed"
+    job.error_message = "Error en síntesis o en el pipeline." if fallido else None
+    job.completed_at = datetime.now(UTC)
+    job.credits_consumed = int(result.get("credits_consumed") or 0)
+    job.result_payload = _final_payload(result, job)
+    db.commit()
+    _publicar_estado(job)
+    logger.info("Job empresa %s %s", job.id, job.status)
+
+
 def enviar_dossier_al_solicitante(db: Session, *, result: dict[str, Any], user: User) -> None:
     """Envía el dossier de Personas recién generado, con su PDF, a quien lo pidió (S6.1).
 
@@ -494,6 +685,9 @@ def enviar_dossier_al_solicitante(db: Session, *, result: dict[str, Any], user: 
     if saved.get("status") != "complete" or not saved.get("id"):
         return
     if not (user.email or "").strip() or not email_delivery_available():
+        return
+    # Informe beta: el usuario puede apagar el correo automático (el botón manual sigue).
+    if not getattr(user, "notify_email", True):
         return
     deliver_dossier_after_generation(db, dossier_id=saved["id"], recipient=user.email)
 
@@ -531,12 +725,14 @@ def _process_calendar_manual_job(db: Session, job: DossierGenerationJob) -> None
         depth=depth,
         output_language=out_lang,
         progress=progress,
+        fuentes_prensa_empresa=fuentes_aplicables(db, tipo="corporate", profundidad=depth, plan=org.plan),
+        fuentes_prensa_persona=fuentes_aplicables(db, tipo="person", profundidad="basic", plan=org.plan),
     )
     elapsed_ms = int((time.perf_counter() - t0) * 1000)
 
     db.refresh(job)
-    if job.status == "cancelled":
-        logger.info("Job calendario %s cancelado; se omite persistencia", job.id)
+    if job.status != "running":
+        logger.info("Job calendario %s ya está %s; se omite persistencia", job.id, job.status)
         return
 
     item = persist_calendar_dossiers(
@@ -553,6 +749,10 @@ def _process_calendar_manual_job(db: Session, job: DossierGenerationJob) -> None
     )
 
     db.refresh(job, with_for_update=True)  # trae el progreso al día y bloquea el cierre
+    if job.status != "running":
+        db.rollback()
+        logger.info("Job calendario %s ya está %s; no se actualiza el resultado", job.id, job.status)
+        return
     saved = item.get("saved_dossiers") or {}
     job.credits_consumed = _credits_consumed_from_saved(
         saved, depth=depth, charge=charge, result=item
@@ -591,6 +791,7 @@ def claim_next_queued_job(db: Session) -> DossierGenerationJob | None:
     now = datetime.now(UTC)
     job.status = "running"
     job.started_at = now
+    job.heartbeat_at = now
     db.commit()
     db.refresh(job)
     _publicar_estado(job)

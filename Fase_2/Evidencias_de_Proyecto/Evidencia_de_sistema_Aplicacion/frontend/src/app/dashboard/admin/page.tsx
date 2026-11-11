@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { NewsSourcesPanel } from "@/components/admin/NewsSourcesPanel";
+import { PlanLimitsPanel } from "@/components/admin/PlanLimitsPanel";
 import TopBar from "@/components/dashboard/TopBar";
 import {
   DossierApiError,
@@ -45,7 +47,7 @@ function workspaceOrgLabel(
   return n && n !== "" ? n : "—";
 }
 
-type SectionKey = "users" | "orgs" | "dossiers";
+type SectionKey = "plans" | "news" | "users" | "orgs" | "dossiers";
 
 function AdminAccordionPanel({
   title,
@@ -114,6 +116,8 @@ export default function AdminDashboardPage() {
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [openSection, setOpenSection] = useState<Record<SectionKey, boolean>>({
+    plans: false,
+    news: false,
     users: false,
     orgs: false,
     dossiers: false,
@@ -264,6 +268,26 @@ export default function AdminDashboardPage() {
       ) : null}
 
       <div className="flex flex-col gap-3">
+        {/* UX-ADMIN-01: ajustes por plan. El panel carga sus datos al abrirse. */}
+        <AdminAccordionPanel
+          title={t("admin.section_plan_limits")}
+          summary={t("admin.plan_limits.summary")}
+          open={openSection.plans}
+          onToggle={() => toggleSection("plans")}
+        >
+          <PlanLimitsPanel />
+        </AdminAccordionPanel>
+
+        {/* UX-ADMIN-02: fuentes de noticias (uso, planes, costo y límite diario). */}
+        <AdminAccordionPanel
+          title={t("admin.section_news_sources")}
+          summary={t("admin.news.summary")}
+          open={openSection.news}
+          onToggle={() => toggleSection("news")}
+        >
+          <NewsSourcesPanel />
+        </AdminAccordionPanel>
+
         <AdminAccordionPanel
           title={t("admin.section_users")}
           summary={usersSummary}

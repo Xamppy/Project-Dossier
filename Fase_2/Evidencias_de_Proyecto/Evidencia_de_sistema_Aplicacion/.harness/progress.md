@@ -6,6 +6,512 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-11 · Correcciones vistas al rehacer las capturas del informe final 2.6 · FD (agente)
+
+**Hecho.** Rama `fix/detalles-informe-final`. Tres defectos:
+- La fecha de las menciones de prensa salía en bruto («20261103T193800Z», formato de GDELT) en el
+  informe y en el módulo Prensa de un dossier de persona. Ahora el agente de prensa la guarda en
+  ISO 8601 (`news/agent._fecha_iso`), el informe la muestra como «2026-11-03» y el frontend entiende
+  también la fecha compacta de los dossiers ya guardados (`ModuleCard.formatDay`).
+- El PDF de un dossier de empresa decía «Dossier de persona». Ahora dice «Dossier de empresa» en los
+  seis idiomas (`dossier_pdf`, según `dossier_data.pipeline`).
+- La resolución automática en la SEC aceptaba trozos de palabra: «Lumière Logistique Démo SAS» se
+  resolvía como Canadian Pacific Kansas City («SAS» dentro de «Kansas»), el dossier de calendario
+  quedaba «solo EE. UU.» y se saltaba Europa. `find_sec_matches(..., estricto=True)` exige palabras
+  completas y descarta formas jurídicas; lo usan el calendario y el agente de EE. UU. El buscador de
+  Empresas sigue aceptando parte del nombre.
+
+**Pruebas.** `tests/test_corporate_company_search.py` (nuevo), `test_executive_markdown.py` y
+`test_dossier_pdf.py`, `test_news_agent.py` y `DossierModules.test.tsx`; primero en rojo.
+
+**Rama.** `fix/detalles-informe-final` · **Estado.** review
+
+### 2026-11-11 · UX-ADMIN-03 · Créditos al mes de cada plan, configurables · FD (agente)
+
+**Hecho.** Rama `feat/creditos-por-plan`. Columna «Créditos al mes» en Administración → Límites
+por plan (`plan_settings.monthly_credits`, Alembic `f1c3e5a7b9d2`). Se aplican al registrarse
+(Free) y al cambiar de plan; `GET /billing/plans` alimenta las tarjetas de Configuración. También en
+la rama: GDELT reintenta una vez ante 429 y el avance muestra el motivo real (`provider_rate_limit`).
+
+**Lo que hay que saber.**
+- El saldo de las organizaciones existentes no cambia al tocar la configuración: no hay
+  renovación mensual (pendiente).
+- En Enterprise lo configurado es el saldo inicial; el tope mensual sigue en 1.000.000, que el
+  frontend muestra como «ilimitado».
+- `ORG_SIGNUP_CREDITS` del `.env` sigue mandando en el registro si está definida.
+- Demo: Gemini 3.8 Flash dejó de responder (colgaba la generación); la demo usa
+  `gemini-flash-lite-latest`. El PostgreSQL de la demo se cayó por un error de Windows
+  (`0xC0000142`) y se levantó con `pg_ctl`.
+
+**Rama.** `feat/creditos-por-plan` · **Estado.** review
+
+### 2026-11-11 · UX-ADMIN-02 · Fuentes de noticias enchufables y administrables · FD (agente)
+
+**Hecho.** Rama `feat/fuentes-noticias-enchufables`. Pedido del cliente: dejar listo el camino para
+conectar las APIs de noticias que Alloxentric quiera y controlarlas desde el panel.
+- **Adaptadores** en `news/proveedores/` (GDELT y NewsAPI migrados; plantilla `_plantilla.py`).
+  El registro los descubre solo y omite los inválidos sin romper el arranque.
+- **Panel «Fuentes de noticias»:** activa, empresas/personas, profundidad mínima, planes,
+  créditos extra (0–20), máximo de noticias y límite diario. Auditado. Claves solo en el entorno.
+- **Créditos extra** solo por fuentes que respondieron; el trigger de cobro los suma
+  (`dossier_data.news_extra_credits`, Alembic `d4f6a8c2e0b3`). Estimación máxima al encolar.
+- **Prensa en personas** (Personas y Calendario): etapa `person.press_search`, nombre exacto más
+  empresa (sin forma jurídica), filtro de homónimos, menciones a la IA como datos externos y
+  tarjeta «Prensa».
+- Guía: `docs/tecnica/agregar-fuente-noticias.md`.
+
+**Lo que hay que saber.**
+- Las fuentes se resuelven **con la sesión de quien llama** (`fuentes_aplicables(db, …)`), nunca
+  con una conexión global: con el motor global las pruebas podían escribir en la base del `.env`.
+- Sin `NEWS_API_KEY`, NewsAPI ya **no** figura como caída: no se consulta.
+- La lectura de ajustes va en un SAVEPOINT: si la tabla falta, se usan los valores por defecto
+  sin arrastrar la transacción del pedido.
+- El cupo diario se anota antes de consultar y cuenta aunque la fuente falle después (la API ya
+  lo descontó de su cuota).
+
+**Rama.** `feat/fuentes-noticias-enchufables` · **Estado.** review
+
+### 2026-11-11 · Informe de pruebas beta (2026-10-06) · Mejoras · FD (agente)
+
+**Hecho.** Rama `fix/mejoras-informe-beta`. Defectos del informe beta que seguían vigentes:
+- La acción rápida «Libreta de direcciones» abre esa sección (`?section=`).
+- El tiempo estimado de Empresas pasa a 45–60 s (antes decía ~15 s y tardaba hasta 1 min).
+- Personas muestra los créditos disponibles; «País / región» aparece como opcional.
+- **Preferencias de notificación persistentes:** `users.notify_email` y `users.notify_browser`
+  (Alembic `a2c4e6f8b0d1`). Sin correo no se envía el PDF automático; con navegador hay aviso del
+  sistema operativo. Riesgo y resumen semanal quedan «Próximamente».
+- **Empresas por la cola de trabajos**, con avance real por agente (`async_mode`, trabajo
+  `corporate_manual`). Probado en vivo con los proveedores reales: el avance llega agente por agente
+  y, sin saldo en DeepSeek, queda un dossier parcial sin cobro.
+
+La libreta de direcciones y la importación de contactos **no se tocaron**, por decisión de FD.
+
+**Lo que hay que saber.**
+- `generar_dossier_corporativo` (en `api/dossier_routes.py`) la comparten la ruta síncrona y el
+  worker. El worker la importa de forma diferida porque la ruta importa el servicio de trabajos.
+- La prueba en vivo mostró que el **registro europeo falló** (`provider_error`) con «Tesco PLC»;
+  queda por revisar si las API de Francia o Alemania están caídas o cambiaron.
+- `jobsRef` del `DossierJobsProvider` ya no existe; `connectionsRef` se actualiza en un efecto
+  (regla `react-hooks/refs`).
+
+**Rama.** `fix/mejoras-informe-beta` · **Estado.** review
+
+### 2026-11-11 · S7.6 · Documentación técnica · FD (agente)
+
+**Hecho.** Rama `feat/S7.6-documentacion-tecnica` (sale de la de S7.2). Documento de entrada en
+`docs/tecnica/README.md`: arquitectura, requisitos, instalación, despliegue, referencia de variables
+de entorno, operación, pruebas, registro de decisiones y problemas conocidos. Remite a las guías
+existentes (local, VPS, correo, OAuth). Se corrigió la cuenta de tablas en `local-setup.md` y en
+`despliegue-vps.md` (25 tablas y 2 vistas, verificado en una base vacía) y se enlazó desde el README.
+
+**Lo que hay que saber.**
+- **La lista de variables salió del código** (`os.getenv`, `limit_from_env` y los nombres en
+  variables). Al agregar una variable nueva hay que sumarla a `docs/tecnica/README.md` §5 y a
+  `backend/.env.example`.
+- **Hallazgo:** `PATCH /organization/plan` deja que el administrador de una organización la pase a
+  Enterprise sin pago (no hay pasarela). Quedó como problema conocido en §9; no se cambió.
+- El criterio del plan («un tercero instala y opera siguiendo solo el documento») requiere que otra
+  persona lo pruebe: queda para la revisión.
+
+**Rama.** `feat/S7.6-documentacion-tecnica` · **Estado.** review
+
+### 2026-11-11 · S7.2 · Tolerancia a fallos por agente · FD (agente)
+
+**Hecho.** Rama `feat/S7.2-tolerancia-fallos`. Pruebas de punta a punta con cada agente cayendo
+por separado (`tests/integration/test_s7_2_tolerancia_fallos.py`). **Cuatro defectos
+corregidos:** sin síntesis se perdía el dossier de empresa (ahora informe `partial`, sin cobro); un
+informe parcial se habría cacheado; con PDL caído el error se guardaba como dossier completo y se
+cobraba; el detalle técnico de las excepciones llegaba al prompt, a los avisos y al navegador.
+Frontend: estado «Parcial» y mensajes en siete idiomas. Reporte en
+`specs/reports/S7.2-tolerancia-fallos.md`.
+
+**Lo que hay que saber.**
+- **Nunca interpolar una excepción (`{e}`) en texto que vea el usuario o la IA:** el detalle va al
+  log con `logger.exception`/`exc_info`. Las pruebas usan una «clave» falsa para detectarlo.
+- `RuntimeError` en el pipeline de personas se usa como mensaje para el usuario y se reenvía tal
+  cual. Para simular un fallo real de red o del proveedor, usar `ConnectionError`.
+- `es_informe_cacheable` decide qué se cachea en los dos caminos corporativos (Calendario y
+  Empresas): nada con «# Error» ni sin síntesis.
+- El estado `partial` ya existía en el CHECK de `dossiers`; ahora se usa y el frontend lo muestra.
+
+**Rama.** `feat/S7.2-tolerancia-fallos` · **Estado.** review
+
+### 2026-11-11 · S7.3 · Créditos y aislamiento en el flujo completo · FD (agente)
+
+**Hecho.** Rama `feat/S7.3-creditos-aislamiento`. Diez casos de punta a punta (API, worker real,
+pipelines reales y trigger de cobro) en `tests/integration/test_s7_3_creditos_aislamiento.py` y
+`tests/stress/test_s7_3_creditos_estres.py`. **Sin defectos.** Reporte en
+`specs/reports/S7.3-creditos-aislamiento.md`.
+
+**Lo que hay que saber.**
+- En una reunión, un asistente sin datos genera un dossier **fallido con 0 créditos** y sin
+  movimiento en `credit_ledger`. Es correcto: una prueba que espere un movimiento por dossier falla.
+- Para procesar muchos trabajos en una prueba, se crean por ORM: por la API choca con el tope de
+  dossiers a la vez (UX-ADMIN-01, Pro = 3).
+- El fixture `mundo` (dos organizaciones y todos los dobles de proveedores) sirve para S7.2.
+
+**Rama.** `feat/S7.3-creditos-aislamiento` · **Estado.** review
+
+### 2026-11-11 · BUG-2026-11-11-01 · Trabajos de generación colgados tras una caída · FD (agente)
+
+**Hecho.** Rama `fix/trabajos-colgados`, desde `docmac`. Columna `dossier_generation_jobs.heartbeat_at`
+(Alembic `e1b5c9d3a7f2`). Mientras genera, un hilo actualiza el latido cada 30 s
+(`_Latido` en `dossier_generation_job_service.py`). `services/dossier_job_recovery.py` marca
+como `failed` los trabajos `running` sin latido en 180 s, con un mensaje claro. El worker lo
+revisa al arrancar y cada 60 s. El cierre del trabajo ya no pisa un estado que no sea `running`.
+El mensaje se traduce en siete idiomas.
+
+**Lo que hay que saber.**
+- **Créditos:** no hay nada que devolver; el débito ocurre al insertar el dossier y un trabajo
+  cortado no llegó a insertarlo. Caso límite: si el servidor cae justo entre guardar el dossier y
+  cerrar el trabajo, el dossier existe pero el trabajo queda como fallido.
+- **Los trabajos `queued` no se tocan:** con el worker vivo se toman en segundos y una cola larga
+  es legítima.
+- **`translateDossierStatusMessage`** ahora traduce primero los estados conocidos. Antes, si la
+  traducción al español coincidía con el texto del servidor, mostraba el mensaje genérico.
+- Variables: `DOSSIER_JOB_STALE_SECONDS` (180, mínimo 60), `DOSSIER_JOB_HEARTBEAT_SECONDS` (30),
+  `DOSSIER_JOB_RECOVERY_SECONDS` (60, mínimo 10).
+- **Las pruebas de migración bajan a una revisión fija**, no a «-1». Al agregar esta migración,
+  la prueba de UX-ADMIN-01 con «-1» quitaba la columna nueva y fallaba.
+- La prueba de estrés de S5.2 dependía de la velocidad de la máquina y falló una vez con la suite
+  completa. Se corrigió (cada stream vive 2 s). Suite completa: 1775 en verde, 2 omitidas.
+
+**Rama.** `fix/trabajos-colgados` · **Estado.** review
+
+### 2026-11-11 · S7.7 · Manual de usuario del dashboard · FD (agente)
+
+**Hecho.** Rama `feat/S7.7-manual-usuario`, desde `docmac`. Traspasada de DG. No había un manual
+previo en el repositorio: se escribió desde cero en `docs/manual-usuario/README.md`, con 14
+secciones y 17 capturas en `docs/manual-usuario/img/`: acceso, pantalla principal, calendario,
+generación, Mis Dossiers, lectura por secciones, compartir y correo, notificaciones,
+configuración, roles, administración, planes y mensajes frecuentes.
+
+**Lo que hay que saber.**
+- **Se adelantó al congelamiento (S7.0, pendiente).** Hay que revisarlo cuando se congelen
+  las funcionalidades.
+- **Capturas con Chrome sin ventana**, controlado por su protocolo de depuración desde Python
+  (`websockets`), con un perfil propio, contra `next dev` y la API local con `dossier_demo`. El
+  panel del navegador no sirve si está oculto (sale en blanco).
+- Para capturar páginas largas sin que se corra la barra lateral, se agranda la ventana virtual
+  al alto de la página (`Emulation.setDeviceMetricsOverride`). La captura con
+  `captureBeyondViewport` reacomoda el diseño. El indicador de desarrollo de Next.js se oculta
+  con CSS.
+- Los datos de las capturas son **ficticios** (Jane Doe, Acme Europe SA, registro 900123456).
+  Para las capturas, el usuario de prueba se pasó temporalmente a Pro y a admin de plataforma, y
+  después se revirtió.
+
+**Rama.** `feat/S7.7-manual-usuario` · **Estado.** review
+
+### 2026-11-11 · UX-ADMIN-01 · Dossiers a la vez por usuario según el plan · FD (agente)
+
+**Hecho.** Rama `feat/UX-ADMIN-01-limites-por-plan`, desde `docmac`. Ampliación pedida por FD.
+Tabla `plan_settings` (Alembic `c7e2a9d4f1b6`, Free 1 · Pro 3 · Enterprise 10);
+`services/plan_limits.py` bloquea la fila del usuario y cuenta sus trabajos manuales activos de
+los últimos 30 min al encolar Personas o Calendario (409 `CONCURRENT_DOSSIER_LIMIT`).
+`GET`/`PATCH /admin/plan-settings` para admin de plataforma, con auditoría. Sección
+«Límites por plan» en `/dashboard/admin` (`components/admin/PlanLimitsPanel.tsx`).
+Reporte en `specs/reports/UX-ADMIN-01-limites-por-plan.md`.
+
+**Lo que hay que saber.**
+- **No hay recuperación de trabajos `running` colgados** tras una caída. La ventana
+  `DOSSIER_CONCURRENCY_WINDOW_MINUTES` (30) evita que bloqueen al usuario. Recuperarlos al
+  arrancar queda pendiente.
+- El tope usa **409**, no 429: `translateApiError` convierte todo 429 en «espera N segundos».
+- Calendario con varias reuniones: se comprueba el total antes de encolar (todo o nada) y cada
+  encolado vuelve a comprobar con la fila bloqueada.
+- Para dar admin de plataforma sigue haciendo falta SQL (`users.is_platform_admin`).
+- Los catálogos de idiomas se editaron a nivel de bytes (finales de línea mixtos; ver S5.5).
+
+**Rama.** `feat/UX-ADMIN-01-limites-por-plan` · **Estado.** review
+
+### 2026-11-11 · S5.5, S3.5, S3.6 y S3.7 · El dossier por módulos · FD (agente)
+
+**Hecho.** Rama `feat/S5.5-dossier-por-modulos`, desde `docmac`. Traspasadas de DG. Diseño
+aprobado por FD: secciones por módulo con «Ver informe en texto» y backend aditivo.
+Backend: el grafo corporativo guarda los registros europeos en `dossier_data.modulos`
+(sin `datos_brutos`); `GET /dossiers/{id}` añade `modules` (`services/dossier_modules.py`).
+Frontend: `components/dossier/modules/` (`DossierContent`, `DossierModules`,
+`CorporateRecordsSection`, `PressSection`) y `lib/dossier-modules.ts`; 49 claves
+`dossier_modules.*` en seis catálogos. Reporte en `specs/reports/S5.5-dossier-por-modulos.md`.
+
+**Lo que hay que saber.**
+- **Los catálogos `i18n/messages/*.ts` tienen finales de línea mixtos.** Reescribirlos con un
+  script hace que git vea el archivo entero como cambiado; hay que conservar sus bytes.
+- **Fixtures compartidos en `src/test/`**: importar un `*.test.ts` desde otra prueba duplica sus casos.
+- La caché de Redis del dossier corporativo guarda solo el Markdown: un dossier servido desde la
+  caché no trae `modulos` (sin registros europeos estructurados hasta la próxima generación).
+- `modules.press_mentions` sale del contrato o de `dossier_media_mentions` (más reciente
+  primero, tope 50). Las URL que no son `http(s)` se anulan en el backend y otra vez en el frontend.
+
+**Rama.** `feat/S5.5-dossier-por-modulos` · **Estado.** review
+
+### 2026-11-10 · S5.2 y S5.3 · Notificaciones por el canal en vivo y reconexión · FD (agente)
+
+**Hecho.** Rama `feat/S5.2-S5.3-notificaciones-canal`, desde `docmac`. Traspasadas de DG.
+Backend: `GET /dossier-notifications/stream` (`api/dossier_notifications_routes.py` +
+`services/dossier_notifications_stream.py`), con la visibilidad de `GET /dossiers`. Frontend:
+`NotificationsProvider` sin `setInterval` ni consulta al foco, sobre
+`lib/dossier-notifications-stream.ts`; `lib/reconnect-backoff.ts` (1, 2, 4… hasta 30 s) en el canal
+de notificaciones y en el de jobs. Reporte en `specs/reports/S5.2-S5.3-notificaciones-canal.md`,
+con prueba en la aplicación en ejecución (aviso en 2 s; reconexión tras apagar la API).
+
+**Lo que hay que saber.**
+- **El `TestClient` no transmite en vivo**: devuelve el cuerpo completo al final. Los cambios que
+  deben llegar por un stream se hacen desde otro hilo mientras el servidor genera.
+- **El canal de S4.8 es síncrono** y ocupa un hilo del pool (40) por stream durante hasta 10 min.
+  El nuevo es asíncrono (`run_in_threadpool` solo para cada lectura). Migrar el de S4.8 es deuda.
+- Variables nuevas: `DOSSIER_NOTIFICATIONS_CHECK_SECONDS` (5, mínimo 1) y
+  `DOSSIER_NOTIFICATIONS_MAX_SECONDS` (600).
+- El servidor sigue leyendo la base cada 5 s por stream, pero solo una huella liviana (id, estado y
+  carpeta de 25 filas) y comprueba la membresía. La lista completa se arma solo si cambia.
+
+**Rama.** `feat/S5.2-S5.3-notificaciones-canal` · **Estado.** review
+
+### 2026-11-10 · BUG-2026-10-19-09 · La hora de la reunión salía en UTC · FD (agente)
+
+**Hecho.** Rama `fix/BUG-2026-10-19-09-hora-utc`, desde `docmac`. Traspasada de DG.
+`lib/format.formatCalendarMeetingInstant` usaba `prefs.timezone || "UTC"`; ahora usa
+`getEffectiveTimezone(timezone, timezoneFollowSystem)`. Prueba en `src/lib/format.test.ts`.
+
+**Lo que hay que saber.**
+- **Causa:** las preferencias por omisión traen `timezone: "UTC"` con `timezoneFollowSystem: true`.
+  Cualquier formato de fecha debe pasar por `getEffectiveTimezone` (o usar `effectiveTimezone` del
+  `PreferencesProvider`), nunca `preferences.timezone` a secas.
+- El mismo arreglo corrige la campana de notificaciones y la etiqueta de los dossiers del
+  calendario, que usan la misma función.
+- Para probar zonas en Vitest: `vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions")`.
+
+**Rama.** `fix/BUG-2026-10-19-09-hora-utc` · **Estado.** review
+
+### 2026-11-10 · S7.5 · Deuda técnica final contra la línea base · FD (agente)
+
+**Hecho.** Rama `feat/S7.5-deuda-tecnica-final`, desde `docmac`. Evidencias y comparación en
+`docs/evidencias/fase2/deuda-final/README.md` (8 mediciones con `.txt` y `.png`).
+
+Línea base S0.3 → final: pruebas del backend 130 (4 en rojo) → 1.618 en verde; cobertura 33 % →
+72 %; ruff 192 → 0; mypy ~45 → 0; npm audit 3 críticas → 0; pip-audit 0 → 0; eslint 21 errores
+→ 0. Frontend: 653 pruebas, 41 % de cobertura de líneas.
+
+**Lo que hay que saber.**
+- **La CI sin Postgres omite 315 pruebas** (sin `TEST_DATABASE_URL`: 1.303 en verde, 317
+  omitidas). Es la deuda más concreta que queda (CHORE-2026-10-19-04).
+- `docs/evidencias/fase2/_herramientas/ev.py` no acepta `--ok-codes` aunque su docstring lo
+  mencione; el código de salida queda igual en el `.txt`.
+- Los módulos con menos cobertura son integraciones externas y flujos de cuenta
+  (`calendar_integrations` 12 %, `corporate_registry_context` 14 %).
+- En la prueba de punta a punta del 10-11 la cuenta de DeepSeek de `backend/.env` respondió 402
+  (sin saldo).
+
+**Rama.** `feat/S7.5-deuda-tecnica-final` · **Estado.** review
+
+### 2026-11-10 · S6.2 · Enlace de un solo uso en el correo · FD (agente)
+
+**Hecho.** Rama `feat/S6.2-enlace-un-solo-uso`, desde `docmac`. Traspasada de DG. Diseño aprobado
+por FD: solo ese dossier, en solo lectura, sin iniciar sesión; se gasta al pulsar «Ver dossier»;
+vence en 24 h. Spec en `specs/proposals/S6.2-enlace-un-solo-uso.md`.
+
+- Tabla `dossier_access_links` (Alembic `b4e8f2a6c0d3`, `schema_patches.ACCESS_LINK_PATCHES`):
+  solo el SHA-256 del token; cae con el dossier y entra en la verificación de S6.5.
+- `services/dossier_access_links.py` y `POST /dossier-access` (`api/dossier_access_routes.py`):
+  canje atómico, 410 sin pistas, límite `ACCESS_LINK_RATE_LIMIT` y auditoría `ACCESS dossier_link`.
+- Los tres correos (botón, Personas y reunión) y los reintentos de S6.4 crean el enlace al armarse.
+- Frontend: página pública `app/acceso/page.tsx` (token en el fragmento) y textos en 7 catálogos.
+
+Verificación en `specs/reports/S6.2-enlace-un-solo-uso.md`.
+
+**Sin terminar.** No se revisó la página en la app en ejecución ni en un cliente de correo real.
+S6.8 (pruebas de seguridad en la CI) ya no espera a S6.2, pero sí a que vuelva la CI.
+
+**Lo que hay que saber.**
+- **El token nunca va en una ruta ni en una query:** fragmento en el frontend (`/acceso#t=…`) y
+  cuerpo del `POST` en la API. Así no queda en logs de acceso.
+- `url_de_acceso_o_nada` crea el enlace en un savepoint: si falla, el correo usa el dashboard.
+- En los reintentos de S6.4, `_enviar` va dentro de `db.begin_nested()`: si el envío falla, los
+  enlaces creados se descartan.
+- `audit_logs.ip_address` es INET: valida la IP antes de guardarla o el registro falla en silencio.
+- Frontend: para leer algo de `window` sin desajuste de hidratación, `useSyncExternalStore`
+  (el linter rechaza `setState` dentro de `useEffect`).
+
+**Siguiente paso concreto.** Revisión y fusión a `docmac`. Probar el flujo en la app real: correo
+→ `/acceso` → «Ver dossier».
+
+**Rama.** `feat/S6.2-enlace-un-solo-uso` · **Estado.** review
+
+### 2026-11-10 · BUG-2026-10-19-10 · El saneador HTML borraba un `<correo>` · FD (agente)
+
+**Hecho.** Rama `fix/BUG-2026-10-19-10-correo-en-descripcion`, desde `docmac`. Traspasada de FO.
+`utils/html_text.strip_html_to_text` escapa los correos entre ángulos antes de quitar etiquetas, y
+`html.unescape` les devuelve los ángulos. Prueba en `tests/test_html_text.py`.
+
+**Lo que hay que saber.**
+- Se conservan los ángulos a propósito: el lector de participantes del calendario usa el formato
+  «Nombre <correo>» (`_split_name_and_email`, BUG-2026-10-19-05).
+- El patrón excluye comillas e `=`: `<img alt="x@y.z">` sigue siendo una etiqueta y se quita.
+- El resultado es texto plano: donde se muestra como HTML (correos, frontend) se escapa.
+
+**Rama.** `fix/BUG-2026-10-19-10-correo-en-descripcion` · **Estado.** review
+
+### 2026-11-10 · BUG-2026-10-19-08 · Saldo repetido en `credit_ledger` · FD (agente)
+
+**Hecho.** Rama `fix/BUG-2026-10-19-08-saldo-creditos`, desde `docmac`. Traspasada de FO.
+Migración `a9d3e5f7b1c4`: el descuento de créditos pasa del trigger BEFORE al AFTER, que descuenta
+con `UPDATE … RETURNING` y anota ese saldo. Prueba en
+`tests/integration/test_bug_08_saldo_creditos.py` (antes: `[4, 4]` y `[11, 11, 11]`).
+
+**Lo que hay que saber.**
+- **Causa:** Postgres corre los triggers AFTER de fila al final de la sentencia. Lo que el AFTER lee
+  de otra tabla ya tiene el efecto de todas las filas.
+- El AFTER vuelve a comprobar el saldo (`AND credits_balance >= …`): con varias filas en una
+  sentencia, el BEFORE ve el saldo de antes de todas y no basta.
+- El despliegue corre `alembic upgrade head` (`docker-entrypoint.sh`): la corrección llega sola.
+
+**Rama.** `fix/BUG-2026-10-19-08-saldo-creditos` · **Estado.** review
+
+### 2026-11-10 · S6.4 · Reintento y registro de fallos de envío · FD (agente)
+
+**Hecho.** En la rama `feat/S6.4-reintento-correo`, desde `docmac`. Traspasada de DG. Decisión de
+FD: 3 intentos seguidos (2 s y 5 s) y después uno cada 10 minutos, hasta 1 hora. Spec en
+`specs/proposals/S6.4-reintento-correo.md`.
+
+- `email_service`: `EmailDeliveryError.transitorio` y `error_transitorio` (sin conexión y 4xx sí;
+  5xx y credenciales no).
+- `services/dossier_email_retry.py`: `enviar_con_reintentos`, la cola `dossier_email_retries`
+  (migración `f3a7c1e9b5d2`) y el worker `dossier-email-retry-worker` (cada 60 s, de a una fila con
+  `FOR UPDATE SKIP LOCKED`).
+- `dossier_email._entregar`: los envíos automáticos de Personas y de reunión pasan por aquí.
+- El botón de envío manual sigue intentando una vez.
+
+Verificación en `specs/reports/S6.4-reintento-correo.md`.
+
+**Sin terminar.** El worker no se probó corriendo en un hilo con su intervalo real.
+
+**Lo que hay que saber.**
+- **Tabla nueva:** `dossier_email_retries` (Alembic `f3a7c1e9b5d2`, DDL en
+  `schema_patches.EMAIL_RETRY_PATCHES`, documentada al final de `db/Migracion.md`). Al desplegar,
+  la app la crea sola al arrancar.
+- **Variables nuevas:** `DOSSIER_EMAIL_RETRY_WORKER_ENABLED` (1) y
+  `DOSSIER_EMAIL_RETRY_POLL_SECONDS` (60). `conftest.py` apaga el worker en las pruebas.
+- `smtplib.SMTPRecipientsRefused` no trae `smtp_code`: los códigos van por destinatario.
+- En pruebas, `dossier_email_retry._dormir` se reemplaza para no esperar 7 s por cada fallo.
+- Para simular un servidor caído, un puerto cerrado (en Windows tarda ~2 s en rechazar).
+
+**Siguiente paso concreto.** Revisión y fusión a `docmac`. Quedan del backend: BUG-08, BUG-10,
+S6.2 y las pruebas de cierre (S7.2, S7.3, S7.5).
+
+**Rama.** `feat/S6.4-reintento-correo` · **Estado.** review
+
+### 2026-11-10 · S6.3 · Envío automático de los dossiers de una reunión · FD (agente)
+
+**Hecho.** En la rama `feat/S6.3-calendario-correo`, desde `docmac` (depende de S6.5 y S6.6).
+Traspasada de DG. Decisiones de FD: un solo correo por reunión, y la retención de los dossiers de
+una reunión cuenta desde su inicio. Spec en `specs/proposals/S6.3-calendario-correo.md`.
+
+- `dossier_email.build_meeting_email` y `deliver_meeting_dossiers`: un correo con el PDF de cada
+  dossier completo, en 6 idiomas, solo al dueño del calendario; marca los dossiers y audita cada
+  envío (`EMAIL dossier_auto`, `origen = calendario`).
+- `calendar_automation._enviar_dossiers_de_la_reunion`: tras generar, si `auto_send_email` y hay
+  SMTP. Un fallo de correo no cambia el evento.
+- Retención: vence 24 h después de lo más tardío entre la creación y `calendar_events.starts_at`.
+- Frontend: Configuración explica la regla; `createTranslator` ahora reemplaza todas las
+  apariciones de un parámetro.
+
+Verificación en `specs/reports/S6.3-calendario-correo.md`.
+
+**Sin terminar.** No se probó con un calendario real ni con la IA real. `auto_send_email` no tiene
+interruptor en la interfaz.
+
+**Lo que hay que saber.**
+- **Probar la automatización sin IA:** `tests/integration/test_calendario_correo_integracion.py`
+  (fixture `generacion_simulada`) reemplaza `_reunion_for_processing`,
+  `calendar_event_passes_filters`, `generate_dossiers_from_calendar_event` y
+  `persist_calendar_dossiers` en el módulo `calendar_automation`. Sirve para cualquier prueba
+  futura del ciclo completo.
+- **`createTranslator` usaba `String.replace`:** un texto con el mismo parámetro dos veces dejaba
+  el segundo sin llenar. Corregido con `split/join`.
+- Los dossiers `calendar_manual` no guardan `calendar_event_id`; ni se envían solos ni cuentan la
+  retención desde la reunión.
+
+**Siguiente paso concreto.** Revisión y fusión a `docmac`. S7.1 (aceptación de punta a punta) ya no
+espera a S6.3. Después: S6.4 (reintento de correos).
+
+**Rama.** `feat/S6.3-calendario-correo` · **Estado.** review
+
+### 2026-11-10 · S6.6 · Auditoría de envíos por correo y borrados por retención · FD (agente)
+
+**Hecho.** En la rama `feat/S6.6-auditoria-correo-borrado`, creada desde `docmac` porque depende
+de S6.5. Spec previa (`specs/proposals/S6.6-auditoria-correo-borrado.md`) y TDD.
+
+- Envíos: `EMAIL dossier_manual` (ruta `POST /dossiers/{dossier_id}/email`) y `EMAIL dossier_auto`
+  (`deliver_dossier_after_generation`), exitosos y fallidos, sin la dirección del destinatario.
+  La ruta de envío entra además en `AUDITED_ROUTES` del middleware.
+- Retención: `RETENTION dossier_deleted` (uno por dossier, en la transacción del borrado),
+  `RETENTION jobs_deleted` y `RETENTION verification` (`success` = verificado).
+- `docs/security/README.md` con la tabla de acciones y consultas SQL de ejemplo.
+- Ya no queda ninguna prueba de seguridad omitida.
+
+Verificación en `specs/reports/S6.6-auditoria-correo-borrado.md`.
+
+**Sin terminar.** S6.1 (correo, DG) sigue en `review` aunque está en `main`: S6.6 se tomó igual
+porque el código del que depende ya existe. La CI sigue sin correr.
+
+**Lo que hay que saber.**
+- **Envío y auditoría:** un fallo de auditoría no cambia el envío (`auditar_envio` nunca lanza).
+  En la retención es al revés: sin registro no hay borrado.
+- **Nunca el destinatario en `audit_logs`.** `evento_envio` guarda la clase del error, no su
+  texto: el servidor SMTP repite la dirección en sus respuestas (por ejemplo, un 550).
+- Tras un `rollback`, el dossier de la sesión queda expirado: `evento_envio` lo vuelve a leer, así
+  que debe existir todavía. En una prueba, guarda los ids antes de borrar (si no,
+  `ObjectDeletedError`).
+- `tests/stress/test_ejemplo_estres.py` aún omite los esqueletos de S2.4 y S5.8, que ya están
+  cerrados con sus pruebas propias: conviene retirarlos.
+
+**Siguiente paso concreto.** Revisión y fusión a `docmac`. Después, S6.3 (envío automático desde el
+calendario), que ya puede auditar con `evento_envio`.
+
+**Rama.** `feat/S6.6-auditoria-correo-borrado` · **Estado.** review
+
+### 2026-11-10 · S6.5 · Retención de 24 horas con borrado verificado · FD (agente)
+
+**Hecho.** En la rama `feat/S6.5-retencion-24h`, con TDD y spec previa
+(`specs/proposals/S6.5-retencion-24h.md`). Decisión de FD: **24 h fijas para todos**.
+
+- `services/dossier_retention.py`: plazo único `DOSSIER_RETENTION_HOURS` (24 por omisión).
+- `services/dossier_retention_worker.py`: borra todo dossier creado antes del corte y los jobs de
+  generación terminados; después del `commit` verifica que no queden filas ni claves de Redis y
+  devuelve `ResultadoRetencion`. Revisa cada 600 s.
+- Caché: el TTL de Redis nunca supera la retención.
+- API: `GET /auth/me` expone `dossier_retention_hours`; las preferencias ignoran
+  `dossier_retention_days`.
+- Frontend: Configuración → General muestra el plazo en lugar del selector, en los 7 catálogos.
+- Las dos pruebas de seguridad que esperaban S6.5 ya corren; queda omitida solo la de S6.6.
+
+Verificación en `specs/reports/S6.5-retencion-24h.md`.
+
+**Sin terminar.** No se revisó la pantalla de Configuración en la app en ejecución. La CI sigue
+sin correr (cuenta bloqueada por facturación). La rama se fusiona a `docmac`, no a `main`: FD
+decide cuándo pasa a `main`.
+
+**Lo que hay que saber.**
+- **`backend/.env` rompe 7 pruebas de créditos.** Trae `DOSSIER_CHARGE_CREDITS=false` para demos.
+  Corre la suite completa sin ese archivo (por ejemplo, en un worktree limpio): así pasa, igual
+  que en la CI.
+- **Varios procesos, un candado.** Cada proceso arranca su worker; el borrado toma
+  `pg_try_advisory_xact_lock(6005240)`. Sin él, dos workers contaban dos veces los mismos dossiers.
+- **El trigger `fn_debit_credits_on_dossier` cobra al insertar.** Para sembrar muchos dossiers en
+  pruebas, usa `dossier_data = {"billing": "none"}` o se acaban los créditos de la organización.
+- **Dos pruebas que usan `pg_vacia` sobre la misma base se pisan**: el fixture borra el esquema.
+  No corras dos suites a la vez contra el mismo `TEST_DATABASE_URL`.
+- `users.dossier_retention_days` quedó sin uso, sin migración. Retirarla es limpieza pendiente.
+- Si el despliegue fija `DOSSIER_RETENTION_POLL_SECONDS=3600` (el ejemplo anterior), el borrado
+  puede atrasarse hasta una hora; conviene dejarlo en 600 o quitarlo.
+- S6.3 (calendario) debe generar dentro de la ventana de 24 h, o el dossier se borra antes de la
+  reunión.
+
+**Siguiente paso concreto.** Revisión de un segundo integrante y fusión a `docmac`. Después,
+S6.6 (auditoría de correos y borrados), que ya puede usar `ResultadoRetencion`.
+
+**Rama.** `feat/S6.5-retencion-24h` · **Estado.** review
+
 ### 2026-11-09 · S2.4–S2.7, S3.3 y S3.4 · Cierre de Europa y prensa · FO (agente)
 
 **Hecho.** Las seis tareas pendientes de FO, en la rama `feat/FO-cierre-europa-prensa`, con TDD:

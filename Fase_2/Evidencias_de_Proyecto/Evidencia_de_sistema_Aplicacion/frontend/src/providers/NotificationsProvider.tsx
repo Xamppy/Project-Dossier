@@ -10,17 +10,25 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { AUTH_ME_CHANGED_EVENT } from "@/hooks/useAuthMe";
 import {
   fetchDossiersFromApi,
   getStoredAccessToken,
   isDossierFolderEntry,
   type DossierListEntry,
 } from "@/lib/dossier-api";
+import {
+  openDossierNotificationsStream,
+  type DossierNotificationsStreamSubscription,
+} from "@/lib/dossier-notifications-stream";
+import { showDossierNotification } from "@/lib/browser-notifications";
+import { reconnectDelay } from "@/lib/reconnect-backoff";
 
 const STORAGE_KEY = "dossier_notifications_v1";
 const BASELINE_KEY = "dossier_notifications_baseline_v1";
-const POLL_MS = 15000;
 const MAX_NOTIFICATIONS = 40;
+// Mismo tamaño que el evento del canal (`LIMITE_LISTA` en el backend).
+const LIST_LIMIT = 25;
 
 export type DossierNotification = {
   id: string;
@@ -120,6 +128,21 @@ function entryToNotification(entry: DossierListEntry): DossierNotification | nul
   };
 }
 
+/** Igualdad por campos: el canal entrega objetos nuevos aunque nada haya cambiado. */
+function sameNotification(a: DossierNotification, b: DossierNotification | undefined): boolean {
+  if (!b) return false;
+  return (
+    a.id === b.id &&
+    a.kind === b.kind &&
+    a.title === b.title &&
+    a.status === b.status &&
+    a.createdAt === b.createdAt &&
+    a.href === b.href &&
+    a.origin === b.origin &&
+    a.read === b.read
+  );
+}
+
 function maxCreatedAt(list: DossierNotification[]): string {
   return list.reduce((max, n) => (n.createdAt > max ? n.createdAt : max), "1970-01-01T00:00:00Z");
 }
@@ -127,17 +150,11 @@ function maxCreatedAt(list: DossierNotification[]): string {
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<DossierNotification[]>(() => loadStored());
   const baselineRef = useRef<string | null>(loadBaseline());
+  // Ids ya avisados: un mismo dossier no dispara dos avisos del navegador.
+  const avisadosRef = useRef<Set<string>>(new Set(notifications.map((n) => n.id)));
 
-  const poll = useCallback(async () => {
-    if (!getStoredAccessToken()) return;
-    let entries: DossierListEntry[];
-    try {
-      const res = await fetchDossiersFromApi(25);
-      entries = res.items ?? [];
-    } catch {
-      return;
-    }
-
+  // Aplica una lista de dossiers (del canal o de `refresh`) a las notificaciones.
+  const applyEntries = useCallback((entries: DossierListEntry[]) => {
     const fresh = entries
       .map(entryToNotification)
       .filter((n): n is DossierNotification => n !== null);
@@ -150,6 +167,13 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     }
 
     const baseline = baselineRef.current;
+    // Informe beta: aviso del sistema operativo por cada dossier nuevo (si está activado).
+    for (const n of fresh) {
+      if (n.createdAt > baseline && !avisadosRef.current.has(n.id)) {
+        avisadosRef.current.add(n.id);
+        showDossierNotification(n.title, n.status, n.href);
+      }
+    }
     setNotifications((prev) => {
       const freshById = new Map(fresh.map((n) => [n.id, n]));
       const known = new Set(prev.map((n) => n.id));
@@ -163,7 +187,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       const merged = [...toAdd, ...refreshed].slice(0, MAX_NOTIFICATIONS);
       if (
         toAdd.length === 0 &&
-        refreshed.every((n, idx) => n === prev[idx])
+        refreshed.every((n, idx) => sameNotification(n, prev[idx]))
       ) {
         return prev;
       }
@@ -172,16 +196,84 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // Lectura puntual a demanda. No hay sondeo: la lista llega por el canal (S5.2).
+  const refresh = useCallback(async () => {
+    if (!getStoredAccessToken()) return;
+    try {
+      const res = await fetchDossiersFromApi(LIST_LIMIT);
+      applyEntries(res.items ?? []);
+    } catch {
+      /* sin red o sin sesión: el canal se recupera solo */
+    }
+  }, [applyEntries]);
+
+  // Canal en vivo (S5.2) con reconexión y retroceso progresivo (S5.3).
   useEffect(() => {
-    void poll();
-    const timer = window.setInterval(() => void poll(), POLL_MS);
-    const onFocus = () => void poll();
-    window.addEventListener("focus", onFocus);
+    let disposed = false;
+    let stream: DossierNotificationsStreamSubscription | null = null;
+    let timer: number | null = null;
+    // Intentos fallidos seguidos; vuelve a 0 cuando llegan datos.
+    let attempt = 0;
+
+    function cancelTimer() {
+      if (timer !== null) window.clearTimeout(timer);
+      timer = null;
+    }
+
+    function connect() {
+      cancelTimer();
+      // Sin sesión no se abre: se reintenta cuando cambie (AUTH_ME_CHANGED_EVENT).
+      if (disposed || stream || !getStoredAccessToken()) return;
+      let current: DossierNotificationsStreamSubscription | null = null;
+      current = openDossierNotificationsStream({
+        onList: (list) => {
+          if (disposed || stream !== current) return;
+          attempt = 0;
+          applyEntries(list.items ?? []);
+        },
+        onError: (error) => {
+          if (disposed || stream !== current) return;
+          stream = null;
+          // Sesión vencida o sin acceso: reintentar no lo arregla.
+          if (error.kind === "unauthorized" || error.kind === "forbidden") return;
+          const delay = reconnectDelay(attempt);
+          attempt += 1;
+          timer = window.setTimeout(connect, delay);
+        },
+      });
+      stream = current;
+    }
+
+    function close() {
+      cancelTimer();
+      stream?.close();
+      stream = null;
+    }
+
+    // La red volvió: no se espera el retroceso pendiente.
+    function onOnline() {
+      if (stream) return;
+      attempt = 0;
+      connect();
+    }
+
+    // Otra sesión u organización: el canal anterior no sirve.
+    function onSessionChange() {
+      close();
+      attempt = 0;
+      connect();
+    }
+
+    connect();
+    window.addEventListener("online", onOnline);
+    window.addEventListener(AUTH_ME_CHANGED_EVENT, onSessionChange);
     return () => {
-      window.clearInterval(timer);
-      window.removeEventListener("focus", onFocus);
+      disposed = true;
+      close();
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener(AUTH_ME_CHANGED_EVENT, onSessionChange);
     };
-  }, [poll]);
+  }, [applyEntries]);
 
   const markAllRead = useCallback(() => {
     setNotifications((prev) => {
@@ -213,8 +305,15 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ notifications, unreadCount, markAllRead, markRead, clearAll, refresh: poll }),
-    [notifications, unreadCount, markAllRead, markRead, clearAll, poll],
+    () => ({
+      notifications,
+      unreadCount,
+      markAllRead,
+      markRead,
+      clearAll,
+      refresh: () => void refresh(),
+    }),
+    [notifications, unreadCount, markAllRead, markRead, clearAll, refresh],
   );
 
   return (

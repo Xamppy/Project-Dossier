@@ -3,12 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import CalendarMeetingLabel from "@/components/dossier/CalendarMeetingLabel";
 import DossierOutputLanguageBadge from "@/components/dossier/DossierOutputLanguageBadge";
 import DeleteDossierIconButton from "@/components/dossier/DeleteDossierIconButton";
+import { DossierContent } from "@/components/dossier/modules/DossierContent";
 import EmailDossierPanel from "@/components/dossier/EmailDossierPanel";
 import ShareDossierPanel from "@/components/dossier/ShareDossierPanel";
 import { useAuthMe } from "@/hooks/useAuthMe";
@@ -20,6 +19,7 @@ import {
   type PersonResearchApiResponse,
 } from "@/lib/dossier-api";
 import { buildPersonResearchHref } from "@/lib/person-research-from-dossier";
+import { readDossierView } from "@/lib/dossier-modules";
 import { stripHtmlToPlainLine } from "@/lib/strip-html";
 import { useDossierJobs } from "@/providers/DossierJobsProvider";
 import { useTranslation } from "@/providers/PreferencesProvider";
@@ -112,6 +112,7 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
   const meta = useMemo(() => parseDossierData(dossier.dossier_data), [dossier.dossier_data]);
+  const dossierView = useMemo(() => readDossierView(dossier), [dossier]);
   const isPersonPipeline = meta.pipeline === "person_research";
   const perms = dossier.permissions;
   const canMutate = perms?.can_mutate ?? true;
@@ -460,24 +461,22 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
       ) : null}
 
       <div className="flex flex-col gap-6">
-          <DashboardCard title={t("detail.api_report_title")}>
-            {reportBodyIsPresent(meta.body) ? (
-              <div
-                className="api-md max-w-none text-sm leading-relaxed"
-                style={{ color: "var(--text-primary)" }}
-              >
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{meta.body}</ReactMarkdown>
-              </div>
-            ) : statusMsg ? (
-              <p className="text-sm text-red-300/90" role="alert">
-                {statusMsg}
-              </p>
-            ) : (
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                {t("detail.api_no_body")}
-              </p>
-            )}
-          </DashboardCard>
+          {/* S5.5: secciones por módulo si hay contrato; si no, el Markdown de siempre. */}
+          <DossierContent
+            view={dossierView}
+            body={reportBodyIsPresent(meta.body) ? meta.body : ""}
+            fallback={
+              statusMsg ? (
+                <p className="text-sm text-red-300/90" role="alert">
+                  {statusMsg}
+                </p>
+              ) : (
+                <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                  {t("detail.api_no_body")}
+                </p>
+              )
+            }
+          />
 
           {alertsList.length > 0 && (
             <DashboardCard title={t("detail.alerts")}>

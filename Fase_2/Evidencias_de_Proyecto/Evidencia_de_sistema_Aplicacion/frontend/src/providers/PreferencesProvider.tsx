@@ -43,7 +43,6 @@ type PreferencesContextValue = {
   setTimezone: (timezone: string, followSystem?: boolean) => void;
   setDateFormat: (format: DateFormat) => void;
   setOutputLanguage: (lang: OutputLanguage) => void;
-  setDossierExpiry: (expiry: string) => void;
   updatePreferences: (patch: Partial<UserPreferences>) => void;
   /** Fusiona preferencias devueltas por ``GET /auth/me`` (una vez por sesión). */
   hydrateFromAuthUser: (me: AuthUser) => void;
@@ -131,14 +130,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     const serverLocale = normalizeAppLocale(me.locale);
     const serverOut = (me.dossier_output_language || "match").trim();
     const serverTimezone = (me.timezone || "UTC").trim();
-    const serverExpiry =
-      me.dossier_retention_days === null || me.dossier_retention_days === undefined
-        ? "never"
-        : String(me.dossier_retention_days);
-    const serverIsDefault =
-      serverLocale === "es" &&
-      serverOut === "match" &&
-      (serverExpiry === "30" || serverExpiry === "never");
+    const serverIsDefault = serverLocale === "es" && serverOut === "match";
 
     setPreferences((prev) => {
       const localLocale = normalizeAppLocale(prev.locale);
@@ -157,8 +149,6 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         locale: serverLocale,
         timezone: serverTimezone,
         dossier_output_language: serverOut,
-        dossier_retention_days:
-          serverExpiry === "never" ? null : Number(serverExpiry),
       });
       return next;
     });
@@ -191,7 +181,6 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     preferences.timezone,
     preferences.timezoneFollowSystem,
     preferences.outputLanguage,
-    preferences.dossierExpiry,
     ready,
   ]);
 
@@ -226,7 +215,6 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       setDateFormat: (dateFormat) => updatePreferences({ dateFormat }),
       setOutputLanguage: (outputLanguage) =>
         updatePreferences({ outputLanguage }),
-      setDossierExpiry: (dossierExpiry) => updatePreferences({ dossierExpiry }),
       updatePreferences,
       hydrateFromAuthUser,
     }),

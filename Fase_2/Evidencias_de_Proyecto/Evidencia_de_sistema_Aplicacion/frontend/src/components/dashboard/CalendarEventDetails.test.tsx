@@ -173,6 +173,20 @@ describe("CalendarEventDetails · generación (CA7)", () => {
     expect(screen.getByRole("button", { name: /generar dossier/i })).toBeEnabled();
   });
 
+  it("UX-ADMIN-01 · con el tope de dossiers a la vez lleno, explica el límite traducido", async () => {
+    const user = userEvent.setup();
+    enqueueCalendarJob.mockRejectedValue(
+      new DossierApiError(409, "CONCURRENT_DOSSIER_LIMIT", {
+        detail: { code: "CONCURRENT_DOSSIER_LIMIT", limit: 3, active: 3 },
+      }),
+    );
+    setup();
+    await user.click(screen.getByRole("button", { name: /generar dossier/i }));
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent(createTranslator("es")("errors.concurrent_dossier_limit", { limit: 3 }));
+    expect(alerta).not.toHaveTextContent("CONCURRENT_DOSSIER_LIMIT");
+  });
+
   it("muestra el resultado solo si corresponde a esta reunión", () => {
     state.jobs = [
       {

@@ -19,6 +19,14 @@ const EXACT_STATUS: Record<string, TranslationKey> = {
   "Error en síntesis o en el pipeline.": "backend.status_pipeline_error",
   "Error al generar el análisis de persona.": "backend.status_person_analysis_error",
   "Cancelado por el usuario": "backend.status_cancelled_by_user",
+  // S7.2: una fuente o la IA no respondieron (sin detalle técnico).
+  "Informe parcial: no se pudo redactar el análisis con IA; se muestran los datos reunidos de las fuentes.":
+    "backend.status_partial_report",
+  "No se pudieron consultar las fuentes de esta persona. Vuelve a intentarlo más tarde.":
+    "backend.status_person_sources_unavailable",
+  // Recuperación de trabajos colgados tras una caída del servidor.
+  "La generación se interrumpió porque el servidor se reinició. Vuelve a intentarlo.":
+    "backend.status_job_interrupted",
   "No se pudo generar el análisis de persona. Reintenta la generación o usa «Nueva búsqueda de persona» con más datos.":
     "backend.status_person_retry_hint",
 };
@@ -71,6 +79,9 @@ export function translateDossierStatusMessage(
 ): string | null {
   if (!raw?.trim()) return null;
   const msg = raw.trim();
+  // Un estado conocido se traduce siempre, aunque en español coincida con el texto del servidor.
+  const exact = EXACT_STATUS[msg];
+  if (exact) return t(exact);
   const translated = translateKnownStatus(msg, t);
   return finalizeBackendUserMessage(msg, translated, t, "status");
 }

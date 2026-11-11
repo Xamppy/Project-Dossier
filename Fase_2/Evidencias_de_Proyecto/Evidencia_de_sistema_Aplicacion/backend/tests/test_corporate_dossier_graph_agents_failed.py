@@ -38,7 +38,9 @@ def test_agente_uk_que_lanza_excepcion_queda_en_agents_failed(monkeypatch):
     assert out["agents_failed"] == ["agent_corporate_uk"]
     assert "agents_succeeded" not in out
     # El nodo sigue devolviendo un bloque Markdown legible: la síntesis puede usarlo igual.
-    assert "Error interno" in out["uk_corporate_context"]
+    # S7.2: sin el detalle técnico de la excepción (queda en el log).
+    assert "No se pudo consultar esta fuente" in out["uk_corporate_context"]
+    assert "Companies House no responde" not in out["uk_corporate_context"]
 
 
 def test_agente_uk_omitido_por_alcance_no_se_marca_ni_exitoso_ni_fallido(monkeypatch):
@@ -113,5 +115,41 @@ def test_sintesis_que_falla_no_bloquea_y_queda_en_agents_failed(monkeypatch):
     )
 
     assert out["agents_failed"] == ["synthesize_llm"]
+    # Ningún agente de datos respondió: no hay informe parcial que entregar.
     assert out["final_dossier_markdown"].startswith("# Error en síntesis")
-    assert "DeepSeek no disponible" in out["agent_errors"][0]
+    # S7.2: el texto de la excepción no sale del log.
+    assert out["agent_errors"] == ["synthesize_llm"]
+    assert "DeepSeek no disponible" not in out["final_dossier_markdown"]
+
+
+def test_sintesis_que_falla_con_datos_entrega_informe_parcial(monkeypatch):
+    """S7.2: con agentes que respondieron, el informe parcial reúne sus bloques."""
+    import dossier.llm.text_generate as llm
+
+    def _explota(user: str, system_instruction: str | None = None) -> str:
+        raise ConnectionError("DeepSeek no disponible")
+
+    monkeypatch.setattr(llm, "generate_text_with_llm", _explota)
+
+    out = _node_synthesize_llm(
+        {
+            "tema_reunion": "Reunión",
+            "participantes": "Acme",
+            "empresa_objetivo": "Acme",
+            "uk_corporate_context": "## UK\n\ndato UK",
+            "us_corporate_context": "## USA\n\ndato USA",
+            "news_context": "## Prensa\n\nno respondió",
+            "agents_succeeded": ["agent_corporate_uk", "agent_corporate_usa"],
+            "jurisdiction_scope": "dual",
+            "output_language": "en",
+            "agent_errors": [],
+        }
+    )
+
+    md = out["final_dossier_markdown"]
+    assert md.startswith("# Acme")
+    assert "Partial report" in md
+    assert "dato UK" in md and "dato USA" in md
+    assert "no respondió" not in md  # solo los agentes que respondieron
+    assert "DeepSeek no disponible" not in md
+    assert out["agents_failed"] == ["synthesize_llm"]

@@ -87,7 +87,7 @@ from dossier.services.account_service import (
     change_user_password,
     delete_user_account,
 )
-from dossier.services.dossier_retention import normalize_dossier_retention_days
+from dossier.services.dossier_retention import dossier_retention_hours
 from dossier.services.dossier_share_service import list_org_members
 from dossier.services.email_service import email_delivery_available
 from dossier.services.org_invite_service import (
@@ -104,6 +104,7 @@ from dossier.services.org_membership_service import (
     remove_org_member,
     update_org_member_role,
 )
+from dossier.services.plan_limits import monthly_credits
 
 router = APIRouter(prefix="/auth", tags=["Autenticación app"])
 
@@ -120,12 +121,13 @@ def _normalize_register_locale(raw: str | None) -> str:
     return loc
 
 
-def _signup_org_credits() -> tuple[int, int]:
+def _signup_org_credits(db: Session | None = None) -> tuple[int, int]:
     """
     Créditos iniciales de la organización al registrarse (`/auth/register`).
 
-    Variables opcionales en `.env`:
-    - `ORG_SIGNUP_CREDITS` — saldo inicial (≥ 0). Por defecto **10** (tier Free del informe).
+    Por defecto, los créditos al mes del plan Free que fija el admin de plataforma
+    (UX-ADMIN-03, ``plan_settings``). Variables opcionales en `.env`, que mandan si existen:
+    - `ORG_SIGNUP_CREDITS` — saldo inicial (≥ 0).
     - `ORG_SIGNUP_CREDITS_MONTHLY_LIMIT` — tope mensual; si no se define, igual al saldo.
     """
 
@@ -139,7 +141,7 @@ def _signup_org_credits() -> tuple[int, int]:
             return default
         return max(0, v)
 
-    balance = _parse("ORG_SIGNUP_CREDITS", 10)
+    balance = _parse("ORG_SIGNUP_CREDITS", monthly_credits(db, "free"))
     lim_raw = os.getenv("ORG_SIGNUP_CREDITS_MONTHLY_LIMIT")
     if lim_raw is not None and str(lim_raw).strip():
         limit = _parse("ORG_SIGNUP_CREDITS_MONTHLY_LIMIT", balance)
@@ -361,8 +363,10 @@ def build_user_public(
         locale=user.locale or "es",
         timezone=user.timezone or "UTC",
         dossier_output_language=getattr(user, "dossier_output_language", None) or "match",
-        dossier_retention_days=getattr(user, "dossier_retention_days", None),
+        dossier_retention_hours=dossier_retention_hours(),
         email_delivery_available=email_delivery_available(),
+        notify_email=bool(getattr(user, "notify_email", True)),
+        notify_browser=bool(getattr(user, "notify_browser", True)),
     )
 
 
@@ -596,7 +600,7 @@ def register_user(
         org_settings = {"workspace_kind": "work"}
         org_name = (body.company_name or "").strip()[:255]
 
-    credits_balance, credits_monthly_limit = _signup_org_credits()
+    credits_balance, credits_monthly_limit = _signup_org_credits(db)
     org = Organization(
         name=org_name,
         slug=slug,
@@ -995,14 +999,16 @@ def patch_user_preferences(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db_if_configured),
 ) -> UserPublic:
-    """Sincroniza idioma de interfaz, zona horaria e idioma de salida de dossiers."""
-    if (
-        body.locale is None
-        and body.timezone is None
-        and body.dossier_output_language is None
-        and "dossier_retention_days" not in body.model_fields_set
+    """Sincroniza idioma, zona horaria, idioma de salida y preferencias de notificación."""
+    if all(
+        v is None
+        for v in (body.locale, body.timezone, body.dossier_output_language, body.notify_email, body.notify_browser)
     ):
         raise HTTPException(status_code=400, detail="No hay campos para actualizar.")
+    if body.notify_email is not None:
+        user.notify_email = body.notify_email
+    if body.notify_browser is not None:
+        user.notify_browser = body.notify_browser
 
     if body.locale is not None:
         loc = body.locale.strip().lower().replace("_", "-")
@@ -1024,14 +1030,6 @@ def patch_user_preferences(
                 detail="dossier_output_language no soportado.",
             )
         user.dossier_output_language = pref
-
-    if "dossier_retention_days" in body.model_fields_set:
-        try:
-            user.dossier_retention_days = normalize_dossier_retention_days(
-                body.dossier_retention_days
-            )
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
 
     db.add(user)
     db.commit()
@@ -1204,7 +1202,7 @@ def patch_organization_plan(
             detail="Solo un administrador de la organización puede cambiar el plan.",
         )
     try:
-        apply_plan_to_organization(org, body.plan)
+        apply_plan_to_organization(org, body.plan, credits=monthly_credits(db, body.plan))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     db.add(org)

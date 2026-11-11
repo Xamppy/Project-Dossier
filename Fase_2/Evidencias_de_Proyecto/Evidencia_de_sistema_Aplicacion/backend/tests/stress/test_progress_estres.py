@@ -58,7 +58,7 @@ def test_con_mas_eventos_que_el_buffer_del_bus_el_snapshot_sigue_completo(progre
 
         assert len(bus.events_since(job.job_id, 0)) <= 200, "el buffer en memoria es acotado"
         guardado = progreso.guardado(job.job_id)
-        assert guardado["revision"] == 1 + 15 * 9 * 2
+        assert guardado["revision"] == 1 + 15 * len(m.PERSON_STAGES["pdl"]) * 2
         assert all(e["status"] == "completed" for s in guardado["scopes"] for e in s["stages"])
     finally:
         bus.forget(job.job_id)
@@ -204,6 +204,7 @@ def test_escrituras_concurrentes_en_postgres_no_pierden_cambios(job_en_postgres)
 
     with Session(almacen._factory().get_bind()) as db:
         final = db.get(DossierGenerationJob, job_id).result_payload["_progress"]
-    assert final["revision"] == 1 + 4 * 9
+    etapas = len(m.PERSON_STAGES["pdl"])
+    assert final["revision"] == 1 + 4 * etapas
     revisiones = sorted(e["revision"] for s in final["scopes"] for e in s["stages"])
-    assert revisiones == list(range(2, 2 + 4 * 9)), "ninguna revisión repetida ni perdida"
+    assert revisiones == list(range(2, 2 + 4 * etapas)), "ninguna revisión repetida ni perdida"

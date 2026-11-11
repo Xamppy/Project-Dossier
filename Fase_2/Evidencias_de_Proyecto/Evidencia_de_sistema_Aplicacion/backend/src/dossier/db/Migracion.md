@@ -1192,6 +1192,146 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS is_platform_admin BOOLEAN NOT NULL DE
 
 
 -- =============================================================================
+-- MIGRACIÓN INCREMENTAL: reintentos de correo (S6.4, Alembic f3a7c1e9b5d2)
+-- Envíos automáticos en espera: uno cada 10 minutos, hasta 1 hora. Sin la
+-- dirección del destinatario (se lee de users.email al reintentar).
+-- DDL completo en schema_patches.EMAIL_RETRY_PATCHES.
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS dossier_email_retries (
+    id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id     UUID            NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    user_id             UUID            NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind                VARCHAR(20)     NOT NULL CHECK (kind IN ('persona', 'reunion')),
+    dossier_ids         UUID[]          NOT NULL,
+    calendar_event_id   UUID            REFERENCES calendar_events(id) ON DELETE SET NULL,
+    meeting_title       VARCHAR(500),
+    language            VARCHAR(10),
+    attempts            INTEGER         NOT NULL DEFAULT 0,
+    next_attempt_at     TIMESTAMPTZ     NOT NULL,
+    last_error          VARCHAR(100),
+    created_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_dossier_email_retries_next ON dossier_email_retries (next_attempt_at);
+
+
+-- =============================================================================
+-- CORRECCIÓN: saldo por fila en credit_ledger (BUG-2026-10-19-08, Alembic a9d3e5f7b1c4)
+-- El descuento pasa de fn_debit_credits_on_dossier (BEFORE) a
+-- fn_credit_ledger_after_dossier_insert (AFTER), que descuenta con
+-- UPDATE ... RETURNING y anota ese saldo. Antes, con varios dossiers en un mismo
+-- INSERT, todas las filas anotaban el saldo final. Definiciones en la migración.
+-- =============================================================================
+
+
+-- =============================================================================
+-- MIGRACIÓN INCREMENTAL: enlaces de un solo uso (S6.2, Alembic b4e8f2a6c0d3)
+-- Leer un dossier desde el correo sin iniciar sesión. Solo el SHA-256 del
+-- token; caen con el dossier. DDL en schema_patches.ACCESS_LINK_PATCHES.
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS dossier_access_links (
+    id                  UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
+    token_hash          VARCHAR(64)     NOT NULL UNIQUE,
+    dossier_id          UUID            NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+    user_id             UUID            NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    organization_id     UUID            NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    expires_at          TIMESTAMPTZ     NOT NULL,
+    used_at             TIMESTAMPTZ,
+    created_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_dossier_access_links_dossier ON dossier_access_links (dossier_id);
+
+
+-- =============================================================================
+-- MIGRACIÓN INCREMENTAL: ajustes por plan (UX-ADMIN-01, Alembic c7e2a9d4f1b6)
+-- Máximo de dossiers generándose a la vez por usuario según el plan. Lo cambia
+-- el admin de plataforma en /dashboard/admin. DDL en
+-- schema_patches.PLAN_SETTINGS_PATCHES.
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS plan_settings (
+    plan                     VARCHAR(20)  PRIMARY KEY CHECK (plan IN ('free', 'pro', 'enterprise')),
+    max_concurrent_dossiers  INTEGER      NOT NULL CHECK (max_concurrent_dossiers BETWEEN 1 AND 100),
+    updated_at               TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_by_user_id       UUID         REFERENCES users(id) ON DELETE SET NULL
+);
+INSERT INTO plan_settings (plan, max_concurrent_dossiers)
+VALUES ('free', 1), ('pro', 3), ('enterprise', 10)
+ON CONFLICT (plan) DO NOTHING;
+
+
+-- =============================================================================
+-- MIGRACIÓN INCREMENTAL: latido de los trabajos de generación (Alembic e1b5c9d3a7f2)
+-- Mientras genera, el proceso actualiza heartbeat_at. Un barrido marca como
+-- failed los trabajos running sin latido reciente (caída del servidor).
+-- DDL en schema_patches.JOB_HEARTBEAT_PATCHES.
+-- =============================================================================
+
+ALTER TABLE dossier_generation_jobs ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMPTZ;
+
+
+-- =============================================================================
+-- MIGRACIÓN INCREMENTAL: preferencias de notificación (Alembic a2c4e6f8b0d1)
+-- notify_email apaga el envío automático del dossier por correo (el botón
+-- manual sigue); notify_browser activa el aviso del sistema operativo.
+-- DDL en schema_patches.USER_NOTIFY_PATCHES.
+-- =============================================================================
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_email BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_browser BOOLEAN NOT NULL DEFAULT true;
+
+
+-- =============================================================================
+-- MIGRACIÓN INCREMENTAL: fuentes de noticias administrables (Alembic d4f6a8c2e0b3)
+-- news_source_settings: ajustes del admin por fuente (sin fila = valores del
+-- adaptador). news_source_usage: consultas por día UTC, para el límite diario.
+-- fn_debit_credits_on_dossier suma dossier_data.news_extra_credits (entero de
+-- 1 a 4 cifras; otro valor se ignora). DDL en schema_patches.NEWS_SOURCE_PATCHES.
+-- Guía: docs/tecnica/agregar-fuente-noticias.md
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS news_source_settings (
+    provider_key VARCHAR(40) PRIMARY KEY CHECK (provider_key ~ '^[a-z][a-z0-9_]{1,39}$'),
+    enabled BOOLEAN NOT NULL,
+    use_for_corporate BOOLEAN NOT NULL DEFAULT true,
+    use_for_person BOOLEAN NOT NULL DEFAULT true,
+    min_depth VARCHAR(10) NOT NULL DEFAULT 'basic' CHECK (min_depth IN ('basic', 'standard', 'deep')),
+    plan_free BOOLEAN NOT NULL DEFAULT true,
+    plan_pro BOOLEAN NOT NULL DEFAULT true,
+    plan_enterprise BOOLEAN NOT NULL DEFAULT true,
+    extra_credits INTEGER NOT NULL DEFAULT 0 CHECK (extra_credits BETWEEN 0 AND 20),
+    max_results INTEGER NOT NULL DEFAULT 10 CHECK (max_results BETWEEN 1 AND 50),
+    daily_limit INTEGER CHECK (daily_limit IS NULL OR daily_limit BETWEEN 1 AND 100000),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    CHECK (plan_free OR plan_pro OR plan_enterprise)
+);
+
+CREATE TABLE IF NOT EXISTS news_source_usage (
+    provider_key VARCHAR(40) NOT NULL,
+    day DATE NOT NULL,
+    queries INTEGER NOT NULL CHECK (queries >= 0),
+    PRIMARY KEY (provider_key, day)
+);
+
+
+-- =============================================================================
+-- MIGRACIÓN INCREMENTAL: créditos al mes de cada plan (Alembic f1c3e5a7b9d2)
+-- Se entregan al registrarse (Free) y al cambiar de plan. Los cambia el admin de
+-- plataforma. DDL en schema_patches.PLAN_CREDITS_PATCHES.
+-- =============================================================================
+
+ALTER TABLE plan_settings ADD COLUMN IF NOT EXISTS monthly_credits INTEGER;
+UPDATE plan_settings
+SET monthly_credits = CASE plan WHEN 'free' THEN 10 WHEN 'pro' THEN 500 ELSE 50000 END
+WHERE monthly_credits IS NULL;
+ALTER TABLE plan_settings ALTER COLUMN monthly_credits SET NOT NULL;
+ALTER TABLE plan_settings ADD CONSTRAINT plan_settings_monthly_credits_rango
+    CHECK (monthly_credits BETWEEN 0 AND 1000000);
+
+
+-- =============================================================================
 -- FIN DEL SCHEMA
 -- Total de tablas: 16 principales + 2 vistas
 -- Extensiones: uuid-ossp, pgcrypto

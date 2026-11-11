@@ -206,26 +206,187 @@ def test_leer_un_dossier_deja_registro_de_auditoria():
     assert fila.created_at is not None
 
 
-@pytest.mark.skip(reason="Se habilita con S6.6")
-def test_enviar_y_borrar_dejan_registro_de_auditoria():
-    raise NotImplementedError
+def test_enviar_y_borrar_dejan_registro_de_auditoria(pg_vacia, alembic_cfg, servidor_smtp):
+    """S6.6 (CA4, CA6, CA10): el envío por correo y el borrado por retención quedan en
+    ``audit_logs``, firmados y sin la dirección del destinatario."""
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import select, text
+    from sqlalchemy.orm import Session
+
+    from alembic import command
+    from dossier.db.models import AuditLog
+    from dossier.services.audit_log import verify_log_hash
+    from dossier.services.dossier_email import deliver_dossier_after_generation
+    from dossier.services.dossier_retention_worker import purge_expired_dossiers
+
+    destino = "ana.perez@cliente-prueba.example"
+    command.upgrade(alembic_cfg, "head")
+    with pg_vacia.begin() as conn:
+        org, user = _org_y_usuario_s65(conn, None)
+        d = conn.execute(
+            text(
+                "INSERT INTO dossiers (organization_id, requested_by_user_id, status, dossier_data) "
+                "VALUES (:o, :u, 'complete', CAST(:j AS JSONB)) RETURNING id"
+            ),
+            {"o": org, "u": user, "j": '{"format": "markdown", "body": "# Informe", "billing": "none"}'},
+        ).scalar_one()
+
+    with Session(pg_vacia) as db:
+        assert deliver_dossier_after_generation(db, dossier_id=d, recipient=destino) is True
+    with pg_vacia.begin() as conn:
+        conn.execute(
+            text("UPDATE dossiers SET created_at = :c WHERE id = :d"),
+            {"c": datetime.now(UTC) - timedelta(hours=25), "d": d},
+        )
+    with Session(pg_vacia) as db:
+        assert purge_expired_dossiers(db).verificado is True
+
+    with Session(pg_vacia) as db:
+        filas = db.scalars(select(AuditLog)).all()
+    acciones = {f.action for f in filas}
+    assert {"EMAIL dossier_auto", "RETENTION dossier_deleted", "RETENTION verification"} <= acciones
+    borrado = next(f for f in filas if f.action == "RETENTION dossier_deleted")
+    assert borrado.resource_id == d
+    assert borrado.user_id is None
+    assert borrado.user_role_at_time == "sistema"
+    for f in filas:
+        assert verify_log_hash(f), f"{f.action} no verifica su firma"
+        texto = " ".join(str(v) for v in (f.request_data, f.error_message, f.user_agent))
+        assert destino not in texto, f"{f.action} guarda la dirección del destinatario"
 
 
 # --------------------------------------------------------------------------
 # Retención de 24 horas — S6.5
 # --------------------------------------------------------------------------
 
-@pytest.mark.skip(reason="Se habilita con S6.5 — retención de 24 h")
-def test_pasadas_24_horas_el_dossier_no_es_recuperable():
-    """Borrado EFECTIVO, no solo marca de borrado.
+_TABLAS_HIJAS = (
+    "dossier_alerts",
+    "dossier_media_mentions",
+    "dossier_corporate_records",
+    "dossier_career_entries",
+    "dossier_ice_breakers",
+    "dossier_shares",
+)
 
-    Hoy `ALLOWED_DOSSIER_RETENTION_DAYS = {7, 14, 30, 90}` y admite conservar
-    indefinidamente. La especificación exige 24 horas con borrado verificado.
+
+def _org_y_usuario_s65(conn, retencion):
+    import uuid
+
+    from sqlalchemy import text
+
+    sufijo = uuid.uuid4().hex[:8]
+    org = conn.execute(
+        text("INSERT INTO organizations (name, slug) VALUES (:n, :s) RETURNING id"),
+        {"n": f"Org {sufijo}", "s": f"org-{sufijo}"},
+    ).scalar_one()
+    user = conn.execute(
+        text("INSERT INTO users (email, dossier_retention_days) VALUES (:e, :r) RETURNING id"),
+        {"e": f"s65-{sufijo}@example.test", "r": retencion},
+    ).scalar_one()
+    return org, user
+
+
+def _dossier_s65(conn, org, user, horas):
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import text
+
+    return conn.execute(
+        text(
+            "INSERT INTO dossiers (organization_id, requested_by_user_id, dossier_data, created_at) "
+            "VALUES (:o, :u, CAST('{\"body\": \"Ana Pérez\"}' AS JSONB), :c) RETURNING id"
+        ),
+        {"o": org, "u": user, "c": datetime.now(UTC) - timedelta(hours=horas)},
+    ).scalar_one()
+
+
+@pytest.mark.parametrize("retencion_elegida", [None, 90])
+def test_pasadas_24_horas_el_dossier_no_es_recuperable(pg_vacia, alembic_cfg, retencion_elegida):
+    """Borrado EFECTIVO, no solo marca de borrado (S6.5, CA2).
+
+    Vale aunque el usuario hubiera elegido conservar indefinidamente (``None``) o 90 días:
+    la retención de 24 h ya no depende de esa preferencia.
     """
-    raise NotImplementedError
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    from alembic import command
+    from dossier.services.dossier_retention_worker import purge_expired_dossiers
+
+    command.upgrade(alembic_cfg, "head")
+    with pg_vacia.begin() as conn:
+        org, user = _org_y_usuario_s65(conn, retencion_elegida)
+        vencido = _dossier_s65(conn, org, user, horas=25)
+
+    with Session(pg_vacia) as db:
+        resultado = purge_expired_dossiers(db)
+
+    assert resultado.dossiers_borrados == 1
+    assert resultado.verificado is True
+    with pg_vacia.connect() as conn:
+        quedan = conn.execute(
+            text("SELECT count(*) FROM dossiers WHERE id = :d"), {"d": vencido}
+        ).scalar_one()
+        # Tampoco queda el contenido en ninguna parte de la tabla: no es un borrado lógico.
+        con_nombre = conn.execute(
+            text("SELECT count(*) FROM dossiers WHERE dossier_data::text LIKE '%Ana Pérez%'")
+        ).scalar_one()
+    assert quedan == 0
+    assert con_nombre == 0
 
 
-@pytest.mark.skip(reason="Se habilita con S6.5, tras S4.5")
-def test_el_borrado_arrastra_alertas_trayectoria_y_prensa():
-    """Sin entidades huérfanas: el borrado debe ser completo."""
-    raise NotImplementedError
+def test_el_borrado_arrastra_alertas_trayectoria_y_prensa(pg_vacia, alembic_cfg):
+    """Sin entidades huérfanas: el borrado debe ser completo (S6.5, CA4)."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session
+
+    from alembic import command
+    from dossier.services.dossier_retention_worker import purge_expired_dossiers
+
+    command.upgrade(alembic_cfg, "head")
+    with pg_vacia.begin() as conn:
+        org, user = _org_y_usuario_s65(conn, None)
+        _, colega = _org_y_usuario_s65(conn, None)
+        d = _dossier_s65(conn, org, user, horas=30)
+        conn.execute(
+            text("INSERT INTO dossier_alerts (dossier_id, level, message) VALUES (:d, 'warning', 'x')"),
+            {"d": d},
+        )
+        conn.execute(
+            text("INSERT INTO dossier_media_mentions (dossier_id, title, url) VALUES (:d, 't', 'https://n.test')"),
+            {"d": d},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO dossier_corporate_records (dossier_id, company_name, country) "
+                "VALUES (:d, 'Acme Ltd', 'GB')"
+            ),
+            {"d": d},
+        )
+        conn.execute(
+            text("INSERT INTO dossier_career_entries (dossier_id, company_name) VALUES (:d, 'Acme')"),
+            {"d": d},
+        )
+        conn.execute(
+            text("INSERT INTO dossier_ice_breakers (dossier_id, content) VALUES (:d, 'Hola')"),
+            {"d": d},
+        )
+        conn.execute(
+            text(
+                "INSERT INTO dossier_shares (dossier_id, shared_with_user_id, shared_by_user_id) "
+                "VALUES (:d, :c, :u)"
+            ),
+            {"d": d, "c": colega, "u": user},
+        )
+
+    with Session(pg_vacia) as db:
+        resultado = purge_expired_dossiers(db)
+
+    assert resultado.verificado is True
+    with pg_vacia.connect() as conn:
+        for tabla in _TABLAS_HIJAS:
+            quedan = conn.execute(
+                text(f"SELECT count(*) FROM {tabla} WHERE dossier_id = :d"), {"d": d}
+            ).scalar_one()
+            assert quedan == 0, f"quedaron filas huérfanas en {tabla}"

@@ -40,7 +40,29 @@ class EmailNotConfiguredError(RuntimeError):
 
 
 class EmailDeliveryError(RuntimeError):
-    """El servidor SMTP rechazó o no respondió. El mensaje nunca lleva credenciales."""
+    """El servidor SMTP rechazó o no respondió. El mensaje nunca lleva credenciales.
+
+    ``transitorio`` (S6.4): el fallo puede pasar solo (sin conexión, 4xx) y vale la pena
+    reintentar; un 5xx o un rechazo de credenciales no.
+    """
+
+    def __init__(self, mensaje: str, *, transitorio: bool = False) -> None:
+        super().__init__(mensaje)
+        self.transitorio = transitorio
+
+
+def error_transitorio(exc: BaseException) -> bool:
+    """Si un fallo de ``smtplib`` o de red puede pasar solo (S6.4)."""
+    if isinstance(exc, smtplib.SMTPAuthenticationError):
+        return False
+    if isinstance(exc, smtplib.SMTPRecipientsRefused):
+        codigos = [codigo for codigo, _ in exc.recipients.values()]
+        return bool(codigos) and all(400 <= int(c) < 500 for c in codigos)
+    codigo = getattr(exc, "smtp_code", None)
+    if codigo is not None:
+        return 400 <= int(codigo) < 500
+    # Sin código: no hubo respuesta del servidor (conexión rechazada, tiempo agotado, corte).
+    return isinstance(exc, (OSError, smtplib.SMTPServerDisconnected))
 
 
 @dataclass(frozen=True)
@@ -193,6 +215,8 @@ def send_email(
     except (smtplib.SMTPException, OSError) as exc:
         codigo = getattr(exc, "smtp_code", None)
         detalle = f"{type(exc).__name__}{f' {codigo}' if codigo else ''}"
-        raise EmailDeliveryError(f"No se pudo enviar el correo ({detalle}).") from None
+        raise EmailDeliveryError(
+            f"No se pudo enviar el correo ({detalle}).", transitorio=error_transitorio(exc)
+        ) from None
 
     logger.info("Correo enviado a %d destinatario(s) por %s:%s", len(destinatarios), cfg.host, cfg.port)

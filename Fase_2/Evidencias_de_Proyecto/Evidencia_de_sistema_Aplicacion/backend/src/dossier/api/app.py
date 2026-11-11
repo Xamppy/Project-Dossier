@@ -33,9 +33,12 @@ from dossier.api.auth_routes import (
 from dossier.api.auth_routes import (
     router as auth_router,
 )
+from dossier.api.billing_routes import router as billing_router
 from dossier.api.cors_config import build_cors_settings
 from dossier.api.dashboard_routes import router as dashboard_router
+from dossier.api.dossier_access_routes import router as dossier_access_router
 from dossier.api.dossier_job_routes import router as dossier_jobs_router
+from dossier.api.dossier_notifications_routes import router as dossier_notifications_router
 from dossier.api.dossier_routes import router as dossiers_router
 from dossier.api.dossier_stream_routes import router as dossier_stream_router
 from dossier.api.google_login_routes import router as google_login_router
@@ -85,9 +88,11 @@ from dossier.services.calendar_range import (
     ResultadoRango,
     parse_rango,
 )
+from dossier.services.dossier_email_retry import start_dossier_email_retry_worker
 from dossier.services.dossier_generation_job_service import (
     enqueue_calendar_dossier_job,
     estimate_reunion_credits,
+    find_active_job_for_event,
 )
 from dossier.services.dossier_generation_worker import start_dossier_generation_worker
 from dossier.services.dossier_retention_worker import start_dossier_retention_worker
@@ -104,7 +109,9 @@ from dossier.services.graph_calendar import (
     listar_reuniones_rango,
 )
 from dossier.services.microsoft_calendar_token import get_microsoft_graph_access_token_for_user
+from dossier.services.news_sources import fuentes_aplicables
 from dossier.services.output_language import effective_output_language
+from dossier.services.plan_limits import assert_can_start_dossiers
 
 load_env()
 
@@ -143,9 +150,11 @@ async def lifespan(app: FastAPI):
     stop_automation = start_calendar_automation_thread()
     stop_generation = start_dossier_generation_worker()
     stop_retention = start_dossier_retention_worker()
+    stop_email_retry = start_dossier_email_retry_worker()
     try:
         yield
     finally:
+        stop_email_retry()
         stop_retention()
         stop_generation()
         stop_automation()
@@ -169,9 +178,12 @@ app.add_middleware(AuditMiddleware)
 
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(billing_router)
 app.include_router(dossiers_router)
+app.include_router(dossier_access_router)
 app.include_router(dossier_jobs_router)
 app.include_router(dossier_stream_router)
+app.include_router(dossier_notifications_router)
 app.include_router(dashboard_router)
 app.include_router(integrations_router)
 app.include_router(google_login_router)
@@ -1004,6 +1016,8 @@ def _run_calendar_dossier_batch(
             organization_plan=org.plan,
             depth=depth_key,
             output_language=out_lang,
+            fuentes_prensa_empresa=fuentes_aplicables(db, tipo="corporate", profundidad=depth_key, plan=org.plan),
+            fuentes_prensa_persona=fuentes_aplicables(db, tipo="person", profundidad="basic", plan=org.plan),
         )
         elapsed_ms = int((time.perf_counter() - t0) * 1000)
         item = persist_calendar_dossiers(
@@ -1043,6 +1057,16 @@ def _enqueue_calendar_dossier_jobs(
     depth: DossierDepth,
     output_language: str | None = None,
 ) -> dict:
+    # UX-ADMIN-01: todo o nada. Si las reuniones nuevas superan el tope, no se encola ninguna.
+    nuevas = {
+        (r.get("id") or "").strip() or f"sin-id-{i}"
+        for i, r in enumerate(reuniones)
+        if not (
+            (r.get("id") or "").strip()
+            and find_active_job_for_event(db, user_id=user.id, external_event_id=(r.get("id") or "").strip())
+        )
+    }
+    assert_can_start_dossiers(db, user=user, org=org, nuevos=len(nuevas))
     jobs = []
     for reunion in reuniones:
         snap = _reunion_snapshot_with_output_language(

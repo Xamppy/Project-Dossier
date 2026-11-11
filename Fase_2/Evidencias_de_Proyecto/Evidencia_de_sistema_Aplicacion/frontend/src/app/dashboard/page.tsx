@@ -83,7 +83,7 @@ const quickActions: {
     ),
   },
   {
-    href: "/dashboard/settings",
+    href: "/dashboard/settings?section=addressbook",
     labelKey: "quick.addressbook_label",
     descKey: "quick.addressbook_desc",
     icon: (

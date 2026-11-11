@@ -24,6 +24,7 @@ import {
   type PlanTier,
 } from "@/lib/plans";
 import { DEPTH_OPTIONS, type DossierDepth } from "@/lib/dossier-depth";
+import { creditsLabel, useApplicableNewsSources } from "@/lib/use-news-sources";
 import { resolveDossierOutputLanguage } from "@/lib/resolve-output-language";
 import { translateApiErrorMessage, translateDossierStatusMessage } from "@/lib/translate-backend-message";
 import { useDossierJobs } from "@/providers/DossierJobsProvider";
@@ -175,6 +176,9 @@ export default function CorporateDossierGenerateView({
   }
 
   const selectedDepth = DEPTH_OPTIONS.find((d) => d.id === depth)!;
+  // UX-ADMIN-02: prensa que usaría el dossier en esta profundidad y su extra máximo.
+  const prensa = useApplicableNewsSources("corporate", selectedDepth.id);
+  const runCredits = selectedDepth.credits + prensa.extra_credits;
   const activeJob =
     jobs.find((j) => j.id === activeJobId) ?? getActiveCorporateJob() ?? null;
   const isGenerating =
@@ -244,7 +248,7 @@ export default function CorporateDossierGenerateView({
       const jobId = await enqueueCorporateDossierJob(
         buildPayload(trimmed),
         selectedResolution?.title?.trim() || trimmed,
-        selectedDepth.credits,
+        runCredits,
       );
       setActiveJobId(jobId);
     } catch (e) {
@@ -631,9 +635,9 @@ export default function CorporateDossierGenerateView({
                   </div>
                 ) : (
                   <PrimaryButton type="submit" loading={submitting} className="ui-new-dossier-btn w-full sm:w-auto">
-                    {selectedDepth.credits === 1
+                    {runCredits === 1
                       ? t("generate.submit_one")
-                      : t("generate.submit", { credits: selectedDepth.credits })}
+                      : t("generate.submit", { credits: runCredits })}
                   </PrimaryButton>
                 )}
               </form>
@@ -656,7 +660,15 @@ export default function CorporateDossierGenerateView({
               </div>
               <div className="flex justify-between gap-4">
                 <dt style={{ color: "var(--text-muted)" }}>{t("generate.credits_cost")}</dt>
-                <dd style={{ color: "var(--accent-from)" }}>{selectedDepth.credits}</dd>
+                <dd style={{ color: "var(--accent-from)" }}>
+                  {creditsLabel(t, selectedDepth.credits, prensa.extra_credits)}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt style={{ color: "var(--text-muted)" }}>{t("generate.press_sources")}</dt>
+                <dd className="max-w-[65%] text-right text-xs leading-snug" style={{ color: "var(--text-primary)" }}>
+                  {prensa.sources.length ? prensa.sources.map((s) => s.name).join(", ") : t("generate.press_none")}
+                </dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt style={{ color: "var(--text-muted)" }}>{t("generate.eta")}</dt>

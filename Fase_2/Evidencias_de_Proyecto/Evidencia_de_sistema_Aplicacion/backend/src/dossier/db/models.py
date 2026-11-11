@@ -85,6 +85,9 @@ class User(Base):
         DateTime(timezone=True), nullable=True
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Preferencias de notificación (informe beta): correo automático y aviso del navegador.
+    notify_email: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    notify_browser: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
     is_platform_admin: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("false")
     )
@@ -499,6 +502,120 @@ class DossierShare(Base):
     )
 
 
+class DossierAccessLink(Base):
+    """Enlace de un solo uso para leer un dossier desde el correo (S6.2). DDL en ``schema_patches``.
+
+    Solo guarda el SHA-256 del token; el token viaja únicamente en el correo.
+    """
+
+    __tablename__ = "dossier_access_links"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    dossier_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("dossiers.id", ondelete="CASCADE")
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE")
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE")
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class PlanSetting(Base):
+    """Ajustes por plan que el admin de plataforma cambia en el panel (UX-ADMIN-01).
+
+    DDL y valores iniciales en ``schema_patches.PLAN_SETTINGS_PATCHES``.
+    """
+
+    __tablename__ = "plan_settings"
+
+    plan: Mapped[str] = mapped_column(String(20), primary_key=True)
+    max_concurrent_dossiers: Mapped[int] = mapped_column(Integer)
+    # UX-ADMIN-03: créditos que recibe la organización al registrarse o al pasar a este plan.
+    monthly_credits: Mapped[int] = mapped_column(Integer)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+
+class NewsSourceSetting(Base):
+    """Ajustes de una fuente de noticias que cambia el admin de plataforma (UX-ADMIN-02).
+
+    Sin fila, la fuente usa los valores de su adaptador. DDL en ``NEWS_SOURCE_PATCHES``.
+    """
+
+    __tablename__ = "news_source_settings"
+
+    provider_key: Mapped[str] = mapped_column(String(40), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean)
+    use_for_corporate: Mapped[bool] = mapped_column(Boolean)
+    use_for_person: Mapped[bool] = mapped_column(Boolean)
+    min_depth: Mapped[str] = mapped_column(String(10))
+    plan_free: Mapped[bool] = mapped_column(Boolean)
+    plan_pro: Mapped[bool] = mapped_column(Boolean)
+    plan_enterprise: Mapped[bool] = mapped_column(Boolean)
+    extra_credits: Mapped[int] = mapped_column(Integer)
+    max_results: Mapped[int] = mapped_column(Integer)
+    daily_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+
+class NewsSourceUsage(Base):
+    """Consultas de cada fuente por día UTC, para su límite diario (UX-ADMIN-02)."""
+
+    __tablename__ = "news_source_usage"
+
+    provider_key: Mapped[str] = mapped_column(String(40), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    queries: Mapped[int] = mapped_column(Integer)
+
+
+class DossierEmailRetry(Base):
+    """Envío automático de correo en espera de reintento (S6.4). DDL en ``schema_patches``.
+
+    No guarda la dirección del destinatario: al reintentar se lee de ``users.email``.
+    """
+
+    __tablename__ = "dossier_email_retries"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE")
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE")
+    )
+    kind: Mapped[str] = mapped_column(String(20))
+    dossier_ids: Mapped[list[uuid.UUID]] = mapped_column(ARRAY(UUID(as_uuid=True)))
+    calendar_event_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("calendar_events.id", ondelete="SET NULL"), nullable=True
+    )
+    meeting_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    language: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    # Índice idx_dossier_email_retries_next en schema_patches.
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class DossierGenerationJob(Base):
     """Cola de generación asíncrona (manual desde calendario u otros triggers)."""
 
@@ -535,6 +652,8 @@ class DossierGenerationJob(Base):
     completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Latido del proceso que lo genera; sin latido reciente, el trabajo quedó colgado.
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 # S4.5: las tres tablas siguen el DDL de Migracion.md (secciones 7, 14 y 15) más

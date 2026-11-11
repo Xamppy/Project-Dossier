@@ -1,4 +1,5 @@
 import type { Locale, UserPreferences } from "@/i18n/types";
+import { getEffectiveTimezone } from "@/lib/timezones";
 
 const LOCALE_MAP: Record<Locale, string> = {
   en: "en-US",
@@ -148,12 +149,14 @@ export function formatMeetingTimeRange(
 /** Fecha y hora de reunión en la zona horaria del usuario (p. ej. dossier de calendario). */
 export function formatCalendarMeetingInstant(
   iso: string | undefined,
-  prefs: Pick<UserPreferences, "locale" | "timezone">,
+  prefs: Pick<UserPreferences, "locale" | "timezone"> & Partial<Pick<UserPreferences, "timezoneFollowSystem">>,
 ): string {
   const start = parseMeetingInstant(iso);
   if (!start) return (iso || "").slice(0, 16);
   return new Intl.DateTimeFormat(intlLocale(prefs.locale), {
-    timeZone: prefs.timezone || "UTC",
+    // BUG-2026-10-19-09: la zona efectiva (la del dispositivo si así se eligió), no el "UTC"
+    // que traen las preferencias por omisión.
+    timeZone: getEffectiveTimezone(prefs.timezone, prefs.timezoneFollowSystem ?? false),
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

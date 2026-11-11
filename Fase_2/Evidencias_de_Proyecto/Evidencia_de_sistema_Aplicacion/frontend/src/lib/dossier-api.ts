@@ -45,10 +45,13 @@ export type AuthUser = {
   timezone?: string;
   /** match | es | en | pt | … — idioma de salida de dossiers. */
   dossier_output_language?: string;
-  /** 7, 14, 30, 90 o null (conservar indefinidamente). */
-  dossier_retention_days?: number | null;
+  /** S6.5: horas que el servidor conserva cada dossier antes de borrarlo (24 por omisión). */
+  dossier_retention_hours?: number;
   /** S6.1: la instancia tiene SMTP configurado y puede enviar dossiers por correo. */
   email_delivery_available?: boolean;
+  /** Informe beta: correo automático del dossier y aviso del navegador (activados por omisión). */
+  notify_email?: boolean;
+  notify_browser?: boolean;
 };
 
 /** Fila devuelta por `GET /dossiers` (tabla `dossiers` en PostgreSQL). */
@@ -173,6 +176,11 @@ export type DossierDetailResponse = {
   shares?: DossierShareItem[];
   /** S6.1: estado del envío por correo. */
   email_delivery?: DossierEmailDelivery;
+  /** S4.4: si trae el contrato estructurado y su forma validada. */
+  content_kind?: "structured" | "legacy_markdown";
+  executive_payload?: unknown;
+  /** S5.5: registros corporativos y prensa por módulo (se valida con `parseModules`). */
+  modules?: unknown;
 };
 
 export type DossierEmailDelivery = {
@@ -400,6 +408,19 @@ export async function authForgotPassword(payload: {
   return postJson<ForgotPasswordResponse>("/auth/forgot-password", payload);
 }
 
+/** S6.2: dossier abierto con un enlace de un solo uso, en solo lectura. */
+export type DossierAccessResult = {
+  subject_name: string | null;
+  body: string;
+  created_at: string | null;
+  output_language: string;
+};
+
+/** S6.2: gasta el enlace de un solo uso del correo. Sin sesión; 410 si ya no sirve. */
+export async function redeemDossierAccessLink(token: string): Promise<DossierAccessResult> {
+  return postJson<DossierAccessResult>("/dossier-access", { token });
+}
+
 /** Perfil del usuario autenticado (JWT). */
 export async function fetchAuthMe(): Promise<AuthUser> {
   const token = getStoredAccessToken();
@@ -473,7 +494,8 @@ export type AuthUserPreferencesPatch = {
   locale?: string;
   timezone?: string;
   dossier_output_language?: string;
-  dossier_retention_days?: number | null;
+  notify_email?: boolean;
+  notify_browser?: boolean;
 };
 
 /** Sincroniza idioma de interfaz / zona horaria / idioma de dossiers con PostgreSQL. */
@@ -805,6 +827,97 @@ export async function patchAdminUserRoles(
   body: AdminUserRolesPatchBody
 ): Promise<AdminUserRow> {
   return patchJsonWithAuth<AdminUserRow>(`/admin/users/${encodeURIComponent(userId)}`, body);
+}
+
+/** UX-ADMIN-01: ajustes de un plan (tope de dossiers generándose a la vez por usuario). */
+export type AdminPlanSetting = {
+  plan: "free" | "pro" | "enterprise";
+  max_concurrent_dossiers: number;
+  /** UX-ADMIN-03: créditos que recibe la organización al registrarse o al pasar a este plan. */
+  monthly_credits: number;
+  updated_at: string | null;
+  updated_by_email: string | null;
+};
+
+export type AdminPlanSettingPatch = Partial<Pick<AdminPlanSetting, "max_concurrent_dossiers" | "monthly_credits">>;
+
+export async function fetchAdminPlanSettings(): Promise<{ plans: AdminPlanSetting[] }> {
+  return getJsonWithAuth<{ plans: AdminPlanSetting[] }>("/admin/plan-settings");
+}
+
+export async function patchAdminPlanSetting(
+  plan: AdminPlanSetting["plan"],
+  body: AdminPlanSettingPatch,
+): Promise<AdminPlanSetting> {
+  return patchJsonWithAuth<AdminPlanSetting>(`/admin/plan-settings/${encodeURIComponent(plan)}`, body);
+}
+
+/** UX-ADMIN-03: créditos al mes de cada plan, para las tarjetas de Configuración. */
+export type BillingPlanCredits = { plan: AdminPlanSetting["plan"]; monthly_credits: number };
+
+export async function fetchBillingPlans(): Promise<{ plans: BillingPlanCredits[] }> {
+  return getJsonWithAuth<{ plans: BillingPlanCredits[] }>("/billing/plans");
+}
+
+/** UX-ADMIN-02: plan y profundidad que admite una fuente de noticias. */
+export type NewsSourcePlan = "free" | "pro" | "enterprise";
+export type NewsSourceDepth = "basic" | "standard" | "deep";
+
+/** UX-ADMIN-02: una fuente de noticias instalada y sus ajustes. Nunca trae el valor de su clave. */
+export type AdminNewsSource = {
+  key: string;
+  name: string;
+  description: string;
+  configured: boolean;
+  key_env_var: string | null;
+  default_enabled: boolean;
+  enabled: boolean;
+  use_for_corporate: boolean;
+  use_for_person: boolean;
+  min_depth: NewsSourceDepth;
+  plans: NewsSourcePlan[];
+  extra_credits: number;
+  max_results: number;
+  daily_limit: number | null;
+  used_today: number;
+  updated_at: string | null;
+  updated_by_email: string | null;
+};
+
+export type AdminNewsSourcePatch = Partial<
+  Pick<
+    AdminNewsSource,
+    | "enabled"
+    | "use_for_corporate"
+    | "use_for_person"
+    | "min_depth"
+    | "plans"
+    | "extra_credits"
+    | "max_results"
+    | "daily_limit"
+  >
+>;
+
+export async function fetchAdminNewsSources(): Promise<{ sources: AdminNewsSource[] }> {
+  return getJsonWithAuth<{ sources: AdminNewsSource[] }>("/admin/news-sources");
+}
+
+export async function patchAdminNewsSource(key: string, body: AdminNewsSourcePatch): Promise<AdminNewsSource> {
+  return patchJsonWithAuth<AdminNewsSource>(`/admin/news-sources/${encodeURIComponent(key)}`, body);
+}
+
+/** UX-ADMIN-02: fuentes de prensa que usaría un dossier del plan y su extra máximo de créditos. */
+export type ApplicableNewsSources = {
+  sources: { key: string; name: string; extra_credits: number }[];
+  extra_credits: number;
+};
+
+export async function fetchApplicableNewsSources(
+  kind: "corporate" | "person",
+  depth: NewsSourceDepth = "standard",
+): Promise<ApplicableNewsSources> {
+  const params = new URLSearchParams({ kind, depth });
+  return getJsonWithAuth<ApplicableNewsSources>(`/news-sources/applicable?${params.toString()}`);
 }
 
 /** Elimina una cuenta de usuario (`DELETE /admin/users/{id}`, solo admin de plataforma). */
@@ -1203,6 +1316,23 @@ export async function enqueuePersonResearch(
     throw new DossierApiError(502, "La API no devolvió job_id para la generación asíncrona.", parsed);
   }
   return parsed as EnqueuePersonResearchResponse;
+}
+
+/**
+ * Encola un dossier de empresa (informe beta: avance real por agente en vez de una petición
+ * larga). El trabajo se sigue por su canal en vivo, como Personas y Calendario.
+ */
+export async function enqueueCorporateDossier(
+  payload: CreateCorporateDossierPayload,
+): Promise<EnqueuePersonResearchResponse> {
+  const parsed = await postJsonWithAuth<EnqueuePersonResearchResponse>("/dossiers/corporate/generate", {
+    ...payload,
+    async_mode: true,
+  });
+  if (!parsed || typeof parsed !== "object" || !parsed.async || typeof parsed.job_id !== "string") {
+    throw new DossierApiError(502, "La API no devolvió job_id para la generación asíncrona.", parsed);
+  }
+  return parsed;
 }
 
 export async function getPdlIntegrationHealth(): Promise<PdlHealthResponse> {
@@ -2255,6 +2385,7 @@ export type DossierPersonStageId =
   | "person.pdl_enrich"
   | "person.pdl_search"
   | "person.profile_normalization"
+  | "person.press_search"
   | "person.context_analysis"
   | "person.profile_synthesis"
   | "person.markdown_fallback"

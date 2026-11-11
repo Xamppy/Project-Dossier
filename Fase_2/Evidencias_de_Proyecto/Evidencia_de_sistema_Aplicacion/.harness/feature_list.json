@@ -3,7 +3,7 @@
   "project": "Project Dossier - Continuidad (Proyecto APT)",
   "plan": "docs/documentos-capstone/Plan_de_Trabajo_Detallado_Dossier.pdf",
   "board": "https://trello.com/b/XTSgfWKi/capstone-dossier-plan-de-sprints",
-  "updated": "2026-10-22",
+  "updated": "2026-11-10",
   "status_values": [
     "pending",
     "claimed",
@@ -922,8 +922,8 @@
       "id": "S3.5",
       "sprint": 3,
       "title": "Ampliar el dashboard con la vista de registros corporativos europeos",
-      "status": "pending",
-      "owner": "DG",
+      "status": "review",
+      "owner": "FD",
       "area": "frontend",
       "activity": "A6",
       "objective": "OE6",
@@ -936,16 +936,19 @@
         "S3.7"
       ],
       "trello": "https://trello.com/c/wVHUTvWP",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S5.5-dossier-por-modulos",
+      "evidence": [
+        "specs/reports/S5.5-dossier-por-modulos.md: CA1 (registros europeos en dossier_data.modulos sin datos_brutos) y CA7 (vista agrupada por país con enlace al registro oficial)"
+      ],
+      "notes": "Traspasada de DG a FD el 2026-11-11. Diseño aprobado por FD: secciones por módulo con botón «Ver informe en texto»; backend aditivo para registros europeos y prensa de los dossiers de empresa.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S3.6",
       "sprint": 3,
       "title": "Ampliar el dashboard con la vista del modulo de prensa",
-      "status": "pending",
-      "owner": "DG",
+      "status": "review",
+      "owner": "FD",
       "area": "frontend",
       "activity": "A6",
       "objective": "OE6",
@@ -958,16 +961,19 @@
         "S3.7"
       ],
       "trello": "https://trello.com/c/VlOF87ZH",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S5.5-dossier-por-modulos",
+      "evidence": [
+        "specs/reports/S5.5-dossier-por-modulos.md: CA8 (prensa con medio, fecha, resumen, proveedor y enlace seguro, desde el contrato o dossier_media_mentions)"
+      ],
+      "notes": "Traspasada de DG a FD el 2026-11-11. Diseño aprobado por FD: secciones por módulo con botón «Ver informe en texto»; backend aditivo para registros europeos y prensa de los dossiers de empresa.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S3.7",
       "sprint": 3,
       "title": "Incorporar las cadenas de interfaz de los modulos nuevos en los seis idiomas (siete catálogos, con en-gb como variante)",
-      "status": "pending",
-      "owner": "DG",
+      "status": "review",
+      "owner": "FD",
       "area": "frontend",
       "activity": "A6",
       "objective": "OE6",
@@ -979,15 +985,18 @@
       ],
       "blocks": [],
       "trello": "https://trello.com/c/EzVXD9fD",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S5.5-dossier-por-modulos",
+      "evidence": [
+        "specs/reports/S5.5-dossier-por-modulos.md: CA10 (49 claves dossier_modules.* en es, en, pt, it, fr y de; en-gb hereda de en)"
+      ],
+      "notes": "Traspasada de DG a FD el 2026-11-11. Diseño aprobado por FD: secciones por módulo con botón «Ver informe en texto»; backend aditivo para registros europeos y prensa de los dossiers de empresa.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S3.8",
       "sprint": 3,
       "title": "Endurecer la politica de origenes permitidos (CORS)",
-      "status": "claimed",
+      "status": "done",
       "owner": "FD",
       "area": "security",
       "activity": "A8",
@@ -1000,15 +1009,17 @@
       ],
       "trello": "https://trello.com/c/yxFNmUet",
       "branch": "docmac",
-      "evidence": [],
-      "notes": "",
+      "evidence": [
+        "PR #47 (rama docmac) mezclado en main el 2026-11-09 (264dee0) tras la revisión de FO"
+      ],
+      "notes": "Cerrada el 2026-11-10: revisó y mezcló FO (PR #47).",
       "owner_session": "FD"
     },
     {
       "id": "S3.9",
       "sprint": 3,
       "title": "Reducir la vigencia del token e introducir renovacion",
-      "status": "claimed",
+      "status": "done",
       "owner": "FD",
       "area": "security",
       "activity": "A8",
@@ -1021,8 +1032,10 @@
       ],
       "trello": "https://trello.com/c/JNkEtd4k",
       "branch": "docmac",
-      "evidence": [],
-      "notes": "",
+      "evidence": [
+        "PR #47 (rama docmac) mezclado en main el 2026-11-09 (264dee0) tras la revisión de FO"
+      ],
+      "notes": "Cerrada el 2026-11-10: revisó y mezcló FO (PR #47).",
       "owner_session": "FD"
     },
     {
@@ -1275,7 +1288,7 @@
       "id": "S4.10",
       "sprint": 4,
       "title": "Implementar la tabla y el servicio de registro de auditoria",
-      "status": "claimed",
+      "status": "done",
       "owner": "FD",
       "area": "db",
       "activity": "A8",
@@ -1291,8 +1304,10 @@
       ],
       "trello": "https://trello.com/c/3wVUVam1",
       "branch": "docmac",
-      "evidence": [],
-      "notes": "Migracion.md:821-824 ya define el diseño de campos de auditoría (verbo HTTP + recurso, tipo de recurso: dossier/contact/user/billing/api_key). Partir de ese diseño en vez de diseñar de cero.",
+      "evidence": [
+        "PR #47 (rama docmac) mezclado en main el 2026-11-09 (264dee0) tras la revisión de FO"
+      ],
+      "notes": "Migracion.md:821-824 ya define el diseño de campos de auditoría (verbo HTTP + recurso, tipo de recurso: dossier/contact/user/billing/api_key). Partir de ese diseño en vez de diseñar de cero. Cerrada el 2026-11-10: revisó y mezcló FO (PR #47).",
       "owner_session": "FD"
     },
     {
@@ -1327,8 +1342,8 @@
       "id": "S5.2",
       "sprint": 5,
       "title": "Consumir el canal en NotificationsProvider y retirar su setInterval",
-      "status": "pending",
-      "owner": "DG",
+      "status": "review",
+      "owner": "FD",
       "area": "frontend",
       "activity": "A6",
       "objective": "OE6",
@@ -1339,16 +1354,19 @@
       ],
       "blocks": [],
       "trello": "https://trello.com/c/wmseVTR9",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S5.2-S5.3-notificaciones-canal",
+      "evidence": [
+        "specs/reports/S5.2-S5.3-notificaciones-canal.md: CA1-CA6 y CA8 con pruebas de backend (unitarias, integración, seguridad y estrés contra PostgreSQL 18) y Vitest del proveedor y del adaptador; prueba en la aplicación en ejecución (aviso en 2 s, sin GET /dossiers periódico)"
+      ],
+      "notes": "Traspasada de DG a FD el 2026-11-10.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S5.3",
       "sprint": 5,
       "title": "Implementar reconexion del canal con retroceso progresivo",
-      "status": "pending",
-      "owner": "DG",
+      "status": "review",
+      "owner": "FD",
       "area": "frontend",
       "activity": "A6",
       "objective": "OE6",
@@ -1359,9 +1377,12 @@
       ],
       "blocks": [],
       "trello": "https://trello.com/c/yUmmkdGV",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S5.2-S5.3-notificaciones-canal",
+      "evidence": [
+        "specs/reports/S5.2-S5.3-notificaciones-canal.md: CA7-CA10 con Vitest (retroceso, 401/403, online, jobs de S5.1); prueba en la aplicación en ejecución (API apagada y vuelta a levantar: reconexión sola y aviso sin recargar)"
+      ],
+      "notes": "Traspasada de DG a FD el 2026-11-10.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S5.4",
@@ -1393,8 +1414,8 @@
       "id": "S5.5",
       "sprint": 5,
       "title": "Renderizar el dossier desde JSON con componentes por modulo",
-      "status": "pending",
-      "owner": "DG",
+      "status": "review",
+      "owner": "FD",
       "area": "frontend",
       "activity": "A6",
       "objective": "OE6",
@@ -1405,9 +1426,12 @@
       ],
       "blocks": [],
       "trello": "https://trello.com/c/Uz45ed5q",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S5.5-dossier-por-modulos",
+      "evidence": [
+        "specs/reports/S5.5-dossier-por-modulos.md: CA5, CA6 y CA9 con Vitest de DossierContent/DossierModules y de lib/dossier-modules; backend `modules` (CA2-CA4) con pruebas unitarias, integración, seguridad y estrés contra PostgreSQL 18; revisado en la aplicación en ejecución"
+      ],
+      "notes": "Traspasada de DG a FD el 2026-11-11. Diseño aprobado por FD: secciones por módulo con botón «Ver informe en texto»; backend aditivo para registros europeos y prensa de los dossiers de empresa.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S5.6",
@@ -1463,7 +1487,7 @@
       "id": "S5.8",
       "sprint": 5,
       "title": "Implementar limitacion de tasa en autenticacion y generacion",
-      "status": "claimed",
+      "status": "done",
       "owner": "FD",
       "area": "security",
       "activity": "A8",
@@ -1476,8 +1500,10 @@
       ],
       "trello": "https://trello.com/c/S6I7pjQn",
       "branch": "docmac",
-      "evidence": [],
-      "notes": "",
+      "evidence": [
+        "PR #47 (rama docmac) mezclado en main el 2026-11-09 (264dee0) tras la revisión de FO"
+      ],
+      "notes": "Cerrada el 2026-11-10: revisó y mezcló FO (PR #47).",
       "owner_session": "FD"
     },
     {
@@ -1558,8 +1584,8 @@
       "id": "S6.2",
       "sprint": 6,
       "title": "Implementar acceso al dossier por enlace de un solo uso",
-      "status": "pending",
-      "owner": "DG",
+      "status": "review",
+      "owner": "FD",
       "area": "backend",
       "activity": "A7",
       "objective": "OE7",
@@ -1572,16 +1598,19 @@
         "S6.8"
       ],
       "trello": "https://trello.com/c/bRkzSIe3",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S6.2-enlace-un-solo-uso",
+      "evidence": [
+        "specs/reports/S6.2-enlace-un-solo-uso.md: CA1-CA14 con sus pruebas (unitarias, integración con API y SMTP de loopback, seguridad, estrés y migración contra PostgreSQL 18; Vitest de la página /acceso); ruff, mypy, tsc y eslint sin hallazgos"
+      ],
+      "notes": "Traspasada de DG a FD el 2026-11-10: FD toma el backend del equipo. Diseño aprobado por FD (2026-11-10): enlace de solo lectura a un único dossier, sin iniciar sesión; se gasta al pulsar «Ver dossier» (no al abrir la página); vence en 24 h; token en el fragmento de la URL y solo su hash en la base.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S6.3",
       "sprint": 6,
       "title": "Habilitar la automatizacion previa a la reunion desde el calendario",
-      "status": "pending",
-      "owner": "DG",
+      "status": "review",
+      "owner": "FD",
       "area": "backend",
       "activity": "A7",
       "objective": "OE7",
@@ -1594,16 +1623,19 @@
         "S7.1"
       ],
       "trello": "https://trello.com/c/wpSv6BzC",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S6.3-calendario-correo",
+      "evidence": [
+        "specs/reports/S6.3-calendario-correo.md: CA1-CA13 con sus pruebas (unitarias, integración con SMTP de loopback y automatización simulada, seguridad y estrés contra PostgreSQL 18); Vitest 649 passed; ruff y mypy sin hallazgos"
+      ],
+      "notes": "Traspasada de DG a FD el 2026-11-10: FD toma el backend del equipo. Decisiones de FD (2026-11-10): un solo correo por reunión con todos los PDFs; la retención de los dossiers de una reunión cuenta 24 h desde su inicio.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S6.4",
       "sprint": 6,
       "title": "Implementar reintento y registro de fallos de envio",
-      "status": "pending",
-      "owner": "DG",
+      "status": "review",
+      "owner": "FD",
       "area": "backend",
       "activity": "A7",
       "objective": "OE7",
@@ -1614,15 +1646,18 @@
       ],
       "blocks": [],
       "trello": "https://trello.com/c/V0Idtuzh",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S6.4-reintento-correo",
+      "evidence": [
+        "specs/reports/S6.4-reintento-correo.md: CA1-CA14 con sus pruebas (unitarias, integración con SMTP de loopback y servidor caído, seguridad, estrés y migración contra PostgreSQL 18); ruff y mypy sin hallazgos"
+      ],
+      "notes": "Traspasada de DG a FD el 2026-11-10. Decisión de FD: 3 intentos seguidos y después uno cada 10 minutos, hasta 1 hora; los fallos definitivos no se reintentan.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S6.5",
       "sprint": 6,
       "title": "Implementar retencion de 24 horas con borrado verificado",
-      "status": "pending",
+      "status": "review",
       "owner": "FD",
       "area": "security",
       "activity": "A8",
@@ -1636,15 +1671,18 @@
         "S6.6"
       ],
       "trello": "https://trello.com/c/EOfroRV2",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S6.5-retencion-24h",
+      "evidence": [
+        "specs/reports/S6.5-retencion-24h.md: CA1-CA13 con sus pruebas (unitarias, integración, seguridad y estrés contra PostgreSQL 18); Vitest 646 passed; ruff y mypy sin hallazgos"
+      ],
+      "notes": "Decisión de FD (2026-11-10): 24 h fijas para todos los dossiers, sin elección del usuario; el plazo queda en una variable del servidor. Incluye retirar el selector de retención de Configuración (frontend), con acuerdo de FD.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S6.6",
       "sprint": 6,
       "title": "Extender la auditoria a envios de correo y borrados por retencion",
-      "status": "pending",
+      "status": "review",
       "owner": "FD",
       "area": "security",
       "activity": "A8",
@@ -1658,15 +1696,18 @@
       ],
       "blocks": [],
       "trello": "https://trello.com/c/Jr2hNSu4",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S6.6-auditoria-correo-borrado",
+      "evidence": [
+        "specs/reports/S6.6-auditoria-correo-borrado.md: CA1-CA11 con sus pruebas (unitarias, integración con SMTP de loopback, seguridad y estrés contra PostgreSQL 18); ruff y mypy sin hallazgos"
+      ],
+      "notes": "Tomada el 2026-11-10 sobre docmac: depende de S6.5 (en docmac) y de S6.1, que ya está en main aunque su estado siga en review.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S6.7",
       "sprint": 6,
       "title": "Pruebas negativas de aislamiento entre organizaciones",
-      "status": "claimed",
+      "status": "done",
       "owner": "FD",
       "area": "quality",
       "activity": "A9",
@@ -1680,8 +1721,10 @@
       "blocks": [],
       "trello": "https://trello.com/c/kbGIl5Hl",
       "branch": "docmac",
-      "evidence": [],
-      "notes": "",
+      "evidence": [
+        "PR #47 (rama docmac) mezclado en main el 2026-11-09 (264dee0) tras la revisión de FO"
+      ],
+      "notes": "Cerrada el 2026-11-10: revisó y mezcló FO (PR #47).",
       "owner_session": "FD"
     },
     {
@@ -1755,7 +1798,7 @@
       "id": "S7.2",
       "sprint": 7,
       "title": "Pruebas de tolerancia a fallos con cada agente fallando por separado",
-      "status": "pending",
+      "status": "review",
       "owner": "FD",
       "area": "quality",
       "activity": "A9",
@@ -1769,15 +1812,18 @@
         "S7.4"
       ],
       "trello": "https://trello.com/c/pmo7alzp",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S7.2-tolerancia-fallos",
+      "evidence": [
+        "specs/reports/S7.2-tolerancia-fallos.md: 13 pruebas de punta a punta contra PostgreSQL 18 con cada agente cayendo por separado (UK, USA, Europa, prensa, síntesis, PDL, IA de persona) y la pantalla Empresas; 4 defectos corregidos (dossier de empresa perdido sin síntesis, informe parcial en caché, error de persona guardado como completo y cobrado, detalle técnico de excepciones visible)"
+      ],
+      "notes": "Tomada por FD el 2026-11-11.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S7.3",
       "sprint": 7,
       "title": "Verificar descuento de creditos y aislamiento en el flujo completo",
-      "status": "pending",
+      "status": "review",
       "owner": "FD",
       "area": "quality",
       "activity": "A9",
@@ -1791,9 +1837,12 @@
         "S7.4"
       ],
       "trello": "https://trello.com/c/gxi7THee",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S7.3-creditos-aislamiento",
+      "evidence": [
+        "specs/reports/S7.3-creditos-aislamiento.md: 10 casos en el flujo completo (API, worker real, pipelines reales de Personas y Calendario, trigger de cobro) contra PostgreSQL 18; sin defectos: un cobro por dossier guardado, ninguno por fallos o cancelaciones, y sin fuga entre organizaciones"
+      ],
+      "notes": "",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S7.4",
@@ -1823,7 +1872,7 @@
       "id": "S7.5",
       "sprint": 7,
       "title": "Medir el estado final de deuda tecnica y compararlo con la linea base",
-      "status": "pending",
+      "status": "review",
       "owner": "FD",
       "area": "quality",
       "activity": "A9",
@@ -1837,15 +1886,18 @@
         "S7.8"
       ],
       "trello": "https://trello.com/c/TlvmKJNl",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S7.5-deuda-tecnica-final",
+      "evidence": [
+        "docs/evidencias/fase2/deuda-final/README.md: comparación con S0.3 y 8 mediciones (.txt y .png): pytest+cobertura 1618 passed y 72 %, ruff 0, mypy 0, pip-audit 0, eslint 0 errores, tsc 0, Vitest 653 y 41 %, npm audit 0"
+      ],
+      "notes": "",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S7.6",
       "sprint": 7,
       "title": "Redactar la documentacion tecnica",
-      "status": "pending",
+      "status": "review",
       "owner": "FD",
       "area": "docs",
       "activity": "A10",
@@ -1857,16 +1909,19 @@
       ],
       "blocks": [],
       "trello": "https://trello.com/c/QVtcWIzA",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S7.6-documentacion-tecnica",
+      "evidence": [
+        "docs/tecnica/README.md: documento de entrada con arquitectura, requisitos, instalación local, despliegue, referencia completa de variables de entorno (obtenida del código, con valores por omisión verificados), operación, pruebas, registro de decisiones (9 ADR y 8 decisiones de la Fase 2) y problemas conocidos; esquema verificado en una base vacía (25 tablas, 2 vistas) y enlaces comprobados"
+      ],
+      "notes": "Tomada por FD el 2026-11-11. Se adelantó al congelamiento (S7.0, pendiente): hay que revisarla después de S7.0. Falta la prueba del criterio con un tercero que instale siguiendo solo el documento.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S7.7",
       "sprint": 7,
       "title": "Actualizar el manual de usuario del dashboard",
-      "status": "pending",
-      "owner": "DG",
+      "status": "review",
+      "owner": "FD",
       "area": "docs",
       "activity": "A10",
       "objective": "OE9",
@@ -1877,9 +1932,12 @@
       ],
       "blocks": [],
       "trello": "https://trello.com/c/EbSnTcxD",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S7.7-manual-usuario",
+      "evidence": [
+        "docs/manual-usuario/README.md: manual de usuario en 14 secciones con 17 capturas de la aplicación en ejecución (datos ficticios); textos citados verificados contra los catálogos en español"
+      ],
+      "notes": "Traspasada de DG a FD el 2026-11-11. No existía un manual previo en el repositorio: se escribe desde cero. Se adelanta al congelamiento (S7.0, pendiente): hay que revisarlo después de S7.0.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S7.8",
@@ -2372,7 +2430,7 @@
       "id": "SEC-2026-10-19-01",
       "sprint": 2,
       "title": "Actualizar pyjwt y next por vulnerabilidades conocidas",
-      "status": "claimed",
+      "status": "done",
       "owner": "FD",
       "area": "security",
       "activity": "A8",
@@ -2383,8 +2441,10 @@
       "blocks": [],
       "trello": null,
       "branch": "docmac",
-      "evidence": [],
-      "notes": "Registrada el 2026-10-19. pip-audit informa 2 avisos en pyjwt 2.14.0, corregidos en 2.15.0. npm audit --omit=dev informa 6 (5 altas y 1 moderada), entre ellas next 16.3.6. Evidencia: docs/evidencias/fase2/calidad/05-pip-audit.txt y 06-npm-audit.txt. El informe de la Fase 2 lo declara como deuda con plazo el 2026-11-01.",
+      "evidence": [
+        "PR #47 (rama docmac) mezclado en main el 2026-11-09 (264dee0) tras la revisión de FO"
+      ],
+      "notes": "Registrada el 2026-10-19. pip-audit informa 2 avisos en pyjwt 2.14.0, corregidos en 2.15.0. npm audit --omit=dev informa 6 (5 altas y 1 moderada), entre ellas next 16.3.6. Evidencia: docs/evidencias/fase2/calidad/05-pip-audit.txt y 06-npm-audit.txt. El informe de la Fase 2 lo declara como deuda con plazo el 2026-11-01. Cerrada el 2026-11-10: revisó y mezcló FO (PR #47).",
       "owner_session": "FD"
     },
     {
@@ -2410,8 +2470,8 @@
       "id": "BUG-2026-10-19-08",
       "sprint": 2,
       "title": "`credit_ledger.balance_after` repite el saldo cuando se insertan dos dossiers en la misma sentencia",
-      "status": "pending",
-      "owner": "FO",
+      "status": "review",
+      "owner": "FD",
       "area": "db",
       "activity": "A9",
       "objective": "OE2",
@@ -2420,17 +2480,19 @@
       "depends_on": [],
       "blocks": [],
       "trello": null,
-      "branch": null,
-      "evidence": [],
-      "notes": "Defecto ad hoc registrado el 2026-10-19. Con dos dossiers insertados en la misma sentencia, las dos filas de credit_ledger quedan con el mismo balance_after. El saldo de la organización sí queda correcto. Evidencia: docs/evidencias/fase2/almacenamiento/README.md.",
-      "owner_session": null
+      "branch": "fix/BUG-2026-10-19-08-saldo-creditos",
+      "evidence": [
+        "tests/integration/test_bug_08_saldo_creditos.py: 6 pruebas contra PostgreSQL 18 (antes [4, 4] y [11, 11, 11]); migración a9d3e5f7b1c4 con downgrade"
+      ],
+      "notes": "Defecto ad hoc registrado el 2026-10-19. Con dos dossiers insertados en la misma sentencia, las dos filas de credit_ledger quedan con el mismo balance_after. El saldo de la organización sí queda correcto. Evidencia: docs/evidencias/fase2/almacenamiento/README.md. Traspasada de FO a FD el 2026-11-10.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "BUG-2026-10-19-09",
       "sprint": 2,
       "title": "El aviso flotante de generación muestra la hora de la reunión en UTC",
-      "status": "pending",
-      "owner": "DG",
+      "status": "review",
+      "owner": "FD",
       "area": "frontend",
       "activity": "A9",
       "objective": "OE2",
@@ -2439,17 +2501,19 @@
       "depends_on": [],
       "blocks": [],
       "trello": null,
-      "branch": null,
-      "evidence": [],
-      "notes": "Defecto ad hoc registrado el 2026-10-19. En la demo, una reunión de las 17:00 en America/Santiago aparecía como 20:00 en el aviso flotante de generación. Evidencia: docs/evidencias/fase2/ui/README.md.",
-      "owner_session": null
+      "branch": "fix/BUG-2026-10-19-09-hora-utc",
+      "evidence": [
+        "frontend/src/lib/format.test.ts: 4 pruebas (antes 20:00 en vez de 17:00); Vitest 657 passed, tsc y eslint sin errores"
+      ],
+      "notes": "Defecto ad hoc registrado el 2026-10-19. En la demo, una reunión de las 17:00 en America/Santiago aparecía como 20:00 en el aviso flotante de generación. Evidencia: docs/evidencias/fase2/ui/README.md. Traspasada de DG a FD el 2026-11-10.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "BUG-2026-10-19-10",
       "sprint": 2,
       "title": "El saneador HTML borra un `<correo>` escrito tal cual en la descripción del evento",
-      "status": "pending",
-      "owner": "FO",
+      "status": "review",
+      "owner": "FD",
       "area": "backend",
       "activity": "A9",
       "objective": "OE2",
@@ -2458,10 +2522,12 @@
       "depends_on": [],
       "blocks": [],
       "trello": null,
-      "branch": null,
-      "evidence": [],
-      "notes": "Defecto ad hoc registrado el 2026-10-19 (anotado en el PR #28). strip_html_to_text elimina un <correo> escrito tal cual como si fuera una etiqueta; solo sobrevive escapado (&lt;…&gt;).",
-      "owner_session": null
+      "branch": "fix/BUG-2026-10-19-10-correo-en-descripcion",
+      "evidence": [
+        "tests/test_html_text.py: 9 pruebas (antes el <correo> desaparecía); 279 pruebas que usan el saneador en verde"
+      ],
+      "notes": "Defecto ad hoc registrado el 2026-10-19 (anotado en el PR #28). strip_html_to_text elimina un <correo> escrito tal cual como si fuera una etiqueta; solo sobrevive escapado (&lt;…&gt;). Traspasada de FO a FD el 2026-11-10.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "CHORE-2026-10-19-05",
@@ -2500,6 +2566,48 @@
       "evidence": [],
       "notes": "Registrada el 2026-10-19. En el informe v2 (PR #34, docs/documentos-capstone/) el texto sobre el avance de FD está marcado «[Texto pendiente de validación por FD.]».",
       "owner_session": null
+    },
+    {
+      "id": "UX-ADMIN-01",
+      "sprint": 7,
+      "title": "Panel de administración: límite de dossiers simultáneos por usuario según el plan",
+      "status": "review",
+      "owner": "FD",
+      "area": "fullstack",
+      "activity": "A6",
+      "objective": "OE6",
+      "gap": null,
+      "due": null,
+      "depends_on": [],
+      "blocks": [],
+      "trello": null,
+      "branch": "feat/UX-ADMIN-01-limites-por-plan",
+      "evidence": [
+        "specs/reports/UX-ADMIN-01-limites-por-plan.md: CA1-CA10 con pruebas de integración, seguridad y estrés contra PostgreSQL 18 y Vitest del panel y del error traducido; prueba en la aplicación en ejecución (cambio desde el panel auditado y 409 con el tope lleno)"
+      ],
+      "notes": "Ampliación solicitada por FD el 2026-11-11, adicional al plan. Decisiones de FD: lo configura solo el admin de plataforma en /dashboard/admin; la automatización del calendario no cuenta para el límite; valores iniciales Free 1, Pro 3, Enterprise 10. El panel queda preparado para sumar más ajustes.",
+      "owner_session": "FD (agente)"
+    },
+    {
+      "id": "BUG-2026-11-11-01",
+      "sprint": 7,
+      "title": "Los trabajos de generación quedan «en curso» para siempre tras una caída del servidor",
+      "status": "review",
+      "owner": "FD",
+      "area": "backend",
+      "activity": "A9",
+      "objective": "OE6",
+      "gap": null,
+      "due": null,
+      "depends_on": [],
+      "blocks": [],
+      "trello": null,
+      "branch": "fix/trabajos-colgados",
+      "evidence": [
+        "backend/tests/integration/test_trabajos_colgados.py (16 pruebas contra PostgreSQL 18: umbral, estados, canal en vivo, auditoría, cupo, barridos simultáneos, latido, cierre que no pisa el fallido, migración) y tests/test_worker_recuperacion.py; frontend/src/lib/translate-job-interrupted.test.ts (7 idiomas); prueba en vivo: trabajo con 10 min sin latido marcado fallido al reiniciar la API"
+      ],
+      "notes": "Hallado en UX-ADMIN-01 (2026-11-11). Si el proceso caía a mitad de una generación, el trabajo quedaba running: el aviso no terminaba y el usuario podía quedar sin cupo. Arreglo aprobado por FD: latido heartbeat_at cada 30 s y barrido al arrancar y cada 60 s que marca failed los que no tienen latido en 180 s. Sin créditos que devolver: se cobran al guardar el dossier.",
+      "owner_session": "FD (agente)"
     }
   ]
 }

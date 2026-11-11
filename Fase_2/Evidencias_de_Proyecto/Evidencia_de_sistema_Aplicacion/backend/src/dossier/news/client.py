@@ -8,6 +8,7 @@ procedencia completa (S3.4) es tarea del agente de noticias, no de este modulo.
 from __future__ import annotations
 
 import os
+import time
 from typing import Any
 
 import requests
@@ -17,9 +18,18 @@ NEWSAPI_SEARCH_URL = "https://newsapi.org/v2/everything"
 
 DEFAULT_TIMEOUT = 20
 
+# GDELT pide no más de una consulta cada 5 s por IP y responde 429 si se excede.
+GDELT_ESPERA_LIMITE_SEG = 5.5
+# Reemplazable en las pruebas.
+_esperar = time.sleep
+
 
 class ProveedorNoticiasError(RuntimeError):
     """Error al consultar un proveedor de noticias (HTTP, timeout, formato inesperado)."""
+
+
+class LimiteProveedorNoticias(ProveedorNoticiasError):
+    """El proveedor rechazó la consulta por exceso de pedidos (HTTP 429)."""
 
 
 def search_gdelt_articles(query: str, *, limite: int = 10) -> list[dict[str, Any]]:
@@ -32,20 +42,25 @@ def search_gdelt_articles(query: str, *, limite: int = 10) -> list[dict[str, Any
     if not q:
         return []
 
+    params = {
+        "query": q,
+        "mode": "artlist",
+        "format": "json",
+        "timespan": "30d",
+        "maxrecords": str(max(1, min(limite, 250))),
+    }
     try:
-        resp = requests.get(
-            GDELT_SEARCH_URL,
-            params={  # type: ignore[arg-type]  # valores str/int validos para requests; mypy infiere dict[str, object]
-                "query": q,
-                "mode": "artlist",
-                "format": "json",
-                "timespan": "30d",
-                "maxrecords": max(1, min(limite, 250)),
-            },
-            timeout=DEFAULT_TIMEOUT,
-        )
+        resp = requests.get(GDELT_SEARCH_URL, params=params, timeout=DEFAULT_TIMEOUT)
+        if resp.status_code == 429:
+            # Límite de GDELT por IP: se espera el intervalo que pide y se reintenta una vez.
+            _esperar(GDELT_ESPERA_LIMITE_SEG)
+            resp = requests.get(GDELT_SEARCH_URL, params=params, timeout=DEFAULT_TIMEOUT)
+            if resp.status_code == 429:
+                raise LimiteProveedorNoticias("GDELT rechazó la consulta por exceso de pedidos (429)")
         resp.raise_for_status()
         data = resp.json()
+    except ProveedorNoticiasError:
+        raise
     except Exception as e:
         raise ProveedorNoticiasError(f"Error al consultar GDELT: {e}") from e
 
@@ -77,8 +92,13 @@ def search_newsapi_articles(query: str, *, limite: int = 10) -> list[dict[str, A
             headers={"X-Api-Key": api_key},
             timeout=DEFAULT_TIMEOUT,
         )
+        if resp.status_code == 429:
+            # Cuota diaria o por minuto agotada: reintentar no sirve.
+            raise LimiteProveedorNoticias("NewsAPI rechazó la consulta por exceso de pedidos (429)")
         resp.raise_for_status()
         data = resp.json()
+    except ProveedorNoticiasError:
+        raise
     except Exception as e:
         raise ProveedorNoticiasError(f"Error al consultar NewsAPI: {e}") from e
 

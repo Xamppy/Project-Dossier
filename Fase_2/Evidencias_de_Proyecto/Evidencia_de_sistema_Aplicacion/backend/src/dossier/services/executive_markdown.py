@@ -5,6 +5,7 @@ segunda llamada al LLM y mantiene el informe consistente con los datos validados
 """
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from dossier.schemas.dossier_executive_payload import DossierExecutivePayload, SourceCitation
@@ -128,6 +129,16 @@ _TITULOS: dict[str, dict[str, Any]] = {
 }
 
 
+def _fecha_de_prensa(valor: str) -> str:
+    """«20261103T193800Z» (GDELT) o una fecha ISO con hora → «2026-11-03». Si no se entiende, igual."""
+    v = valor.strip()
+    compacta = re.fullmatch(r"(\d{4})(\d{2})(\d{2})T\d{6}Z?", v)
+    if compacta:
+        return "-".join(compacta.groups())
+    iso = re.match(r"(\d{4}-\d{2}-\d{2})(?:[T ]|$)", v)
+    return iso.group(1) if iso else v
+
+
 def _enlace(texto: str, url: str | None) -> str:
     return f"[{texto}]({url})" if url else texto
 
@@ -165,7 +176,7 @@ def render_executive_markdown(payload: DossierExecutivePayload, output_language:
     if payload.press_mentions:
         lineas = [
             f"- **{m.headline}** — {_enlace(m.publisher, m.url)}"
-            + (f", {m.published_date}" if m.published_date else "")
+            + (f", {_fecha_de_prensa(m.published_date)}" if m.published_date else "")
             + f"\n  {m.summary}"
             for m in payload.press_mentions
         ]

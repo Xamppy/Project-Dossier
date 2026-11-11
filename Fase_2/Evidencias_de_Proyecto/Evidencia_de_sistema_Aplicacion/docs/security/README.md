@@ -1,34 +1,62 @@
 # Seguridad
 
-Estado verificado el **07-09-2026**. Este archivo se actualiza a medida que las tareas del
+Estado verificado el **10-11-2026**. Este archivo se actualiza a medida que las tareas del
 objetivo OE8 se van cerrando.
 
 ## Estado de los cuatro controles comprometidos
 
-El objetivo específico 8 compromete cuatro controles. Existen tres (control de acceso, limitación de tasa y auditoría).
+El objetivo específico 8 compromete cuatro controles. Los cuatro existen.
 
 | Control | Estado | Tarea | Evidencia |
 |---|---|---|---|
 | Control de acceso | **implementado** | S6.7 verifica el aislamiento | JWT firmado, RBAC con roles admin/user/viewer, aislamiento por organización; pruebas en `test_rbac.py` y `test_aislamiento_organizaciones.py` |
 | Limitación de tasa | **implementado** | S5.8 | 429 con `Retry-After` en autenticación y generación; ver «Sin limitación de tasa» |
-| Registro de auditoría | **implementado** (lectura y generación) | S4.10; S6.6 suma correos y borrados por retención | `audit_logs` de solo inserción y firmada; ver «Sin rastro de acceso a datos personales» |
-| Retención de 24 h con borrado verificado | **diverge** | S6.5 | Hoy 7 a 90 días, sin verificación de borrado |
+| Registro de auditoría | **implementado** (lectura, generación, correos y borrados) | S4.10; S6.6 | `audit_logs` de solo inserción y firmada; ver «Sin rastro de acceso a datos personales» |
+| Retención de 24 h con borrado verificado | **implementado** | S6.5 | Plazo fijo para todos los dossiers; ver «Retención de 24 horas» |
+
+## Retención de 24 horas
+
+Cerrada en S6.5 (`specs/proposals/S6.5-retencion-24h.md`). Antes, cada usuario elegía 7 a 90 días
+o conservar indefinidamente, y el borrado no se verificaba.
+
+- **Plazo fijo:** `DOSSIER_RETENTION_HOURS` (24 por omisión) para todos los dossiers. El usuario
+  ya no elige; `users.dossier_retention_days` quedó sin uso.
+- **Dossiers de una reunión (S6.3):** si el dossier está ligado a un evento del calendario, las 24 h
+  se cuentan desde lo más tardío entre su creación y el inicio de la reunión. Así un dossier
+  generado 1 día antes no se borra antes de usarse.
+- **Qué borra** `services/dossier_retention_worker.py`: cada dossier creado antes del corte, con
+  sus alertas, prensa, registros, trayectoria, ice breakers y enlaces compartidos (por
+  `ON DELETE CASCADE`) y su entrada de Redis; y los jobs de generación terminados antes del corte,
+  que guardan el nombre consultado y el resultado. `credit_ledger` conserva el movimiento con
+  `dossier_id` en `NULL`.
+- **Verificación:** tras el `commit` vuelve a contar filas y claves de Redis. Sin restos registra
+  «borrado verificado»; con restos, un `ERROR` con tabla y cantidad, nunca datos de la persona.
+- **Atraso máximo:** el intervalo del worker, `DOSSIER_RETENTION_POLL_SECONDS` (600 s por omisión).
+- **Caché:** el TTL de Redis nunca supera la retención.
+- **Fuera del sistema:** el PDF que llega por correo (S6.1) es la copia del usuario y no se borra.
+
+Pruebas: `tests/security/test_ejemplo_seguridad.py` (no recuperable y sin huérfanos),
+`tests/integration/test_retencion_24h_integracion.py` y `tests/test_retencion_24h.py`.
+
+## Enlace de un solo uso (S6.2)
+
+El correo abre el dossier sin iniciar sesión, con un enlace que es la credencial. Por eso:
+
+- **Alcance mínimo:** solo ese dossier, en solo lectura. La respuesta trae nombre, informe, fecha e
+  idioma; nada de la organización ni de otros dossiers.
+- **Un solo uso y 24 horas:** el canje es un `UPDATE … RETURNING` atómico; dos canjes simultáneos
+  nunca ganan los dos.
+- **Token fuera de los logs:** 256 bits aleatorios, en el fragmento de la URL del frontend y en el
+  cuerpo del `POST`, nunca en una ruta ni en una query. En la base, solo su SHA-256.
+- **Sin pistas:** inexistente, usado, vencido o borrado responden igual (410).
+- **Fuerza bruta:** `ACCESS_LINK_RATE_LIMIT` (20 canjes por minuto por IP) → 429.
+- **Auditoría:** cada canje, exitoso o no, queda como `ACCESS dossier_link`, sin el token.
+- **Retención:** los enlaces caen con el dossier y entran en la verificación del borrado (S6.5).
+
+Pruebas: `tests/test_enlace_acceso.py`, `tests/integration/test_enlace_acceso_integracion.py`,
+`tests/security/test_enlace_acceso_seguridad.py` y `tests/stress/test_enlace_acceso_estres.py`.
 
 ## Hallazgos abiertos
-
-### Retención por debajo de lo exigido
-
-`backend/src/dossier/services/dossier_retention.py`
-
-```python
-ALLOWED_DOSSIER_RETENTION_DAYS = frozenset({7, 14, 30, 90})
-DEFAULT_DOSSIER_RETENTION_DAYS = 30
-```
-
-`None` significa conservar indefinidamente. La especificación exige **24 horas con borrado
-verificado**. Hoy el mínimo es 7 días y el borrado no se verifica: solo se ejecuta.
-
-**Cierra en:** S6.5.
 
 ### Rutas legadas
 
@@ -65,7 +93,7 @@ proceso, `--workers 1`):
 Pruebas: `tests/test_rate_limit.py`, `tests/integration/test_rate_limit_rutas.py`,
 `tests/security/test_rate_limit_seguridad.py` y `tests/stress/test_rate_limit_estres.py`.
 
-### Sin rastro de acceso a datos personales — cerrado en S4.10 (S6.6 lo extiende)
+### Sin rastro de acceso a datos personales — cerrado en S4.10 y S6.6
 
 Antes, el sistema trataba datos de personas identificables (PDL, Lusha, registros
 corporativos, prensa) sin registrar quién accedía a qué. La tabla `audit_logs` existía desde
@@ -93,7 +121,41 @@ Pruebas: `tests/test_audit_log.py`, `tests/integration/test_audit_log_flujo.py`,
 `tests/integration/test_audit_log_migracion.py`, `tests/security/test_audit_log_seguridad.py`
 y `tests/stress/test_audit_log_estres.py`.
 
-**Pendiente en S6.6:** envíos de correo (depende de S6.1) y borrados por retención (S6.5).
+**Envíos y borrados (S6.6).** Lo que sale del sistema o desaparece también queda registrado:
+
+| `action` | Cuándo | Quién |
+|---|---|---|
+| `EMAIL dossier_manual` | Envío desde el botón del dossier, exitoso o fallido | el usuario de la sesión |
+| `EMAIL dossier_auto` | Envío automático al terminar una generación | quien pidió la generación |
+| `POST /dossiers/{dossier_id}/email` | Toda llamada a la ruta de envío, también 404 y 429 (middleware) | el usuario de la sesión |
+| `RETENTION dossier_deleted` | Cada dossier borrado por la retención de 24 h | `sistema`, sin usuario |
+| `RETENTION jobs_deleted` | Jobs de generación borrados en una vuelta, con la cantidad | `sistema` |
+| `RETENTION verification` | Resultado de la verificación; `success = false` si quedaron restos | `sistema` |
+
+Un envío nunca guarda la dirección del destinatario: de un error solo queda su clase
+(`EmailDeliveryError`), porque el texto del servidor SMTP puede traer la dirección. El registro del
+borrado va en la misma transacción que el borrado: si no se puede registrar, no se borra.
+
+Consultas de ejemplo:
+
+```sql
+-- Qué pasó con un dossier: lecturas, envíos y su borrado
+SELECT created_at, action, user_role_at_time, success, error_message
+FROM audit_logs WHERE resource_id = '<id del dossier>' ORDER BY created_at;
+
+-- Envíos fallidos de la última semana
+SELECT created_at, action, resource_id, error_message FROM audit_logs
+WHERE action LIKE 'EMAIL %' AND NOT success AND created_at > now() - interval '7 days';
+
+-- Vueltas de retención que no pudieron verificar el borrado
+SELECT created_at, request_data FROM audit_logs
+WHERE action = 'RETENTION verification' AND NOT success;
+```
+
+Pruebas de S6.6: `tests/test_auditoria_correo.py`,
+`tests/integration/test_auditoria_correo_borrado_integracion.py`,
+`tests/security/test_ejemplo_seguridad.py::test_enviar_y_borrar_dejan_registro_de_auditoria` y
+`tests/stress/test_retencion_24h_estres.py::test_volumen_alto_deja_un_registro_de_auditoria_por_dossier`.
 
 ### Token de acceso de 7 días en `localStorage` — cerrado en S3.9
 

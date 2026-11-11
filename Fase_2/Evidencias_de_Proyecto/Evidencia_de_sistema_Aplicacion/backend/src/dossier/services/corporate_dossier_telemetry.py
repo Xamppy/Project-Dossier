@@ -23,6 +23,13 @@ def telemetria_de(generado: Any) -> dict[str, Any]:
         "menciones_prensa": [
             m.model_dump(mode="json") for m in (getattr(generado, "menciones_prensa", None) or [])
         ],
+        # UX-ADMIN-02: créditos extra de las fuentes de prensa que respondieron.
+        "creditos_extra_prensa": int(getattr(generado, "creditos_extra_prensa", 0) or 0),
+        # S3.5: sin la respuesta cruda del registro (tamaño y contenido no controlados).
+        "registros_europeos": [
+            c.model_dump(mode="json", exclude={"record": {"datos_brutos"}})
+            for c in (getattr(generado, "registros_europeos", None) or [])
+        ],
     }
 
 
@@ -46,10 +53,14 @@ def columnas_telemetria(telemetria: dict[str, Any] | None, *, es_error: bool) ->
     return {
         "agents_activated": list(dict.fromkeys(exitosos + fallidos)),
         "agents_failed": fallidos,
-        # Solo lo que respondió; lo caído queda en fuentes_consultadas con resultado "error".
-        "data_sources_used": list(dict.fromkeys(f["fuente"] for f in fuentes if f.get("resultado") != "error")),
+        # Solo lo que respondió; lo caído (o sin cupo diario) queda en fuentes_consultadas.
+        "data_sources_used": list(
+            dict.fromkeys(f["fuente"] for f in fuentes if f.get("resultado") not in ("error", "sin_cupo"))
+        ),
         "dossier_data": {
             "fuentes_consultadas": fuentes,
             "agents_skipped": list(telemetria.get("agents_skipped") or []),
+            # S5.5: datos por módulo que el detalle expone en ``modules``.
+            "modulos": {"registros_europeos": list(telemetria.get("registros_europeos") or [])},
         },
     }

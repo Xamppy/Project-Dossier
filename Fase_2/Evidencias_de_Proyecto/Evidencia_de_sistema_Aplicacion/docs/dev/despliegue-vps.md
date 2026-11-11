@@ -45,7 +45,7 @@ Qué ocurre al arrancar:
 
 1. Postgres y Redis se levantan; la API espera a que respondan (healthchecks).
 2. La API ejecuta `alembic upgrade head`: sobre una base nueva crea el esquema completo
-   (22 tablas, 2 vistas y los triggers de cobro de créditos).
+   (25 tablas, 2 vistas y los triggers de cobro de créditos).
 3. Caddy obtiene el certificado HTTPS de Let's Encrypt para `DOMAIN`.
 
 Para generar los secretos:

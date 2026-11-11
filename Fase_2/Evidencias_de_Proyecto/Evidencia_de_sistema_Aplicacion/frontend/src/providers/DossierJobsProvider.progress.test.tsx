@@ -25,7 +25,7 @@ const h = vi.hoisted(() => ({
     enqueuePersonResearch: vi.fn(),
     fetchEnqueueGoogleCalendarDossier: vi.fn(),
     fetchEnqueueOutlookCalendarDossier: vi.fn(),
-    createCorporateDossier: vi.fn(),
+    enqueueCorporateDossier: vi.fn(),
   },
 }));
 

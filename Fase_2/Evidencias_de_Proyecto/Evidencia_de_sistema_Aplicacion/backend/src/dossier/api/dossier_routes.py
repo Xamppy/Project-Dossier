@@ -5,8 +5,9 @@ import logging
 import os
 import time
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -34,41 +35,57 @@ from dossier.cache.corporate_dossier_redis import (
     run_with_corporate_cache_lock,
     set_corporate_cached_markdown,
 )
-from dossier.db.models import Dossier, Organization
+from dossier.db.models import Dossier, DossierMediaMention, Organization, User
 from dossier.graphs.corporate_dossier_graph import (
     JurisdictionScope,
     infer_jurisdiction_scope,
     run_corporate_dossier_langgraph_detailed,
 )
 from dossier.org_dossier_context import format_dossier_context_for_prompt
+from dossier.schemas.admin import NewsSourceApplicableItem, NewsSourcesApplicableResponse
 from dossier.schemas.dossier_executive_payload import resumen_contenido_dossier
 from dossier.schemas.dossier_generation import (
     DEPTH_CREDITS,
     CreateCorporateDossierRequest,
+    DossierDepth,
     build_corporate_generation_strings,
 )
 from dossier.schemas.dossier_share import DossierShareCreate
 from dossier.schemas.person_research import PersonResearchRequest
 from dossier.security.rate_limit import limit_generation
 from dossier.security.rbac import normalize_org_role
-from dossier.services.calendar_event_dossiers import calendar_meeting_summary_from_dossier_data
+from dossier.services.calendar_event_dossiers import (
+    CORPORATE_PARTIAL_MESSAGE,
+    _report_corporate_cache_hit,
+    calendar_meeting_summary_from_dossier_data,
+    es_informe_cacheable,
+)
 from dossier.services.corporate_company_search import search_corporate_company_candidates
 from dossier.services.corporate_dossier_telemetry import columnas_telemetria, telemetria_de
+from dossier.services.dossier_access_links import url_de_acceso_o_nada
 from dossier.services.dossier_deletion_service import (
     delete_dossier_record,
     delete_dossiers_in_folder,
     finalize_dossier_deletions,
 )
-from dossier.services.dossier_email import resend_wait_seconds, send_dossier_email
+from dossier.services.dossier_email import (
+    auditar_envio,
+    evento_envio,
+    resend_wait_seconds,
+    send_dossier_email,
+)
 from dossier.services.dossier_folder_utils import (
     build_dossier_list_entries,
     serialize_dossier_list_item,
     serialize_folder,
 )
 from dossier.services.dossier_generation_job_service import (
+    enqueue_corporate_manual_job,
     enqueue_person_research_job,
     enviar_dossier_al_solicitante,
 )
+from dossier.services.dossier_job_progress import NULL_SCOPE
+from dossier.services.dossier_modules import MAX_MENCIONES, modulos_del_dossier
 from dossier.services.dossier_share_service import (
     dossier_permissions_payload,
     list_dossier_shares,
@@ -83,12 +100,36 @@ from dossier.services.email_service import (
     EmailNotConfiguredError,
     email_delivery_available,
 )
+from dossier.services.news_sources import creditos_extra_maximos, fuentes_aplicables
 from dossier.services.output_language import effective_output_language
 from dossier.services.person_research_pipeline import run_person_research_and_persist
 from dossier.services.press_mentions_writer import escribir_menciones_prensa
 from dossier.utils.html_text import strip_html_to_plain_line
 
 router = APIRouter(tags=["Dossiers"])
+
+
+@router.get("/news-sources/applicable", response_model=NewsSourcesApplicableResponse)
+def news_sources_applicable(
+    ctx: Annotated[OrgAuthContext, Depends(get_org_auth_context)],
+    kind: Annotated[Literal["corporate", "person"], Query()],
+    depth: Annotated[DossierDepth, Query()] = "standard",
+    db: Session = Depends(get_db_if_configured),
+) -> NewsSourcesApplicableResponse:
+    """UX-ADMIN-02: fuentes de prensa que usaría un dossier del plan y su extra máximo.
+
+    Solo nombre y extra: ni claves ni límites. Las personas siempre son de profundidad básica.
+    """
+    fuentes = fuentes_aplicables(
+        db, tipo=kind, profundidad="basic" if kind == "person" else depth, plan=ctx.org.plan
+    )
+    return NewsSourcesApplicableResponse(
+        sources=[
+            NewsSourceApplicableItem(key=f.proveedor.clave, name=f.proveedor.nombre, extra_credits=f.creditos_extra)
+            for f in fuentes
+        ],
+        extra_credits=creditos_extra_maximos(fuentes),
+    )
 logger = logging.getLogger(__name__)
 
 
@@ -209,13 +250,44 @@ def generate_corporate_dossier(
     (`DOSSIER_CHARGE_CREDITS=0`). Si el pipeline devuelve error, no se cobra.
     """
     user, org = ctx.user, ctx.org
-    charge = _corporate_credit_charging_enabled()
     assert_corporate_dossier_allowed(org)
     assert_depth_allowed(org, body.depth)
+    if body.async_mode:
+        # Informe beta: por la cola de trabajos, con avance real de cada agente en vivo.
+        job = enqueue_corporate_manual_job(db, user=user, org=org, body=body)
+        return {
+            "async": True,
+            "job_id": str(job.id),
+            "status": job.status,
+            "meeting_label": job.meeting_label,
+            "credits_estimated": job.credits_estimated,
+        }
+    return generar_dossier_corporativo(db, user=user, org=org, body=body)
+
+
+def generar_dossier_corporativo(
+    db: Session,
+    *,
+    user: User,
+    org: Organization,
+    body: CreateCorporateDossierRequest,
+    progress: Any = None,
+    antes_de_guardar: Callable[[], bool] | None = None,
+) -> dict[str, Any] | None:
+    """Genera y guarda el dossier corporativo. La usan la ruta síncrona y el worker de la cola.
+
+    ``progress`` es el scope corporativo del trabajo (avance por agente). ``antes_de_guardar``
+    deja al worker no guardar nada si el trabajo se canceló mientras corría el grafo: en ese
+    caso devuelve ``None``.
+    """
+    progress = progress if progress is not None else NULL_SCOPE
+    charge = _corporate_credit_charging_enabled()
     cost = DEPTH_CREDITS[body.depth] if charge else 0
     out_lang = effective_output_language(user, body.output_language)
 
     db.refresh(org)
+    # UX-ADMIN-02: fuentes de prensa que el admin dejó para este plan y profundidad.
+    fuentes_prensa = fuentes_aplicables(db, tipo="corporate", profundidad=body.depth, plan=org.plan, cobrar=charge)
 
     participantes, subject_display = build_corporate_generation_strings(body)
 
@@ -243,9 +315,11 @@ def generate_corporate_dossier(
         if hit is not None:
             markdown_neutral = hit
             cache_hit = True
+            _report_corporate_cache_hit(progress, hit)
 
     if not cache_hit:
-        assert_sufficient_credits(org, cost, charge=charge)
+        # Con el extra máximo de la prensa: si responden todas, el saldo tiene que alcanzar.
+        assert_sufficient_credits(org, cost + creditos_extra_maximos(fuentes_prensa), charge=charge)
 
     descripcion_neutral_parts: list[str] = []
     if body.subject_email:
@@ -262,6 +336,7 @@ def generate_corporate_dossier(
             if hit2 is not None:
                 markdown_neutral = hit2
                 cache_hit = True
+                _report_corporate_cache_hit(progress, hit2)
                 return
             generado = run_corporate_dossier_langgraph_detailed(
                 tema_reunion=f"Dossier corporativo — {participantes[:200]}",
@@ -270,10 +345,14 @@ def generate_corporate_dossier(
                 jurisdiction_scope=explicit_scope,
                 output_language=out_lang,
                 empresa_objetivo=empresa_objetivo_de_solicitud(body),
+                progress=progress,
+                fuentes_prensa=fuentes_prensa,
             )
+            progress.fields(origin="generated")
             md = generado.markdown
             telemetria = telemetria_de(generado)
-            if not md.lstrip().startswith("# Error"):
+            # S7.2: un informe parcial (sin síntesis) no se cachea.
+            if es_informe_cacheable(generado):
                 set_corporate_cached_markdown(key_hash, md)
             markdown_neutral = md
             cache_hit = False
@@ -285,10 +364,14 @@ def generate_corporate_dossier(
     now = datetime.now(UTC)
 
     is_err = markdown.lstrip().startswith("# Error")
-    status = "failed" if is_err else "complete"
+    # S7.2: sin síntesis con IA el informe trae solo los datos de los agentes: parcial, sin cobro.
+    sin_sintesis = bool(telemetria) and "synthesize_llm" in (telemetria or {}).get("agents_failed", [])
+    status = "failed" if is_err else ("partial" if sin_sintesis else "complete")
 
-    will_charge = charge and cost > 0 and not is_err and not cache_hit
+    will_charge = charge and cost > 0 and status == "complete" and not cache_hit
     columnas = columnas_telemetria(None if cache_hit else telemetria, es_error=is_err)
+    # UX-ADMIN-02: el trigger de cobro suma este extra (solo fuentes que respondieron).
+    extra_prensa = int((telemetria or {}).get("creditos_extra_prensa") or 0) if will_charge else 0
 
     dossier_id = uuid.uuid4()
     dossier_data_body: dict = {
@@ -304,6 +387,7 @@ def generate_corporate_dossier(
             "pipeline_version": (os.getenv("DOSSIER_CACHE_PIPELINE_VERSION") or "1").strip(),
         },
         "output_language": out_lang,
+        "news_extra_credits": extra_prensa,
         **columnas["dossier_data"],
     }
     if body.resolution is not None:
@@ -321,9 +405,11 @@ def generate_corporate_dossier(
         module_corporate=module_flags["module_corporate"],
         module_media=module_flags["module_media"],
         depth_level=body.depth,
-        credits_consumed=cost if will_charge else 0,
+        credits_consumed=cost + extra_prensa if will_charge else 0,
         status=status,
-        status_message="Error en síntesis o en el pipeline." if is_err else None,
+        status_message=(
+            "Error en síntesis o en el pipeline." if is_err else CORPORATE_PARTIAL_MESSAGE if status == "partial" else None
+        ),
         dossier_data=dossier_data_body,
         agents_activated=columnas["agents_activated"],
         agents_failed=columnas["agents_failed"],
@@ -336,6 +422,9 @@ def generate_corporate_dossier(
         trigger_source="manual",
     )
 
+    if antes_de_guardar is not None and not antes_de_guardar():
+        db.rollback()
+        return None
     db.add(dossier)
     if not cache_hit and telemetria is not None:
         escribir_menciones_prensa(
@@ -347,6 +436,7 @@ def generate_corporate_dossier(
     db.commit()
     db.refresh(dossier)
     db.refresh(org)
+    progress.fields(dossier={"id": str(dossier.id), "status": dossier.status})
 
     return {
         "id": str(dossier.id),
@@ -395,6 +485,17 @@ def get_dossier_by_id(
         role=role,
     )
     contenido = resumen_contenido_dossier(d.dossier_data)
+    # S3.6: prensa guardada por S3.4, más reciente primero; solo de este dossier.
+    filas_prensa = (
+        db.execute(
+            select(DossierMediaMention)
+            .where(DossierMediaMention.dossier_id == d.id)
+            .order_by(DossierMediaMention.published_at.desc().nulls_last(), DossierMediaMention.title)
+            .limit(MAX_MENCIONES)
+        )
+        .scalars()
+        .all()
+    )
     return {
         "id": str(d.id),
         "organization_id": str(d.organization_id),
@@ -410,6 +511,8 @@ def get_dossier_by_id(
         # S4.4: aditivo, no sustituye `dossier_data` (el frontend sigue leyendo `.body`).
         "content_kind": contenido["content_kind"],
         "executive_payload": contenido["executive_payload"],
+        # S5.5: registros corporativos y prensa por módulo (aditivo).
+        "modules": modulos_del_dossier(d.dossier_data, contenido["executive_payload"], filas_prensa),
         "alerts": d.alerts,
         "agents_activated": list(d.agents_activated or []),
         "agents_failed": list(d.agents_failed or []),
@@ -476,20 +579,27 @@ def send_dossier_by_email(
             detail="Este dossier se acaba de enviar. Espera un momento antes de reenviarlo.",
             headers={"Retry-After": str(espera)},
         )
+    # S6.6: cada intento de envío, exitoso o fallido, queda en audit_logs (sin el destinatario).
     try:
-        send_dossier_email(d, recipient=user.email)
+        # S6.2: el botón del correo abre el dossier con un enlace de un solo uso.
+        acceso = url_de_acceso_o_nada(db, d, user_id=user.id)
+        send_dossier_email(d, recipient=user.email, access_url=acceso)
     except EmailNotConfiguredError as e:
         db.rollback()
+        auditar_envio(db, evento_envio(d, manual=True, user_id=user.id, error=e), commit=True)
         raise HTTPException(status_code=503, detail="El envío por correo no está disponible.") from e
     except EmailDeliveryError as e:
         db.rollback()
         logger.warning("Envío manual del dossier %s falló: %s", d.id, e)
+        auditar_envio(db, evento_envio(d, manual=True, user_id=user.id, error=e), commit=True)
         raise HTTPException(
             status_code=502, detail="No se pudo enviar el correo. Inténtalo de nuevo más tarde."
         ) from e
     except ValueError as e:
         db.rollback()
+        auditar_envio(db, evento_envio(d, manual=True, user_id=user.id, error=e), commit=True)
         raise HTTPException(status_code=409, detail="Solo se puede enviar un dossier completo.") from e
+    auditar_envio(db, evento_envio(d, manual=True, user_id=user.id))
     db.commit()
     return {
         "dossier_id": str(d.id),

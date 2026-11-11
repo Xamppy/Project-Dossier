@@ -48,15 +48,17 @@ def calendar_event_credit_estimate(
     person_count: int = 0,
     depth: DossierDepth = "standard",
     charge: bool | None = None,
+    extra_empresa: int = 0,
+    extra_persona: int = 0,
 ) -> int:
-    """Créditos máximos si todo sale bien (corporativo + persona(s))."""
+    """Créditos máximos si todo sale bien (corporativo + persona(s)), con el extra de prensa."""
     if charge is None:
         charge = credit_charging_enabled()
     if not charge:
         return 0
     total = 0
     if has_corporate:
-        total += DEPTH_CREDITS[depth]
+        total += DEPTH_CREDITS[depth] + max(0, extra_empresa)
     pc = person_count if person_count > 0 else (1 if has_person else 0)
-    total += pc * PERSON_IDENTITY_CREDITS
+    total += pc * (PERSON_IDENTITY_CREDITS + max(0, extra_persona))
     return total

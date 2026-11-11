@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, field_validator, model_validator
 
 
 class AdminOverviewResponse(BaseModel):
@@ -77,3 +77,132 @@ class AdminDossierListItem(BaseModel):
 class AdminDossierListResponse(BaseModel):
     total: int
     items: list[AdminDossierListItem]
+
+
+class AdminPlanSettingItem(BaseModel):
+    """Ajustes de un plan (UX-ADMIN-01)."""
+
+    plan: Literal["free", "pro", "enterprise"]
+    max_concurrent_dossiers: int
+    # UX-ADMIN-03: créditos que recibe la organización al registrarse o al pasar a este plan.
+    monthly_credits: int
+    updated_at: datetime | None = None
+    updated_by_email: str | None = None
+
+
+class AdminPlanSettingsResponse(BaseModel):
+    plans: list[AdminPlanSettingItem]
+
+
+class AdminPlanSettingPatch(BaseModel):
+    """Cambios de un plan: solo lo enviado cambia, al menos un campo.
+
+    Enteros estrictos: ``2.5`` o ``"3"`` no se aceptan, tampoco ``null``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    max_concurrent_dossiers: StrictInt | None = Field(default=None, ge=1, le=100)
+    monthly_credits: StrictInt | None = Field(default=None, ge=0, le=1_000_000)
+
+    @model_validator(mode="after")
+    def _con_cambios(self) -> AdminPlanSettingPatch:
+        if not self.model_fields_set:
+            raise ValueError("No hay cambios que guardar.")
+        for campo in self.model_fields_set:
+            if getattr(self, campo) is None:
+                raise ValueError(f"{campo} no puede ser null.")
+        return self
+
+
+class BillingPlanItem(BaseModel):
+    plan: Literal["free", "pro", "enterprise"]
+    monthly_credits: int
+
+
+class BillingPlansResponse(BaseModel):
+    """UX-ADMIN-03: créditos al mes de cada plan, para las tarjetas de Configuración."""
+
+    plans: list[BillingPlanItem]
+
+
+# --- UX-ADMIN-02: fuentes de noticias -------------------------------------------------------
+
+NewsDepth = Literal["basic", "standard", "deep"]
+NewsPlan = Literal["free", "pro", "enterprise"]
+_ORDEN_PLANES: tuple[str, ...] = ("free", "pro", "enterprise")
+
+
+class AdminNewsSourceItem(BaseModel):
+    """Una fuente instalada con sus ajustes. Nunca incluye el valor de la clave de la API."""
+
+    key: str
+    name: str
+    description: str
+    configured: bool
+    key_env_var: str | None
+    default_enabled: bool
+    enabled: bool
+    use_for_corporate: bool
+    use_for_person: bool
+    min_depth: NewsDepth
+    plans: list[NewsPlan]
+    extra_credits: int
+    max_results: int
+    daily_limit: int | None
+    used_today: int
+    updated_at: datetime | None = None
+    updated_by_email: str | None = None
+
+
+class AdminNewsSourcesResponse(BaseModel):
+    sources: list[AdminNewsSourceItem]
+
+
+class AdminNewsSourcePatch(BaseModel):
+    """Cambios de una fuente. Solo lo enviado cambia; ``daily_limit: null`` quita el límite.
+
+    Tipos estrictos: ``"true"`` o ``2.5`` no se aceptan. La clave de la API no va aquí: vive
+    solo en el entorno del servidor (un campo desconocido es 422).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: StrictBool | None = None
+    use_for_corporate: StrictBool | None = None
+    use_for_person: StrictBool | None = None
+    min_depth: NewsDepth | None = None
+    plans: list[NewsPlan] | None = Field(default=None, min_length=1, max_length=3)
+    extra_credits: StrictInt | None = Field(default=None, ge=0, le=20)
+    max_results: StrictInt | None = Field(default=None, ge=1, le=50)
+    daily_limit: StrictInt | None = Field(default=None, ge=1, le=100_000)
+
+    @field_validator("plans")
+    @classmethod
+    def _planes_ordenados(cls, valor: list[str] | None) -> list[str] | None:
+        if valor is None:
+            return None
+        return [p for p in _ORDEN_PLANES if p in set(valor)]
+
+    @model_validator(mode="after")
+    def _con_cambios(self) -> AdminNewsSourcePatch:
+        if not self.model_fields_set:
+            raise ValueError("No hay cambios que guardar.")
+        for campo in self.model_fields_set - {"daily_limit"}:
+            if getattr(self, campo) is None:
+                raise ValueError(f"{campo} no puede ser null.")
+        return self
+
+
+class NewsSourceApplicableItem(BaseModel):
+    key: str
+    name: str
+    extra_credits: int
+
+
+class NewsSourcesApplicableResponse(BaseModel):
+    """Fuentes de prensa que usaría un dossier y su extra máximo (si responden todas)."""
+
+    sources: list[NewsSourceApplicableItem]
+    extra_credits: int
+

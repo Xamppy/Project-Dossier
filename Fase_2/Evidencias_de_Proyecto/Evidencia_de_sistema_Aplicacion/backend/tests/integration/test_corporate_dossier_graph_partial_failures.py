@@ -111,7 +111,9 @@ def test_sintesis_falla_pero_no_revienta_el_grafo(monkeypatch):
 
     assert resultado.agents_failed == ["synthesize_llm"]
     assert set(resultado.agents_succeeded) == {"agent_corporate_uk", "agent_corporate_usa"}
-    assert resultado.markdown.startswith("# Error en síntesis")
+    # S7.2: sin síntesis se entrega un informe parcial con lo que trajeron UK y USA.
+    assert "Informe parcial" in resultado.markdown
+    assert not resultado.markdown.startswith("# Error")
 
 
 # ---------------------------------------------------------------------------

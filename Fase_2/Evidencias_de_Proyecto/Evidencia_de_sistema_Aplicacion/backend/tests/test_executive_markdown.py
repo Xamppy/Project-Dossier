@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import pytest
+
 from dossier.schemas.dossier_executive_payload import (
     CareerPosition,
     ConfidenceAssessment,
@@ -172,3 +174,43 @@ def test_recomendacion_y_confianza_en_el_idioma_de_salida():
     assert "Proceed with caution" in md
     assert "## Confidence level" in md
     assert "Proceder" not in md
+
+
+# Informe final 2.6: GDELT entrega la fecha como «20261103T193800Z» y se copiaba tal cual.
+@pytest.mark.parametrize(
+    ("cruda", "legible"),
+    [
+        ("20261103T193800Z", "2026-11-03"),
+        ("2026-11-08T17:03:10Z", "2026-11-08"),
+        ("2026-11-01T17:03:10.327555Z", "2026-11-01"),
+        ("2026-09-01", "2026-09-01"),
+    ],
+)
+def test_la_fecha_de_prensa_se_muestra_legible(cruda, legible):
+    mencion = PressMention(
+        headline="Nota de prueba",
+        publisher="Diario de Prueba",
+        published_date=cruda,
+        summary="Resumen breve.",
+        url="https://example.test/nota",
+        source=_cita(),
+    )
+    md = render_executive_markdown(_payload(press_mentions=[mencion]), "es")
+
+    assert f", {legible}" in md
+    if cruda != legible:
+        assert cruda not in md
+
+
+def test_una_fecha_de_prensa_que_no_se_entiende_se_deja_como_vino():
+    mencion = PressMention(
+        headline="Nota de prueba",
+        publisher="Diario de Prueba",
+        published_date="primavera de 2026",
+        summary="Resumen breve.",
+        url="https://example.test/nota",
+        source=_cita(),
+    )
+    md = render_executive_markdown(_payload(press_mentions=[mencion]), "es")
+
+    assert ", primavera de 2026" in md

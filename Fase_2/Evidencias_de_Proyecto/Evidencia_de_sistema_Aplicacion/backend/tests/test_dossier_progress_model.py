@@ -55,6 +55,7 @@ def test_scope_pdl_y_gemini_web_tienen_catalogos_distintos_y_sin_busqueda_en_viv
         "person.pdl_enrich",
         "person.pdl_search",
         "person.profile_normalization",
+        "person.press_search",
         "person.context_analysis",
         "person.profile_synthesis",
         "person.markdown_fallback",
@@ -63,6 +64,7 @@ def test_scope_pdl_y_gemini_web_tienen_catalogos_distintos_y_sin_busqueda_en_viv
     ]
     assert [e["stage_id"] for e in web["stages"]] == [
         "person.cache_lookup",
+        "person.press_search",
         "person.context_analysis",
         "person.report_finalize",
         "person.persist",

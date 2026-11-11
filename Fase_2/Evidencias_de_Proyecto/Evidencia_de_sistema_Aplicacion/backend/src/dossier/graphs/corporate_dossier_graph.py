@@ -103,6 +103,13 @@ class CorporateDossierState(TypedDict, total=False):
     news_context: str
     # Menciones que pasaron el filtro de homónimos (S3.3), para persistirlas (S3.4).
     menciones_prensa: list[Any]
+    # Registros europeos que coinciden con la empresa, para la vista del dashboard (S3.5).
+    registros_europeos: list[Any]
+    # UX-ADMIN-02: fuentes de prensa elegidas según los ajustes del admin (``FuentePrensa``).
+    # ``None`` = las activas por defecto; ``[]`` = ninguna (el agente de prensa se omite).
+    fuentes_prensa: list[Any] | None
+    # Créditos extra de las fuentes de prensa que respondieron.
+    creditos_extra_prensa: int
 
     final_dossier_markdown: str
 
@@ -152,6 +159,9 @@ def _agent_skip_reason(agente: str, state: CorporateDossierState) -> str | None:
             return "no_target_company"
     if agente == "agent_news" and not empresa:
         return "no_target_company"
+    if agente == "agent_news" and state.get("fuentes_prensa") == []:
+        # El administrador no dejó ninguna fuente de prensa para este dossier.
+        return "feature_disabled"
     return None
 
 
@@ -172,9 +182,10 @@ def _node_agent_corporate_uk(state: CorporateDossierState) -> dict[str, Any]:
 
     try:
         bloque = build_uk_corporate_context_markdown(state.get("participantes", "") or "")
-    except Exception as e:
+    except Exception:
         logger.exception("Fallo agente UK (Companies House)")
-        bloque = f"## Reino Unido (Companies House)\n\n*Error interno al construir contexto: {e}*\n"
+        # S7.2: el detalle técnico queda en el log; ni el prompt ni el usuario lo ven.
+        bloque = "## Reino Unido (Companies House)\n\n*No se pudo consultar esta fuente en este momento.*\n"
         logger.info("LangGraph nodo agent_corporate_uk falló")
         return {
             "uk_corporate_context": bloque,
@@ -211,9 +222,9 @@ def _node_agent_corporate_usa(state: CorporateDossierState) -> dict[str, Any]:
 
     try:
         bloque = build_us_corporate_context_markdown(state.get("participantes", "") or "")
-    except Exception as e:
+    except Exception:
         logger.exception("Fallo agente USA (SEC)")
-        bloque = f"## Estados Unidos (SEC EDGAR)\n\n*Error interno al construir contexto: {e}*\n"
+        bloque = "## Estados Unidos (SEC EDGAR)\n\n*No se pudo consultar esta fuente en este momento.*\n"
         logger.info("LangGraph nodo agent_corporate_usa falló")
         return {
             "us_corporate_context": bloque,
@@ -302,9 +313,9 @@ def _node_agent_corporate_eu(state: CorporateDossierState) -> dict[str, Any]:
 
     try:
         resultado = agente_europeo.run_eu_registry_agent(empresa)
-    except Exception as e:
+    except Exception:
         logger.exception("Fallo agente Europa (registros FR/DE)")
-        bloque = f"## Registros mercantiles europeos\n\n*Error interno al consultar: {e}*\n"
+        bloque = "## Registros mercantiles europeos\n\n*No se pudo consultar esta fuente en este momento.*\n"
         return {
             "eu_corporate_context": bloque,
             "agents_failed": ["agent_corporate_eu"],
@@ -319,17 +330,15 @@ def _node_agent_corporate_eu(state: CorporateDossierState) -> dict[str, Any]:
             "fuentes_consultadas": _fuentes_europeas(resultado, empresa),
         }
 
-    lineas = [
-        _registro_europeo_markdown(c)
-        for c in resultado.citas
-        if _coincide_con_empresa(c.record.razon_social, empresa)
-    ]
+    coincidentes = [c for c in resultado.citas if _coincide_con_empresa(c.record.razon_social, empresa)]
+    lineas = [_registro_europeo_markdown(c) for c in coincidentes]
     cuerpo = "\n".join(lineas) or "*Sin coincidencias en los registros europeos consultados.*"
     if resultado.errores:
         cuerpo += "\n\n*Sin respuesta de: " + ", ".join(sorted(resultado.errores)).upper() + ".*"
     logger.info("LangGraph nodo agent_corporate_eu completado (%d registros)", len(lineas))
     return {
         "eu_corporate_context": f"## Registros mercantiles europeos\n\n{cuerpo}\n",
+        "registros_europeos": coincidentes,
         "agents_succeeded": ["agent_corporate_eu"],
         "fuentes_consultadas": _fuentes_europeas(resultado, empresa),
         _PROGRESO: {
@@ -339,19 +348,29 @@ def _node_agent_corporate_eu(state: CorporateDossierState) -> dict[str, Any]:
     }
 
 
+# Fuentes de siempre, para resultados sin detalle por fuente (dobles de prueba antiguos).
 _PROVEEDORES_PRENSA = (("gdelt_news", "GDELT DOC 2.0"), ("news_api", "NewsAPI"))
 _ORDEN_FUENTES = (
-    "companies_house", "sec_edgar", "eu_registry_fr", "eu_registry_de", "gdelt_news", "news_api", "deepseek",
+    "companies_house", "sec_edgar", "eu_registry_fr", "eu_registry_de", "gdelt_news", "news_api",
 )
 
 
-def _orden_fuente(fuente: dict[str, Any]) -> int:
+def _orden_fuente(fuente: dict[str, Any]) -> float:
+    """Registros, luego prensa (las fuentes nuevas tras las de siempre) y la IA al final."""
     nombre = fuente.get("fuente")
+    if nombre == "deepseek":
+        return len(_ORDEN_FUENTES) + 1
     return _ORDEN_FUENTES.index(nombre) if nombre in _ORDEN_FUENTES else len(_ORDEN_FUENTES)
 
 
-def _fuentes_prensa(caidos: set[str], menciones: list[Any]) -> list[dict[str, Any]]:
-    """Una entrada por proveedor de prensa (S2.5): caído, con menciones o sin ellas."""
+def _fuentes_prensa(caidos: set[str], menciones: list[Any], resultado: Any = None) -> list[dict[str, Any]]:
+    """Una entrada por fuente de prensa (S2.5): caída, con menciones, sin ellas o sin cupo."""
+    detalle = list(getattr(resultado, "fuentes", None) or [])
+    if detalle:
+        return [
+            _fuente(f.clave, f.nombre, None, "sin_cupo" if f.estado == "limite_diario" else f.estado, f.consultado_en)
+            for f in detalle
+        ]
     fuentes = []
     for proveedor, nombre in _PROVEEDORES_PRENSA:
         propias = [m for m in menciones if m.source.source_type.value == proveedor]
@@ -361,31 +380,44 @@ def _fuentes_prensa(caidos: set[str], menciones: list[Any]) -> list[dict[str, An
     return fuentes
 
 
+def _todas_fallaron(resultado: Any) -> bool:
+    """Sin menciones y ninguna fuente respondió (las omitidas por cupo no cuentan como fallo)."""
+    detalle = list(getattr(resultado, "fuentes", None) or [])
+    if not detalle:
+        return len(resultado.failed_providers) >= 2
+    consultadas = [f for f in detalle if f.estado != "limite_diario"]
+    return bool(consultadas) and all(f.estado == "error" for f in consultadas)
+
+
 def _node_agent_news(state: CorporateDossierState) -> dict[str, Any]:
-    """Agente de prensa (GDELT y NewsAPI). Corre en cualquier alcance si hay empresa."""
+    """Agente de prensa (fuentes enchufables, UX-ADMIN-02). Corre en cualquier alcance si hay empresa."""
     empresa = (state.get("empresa_objetivo") or "").strip()
     if _agent_skip_reason("agent_news", state):
         return {"news_context": "", "agents_skipped": ["agent_news"]}
 
     from dossier.news import agent as agente_noticias
 
+    fuentes = state.get("fuentes_prensa")
     try:
-        resultado = agente_noticias.collect_press_mentions(empresa)
-    except Exception as e:
+        resultado = agente_noticias.collect_press_mentions(empresa, fuentes=fuentes)
+    except Exception:
         logger.exception("Fallo agente de prensa")
         return {
-            "news_context": f"## Menciones de prensa recientes\n\n*Error interno al consultar: {e}*\n",
+            "news_context": "## Menciones de prensa recientes\n\n*No se pudo consultar esta fuente en este momento.*\n",
             "agents_failed": ["agent_news"],
             "fuentes_consultadas": _fuentes_prensa({p for p, _ in _PROVEEDORES_PRENSA}, []),
         }
 
     caidos = {f.provider for f in resultado.failed_providers}
-    if not resultado.mentions and len(resultado.failed_providers) >= 2:
+    extra = int(getattr(resultado, "creditos_extra_usados", 0) or 0)
+    if not resultado.mentions and _todas_fallaron(resultado):
         bloque = "## Menciones de prensa recientes\n\n*No se pudo consultar la prensa.*\n"
         return {
             "news_context": bloque,
             "agents_failed": ["agent_news"],
-            "fuentes_consultadas": _fuentes_prensa(caidos, []),
+            "fuentes_consultadas": _fuentes_prensa(caidos, [], resultado),
+            "creditos_extra_prensa": extra,
+            _PROGRESO: {"reason_code": agente_noticias.motivo_de_fallo(resultado)},
         }
 
     menciones, descartadas = agente_noticias.filtrar_homonimos(resultado.mentions, empresa)
@@ -407,7 +439,8 @@ def _node_agent_news(state: CorporateDossierState) -> dict[str, Any]:
         "news_context": f"## Menciones de prensa recientes\n\n{cuerpo}\n",
         "menciones_prensa": menciones,
         "agents_succeeded": ["agent_news"],
-        "fuentes_consultadas": _fuentes_prensa(caidos, menciones),
+        "fuentes_consultadas": _fuentes_prensa(caidos, menciones, resultado),
+        "creditos_extra_prensa": extra,
         _PROGRESO: {
             "reason_code": None if lineas else "no_matches",
             "preview": "## Menciones de prensa recientes\n\n" + "\n".join(lineas) if lineas else None,
@@ -422,6 +455,39 @@ def _contexto_adicional(state: CorporateDossierState) -> str:
         (state.get("news_context") or "").strip(),
     ]
     return "".join(f"---\n{b}\n\n" for b in bloques if b)
+
+
+# S7.2: encabezado del informe parcial cuando la síntesis con IA falla.
+_NOTA_PARCIAL = {
+    "es": "Informe parcial: no se pudo redactar el análisis con IA. Estos son los datos reunidos de las fuentes.",
+    "en": "Partial report: the AI analysis could not be written. These are the data gathered from the sources.",
+    "pt": "Relatório parcial: não foi possível redigir a análise com IA. Estes são os dados reunidos das fontes.",
+    "it": "Report parziale: non è stato possibile redigere l'analisi con l'IA. Ecco i dati raccolti dalle fonti.",
+    "fr": "Rapport partiel : l'analyse par IA n'a pas pu être rédigée. Voici les données recueillies auprès des sources.",
+    "de": "Teilbericht: Die KI-Analyse konnte nicht erstellt werden. Dies sind die aus den Quellen gesammelten Daten.",
+}
+_AGENTES_DE_DATOS = (
+    ("agent_corporate_uk", "uk_corporate_context"),
+    ("agent_corporate_usa", "us_corporate_context"),
+    ("agent_corporate_eu", "eu_corporate_context"),
+    ("agent_news", "news_context"),
+)
+
+
+def informe_parcial_sin_sintesis(state: CorporateDossierState, output_language: str) -> str | None:
+    """Markdown con los bloques de los agentes que respondieron; ``None`` si ninguno trajo datos."""
+    exitosos = set(state.get("agents_succeeded") or [])
+    bloques = [
+        str(state.get(clave) or "").strip()
+        for agente, clave in _AGENTES_DE_DATOS
+        if agente in exitosos and str(state.get(clave) or "").strip()
+    ]
+    if not bloques:
+        return None
+    empresa = (state.get("empresa_objetivo") or state.get("tema_reunion") or "").strip()
+    titulo = f"# {empresa}" if empresa else "#"
+    nota = _NOTA_PARCIAL.get(output_language, _NOTA_PARCIAL["es"])
+    return f"{titulo}\n\n> {nota}\n\n" + "\n\n".join(bloques) + "\n"
 
 
 def _node_synthesize_llm(state: CorporateDossierState) -> dict[str, Any]:
@@ -578,12 +644,13 @@ def _node_synthesize_llm(state: CorporateDossierState) -> dict[str, Any]:
 
     try:
         texto = generate_text_with_llm(user, system_instruction=system)
-    except Exception as e:
+    except Exception:
         logger.exception("Fallo síntesis DeepSeek en LangGraph")
-        err = f"Error en la síntesis del informe: {e}"
+        # S7.2: sin síntesis se entrega lo que reunieron los agentes (informe parcial).
+        parcial = informe_parcial_sin_sintesis(state, output_language)
         return {
-            "final_dossier_markdown": f"# Error en síntesis\n\n{err}",
-            "agent_errors": [*state.get("agent_errors", []), err],
+            "final_dossier_markdown": parcial or "# Error en síntesis\n\nNo se pudo redactar el informe.",
+            "agent_errors": [*state.get("agent_errors", []), "synthesize_llm"],
             "agents_failed": ["synthesize_llm"],
             "fuentes_consultadas": [_fuente("deepseek", "DeepSeek", None, "error")],
         }
@@ -613,7 +680,7 @@ def _instrumentar(agente: str, nodo: Any, progress: Any) -> Any:
         if agente in (salida.get("agents_skipped") or []):
             progress.agent(agente, "skipped", motivo_omision)
         elif agente in (salida.get("agents_failed") or []):
-            progress.agent(agente, "failed", "provider_error")
+            progress.agent(agente, "failed", pista.get("reason_code") or "provider_error")
         else:
             seccion = _SECCION_PREVIA.get(agente)
             if seccion and pista.get("preview"):
@@ -659,6 +726,10 @@ class CorporateDossierResult:
     fuentes_consultadas: list[dict[str, Any]] = field(default_factory=list)
     # Menciones que pasaron el filtro de homónimos (S3.3), para persistirlas (S3.4).
     menciones_prensa: list[Any] = field(default_factory=list)
+    # Registros europeos coincidentes (S3.5), para la vista por módulos del dashboard.
+    registros_europeos: list[Any] = field(default_factory=list)
+    # UX-ADMIN-02: créditos extra de las fuentes de prensa que respondieron.
+    creditos_extra_prensa: int = 0
 
 
 def run_corporate_dossier_langgraph_detailed(
@@ -669,6 +740,7 @@ def run_corporate_dossier_langgraph_detailed(
     output_language: str = "es",
     empresa_objetivo: str | None = None,
     progress: Any = None,
+    fuentes_prensa: list[Any] | None = None,
 ) -> CorporateDossierResult:
     """Compila el grafo, infiere alcance UK/US (o usa el explícito) y devuelve Markdown + agentes fallidos.
 
@@ -693,6 +765,8 @@ def run_corporate_dossier_langgraph_detailed(
             "agents_succeeded": [],
             "agents_skipped": [],
             "fuentes_consultadas": [],
+            "fuentes_prensa": fuentes_prensa,
+            "creditos_extra_prensa": 0,
         }
     )
     markdown = str(result.get("final_dossier_markdown") or "").strip()
@@ -707,6 +781,8 @@ def run_corporate_dossier_langgraph_detailed(
         # Los agentes terminan en cualquier orden: se ordena para que el registro sea estable.
         fuentes_consultadas=sorted(result.get("fuentes_consultadas") or [], key=_orden_fuente),
         menciones_prensa=list(result.get("menciones_prensa") or []),
+        registros_europeos=list(result.get("registros_europeos") or []),
+        creditos_extra_prensa=int(result.get("creditos_extra_prensa") or 0),
     )
 
 

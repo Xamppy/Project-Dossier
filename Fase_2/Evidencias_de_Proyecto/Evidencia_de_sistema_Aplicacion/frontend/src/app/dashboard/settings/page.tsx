@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import TopBar from "@/components/dashboard/TopBar";
 import AccountPanel from "@/components/settings/AccountPanel";
 import AddressBookPanel from "@/components/settings/AddressBookPanel";
@@ -12,6 +13,7 @@ import NotificationsPanel from "@/components/settings/NotificationsPanel";
 import OrganizationMembersPanel from "@/components/settings/OrganizationMembersPanel";
 import PendingOrgInvitesPanel from "@/components/settings/PendingOrgInvitesPanel";
 import SettingsNav, {
+  parseSettingsSection,
   type SettingsSection,
 } from "@/components/settings/SettingsNav";
 import { fetchAuthMe, getStoredAccessToken, readDossierUserPreview } from "@/lib/dossier-api";
@@ -19,8 +21,19 @@ import { isOrgAdmin } from "@/lib/org-role";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
 export default function SettingsPage() {
+  // `useSearchParams` necesita un límite de Suspense en el App Router.
+  return (
+    <Suspense fallback={null}>
+      <SettingsPageContent />
+    </Suspense>
+  );
+}
+
+function SettingsPageContent() {
   const { t } = useTranslation();
-  const [section, setSection] = useState<SettingsSection>("billing");
+  // Informe beta: los accesos directos abren su sección (`?section=addressbook`).
+  const pedida = parseSettingsSection(useSearchParams().get("section"));
+  const [section, setSection] = useState<SettingsSection>(pedida ?? "billing");
   const [workspaceKind, setWorkspaceKind] = useState<"personal" | "work" | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 

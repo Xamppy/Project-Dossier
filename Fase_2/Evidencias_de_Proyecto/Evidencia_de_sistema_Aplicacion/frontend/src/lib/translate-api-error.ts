@@ -3,7 +3,7 @@ import type { TranslationKey } from "@/i18n/types";
 import type { DossierApiError } from "@/lib/dossier-api";
 import { toPublicErrorMessage } from "@/lib/public-error-message";
 
-type ApiErrorDetail = { code?: string; domain?: string; retry_after?: number };
+type ApiErrorDetail = { code?: string; domain?: string; retry_after?: number; limit?: number };
 
 const API_ERROR_CODES: Record<string, TranslationKey> = {
   CORPORATE_EMAIL_REQUIRED: "settings.members.error_corporate_email",
@@ -52,6 +52,10 @@ export function translateApiError(err: DossierApiError, t: TranslateFn): string 
   if (err.status === 429 || detail?.code === "rate_limited") {
     const seconds = typeof detail?.retry_after === "number" && detail.retry_after > 0 ? detail.retry_after : 60;
     return t("errors.rate_limited", { seconds });
+  }
+  // UX-ADMIN-01: tope de dossiers generándose a la vez según el plan.
+  if (detail?.code === "CONCURRENT_DOSSIER_LIMIT") {
+    return t("errors.concurrent_dossier_limit", { limit: typeof detail.limit === "number" ? detail.limit : 1 });
   }
   if (detail?.code) {
     const key = API_ERROR_CODES[detail.code];

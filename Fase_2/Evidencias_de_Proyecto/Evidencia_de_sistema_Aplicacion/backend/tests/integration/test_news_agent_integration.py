@@ -56,7 +56,8 @@ def test_agente_reporta_fallo_http_de_un_proveedor_y_entrega_el_otro(monkeypatch
     assert resultado.failed_providers[0].provider == "gdelt_news"
 
 
-def test_agente_sin_news_api_key_reporta_ese_proveedor_como_fallido(monkeypatch, respuesta_fija):
+def test_agente_sin_news_api_key_no_consulta_newsapi(monkeypatch, respuesta_fija):
+    """UX-ADMIN-02: una fuente sin su clave no se consulta (antes figuraba como caída)."""
     monkeypatch.delenv("NEWS_API_KEY", raising=False)
 
     def fake_get(url, params=None, timeout=None, headers=None):
@@ -71,4 +72,5 @@ def test_agente_sin_news_api_key_reporta_ese_proveedor_como_fallido(monkeypatch,
     resultado = collect_press_mentions("Ana Perez")
 
     assert len(resultado.mentions) == 1
-    assert [f.provider for f in resultado.failed_providers] == ["news_api"]
+    assert resultado.failed_providers == []
+    assert resultado.query_context["providers_queried"] == ["gdelt_news"]

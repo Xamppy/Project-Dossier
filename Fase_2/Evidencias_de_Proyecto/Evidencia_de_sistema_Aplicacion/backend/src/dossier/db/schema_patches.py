@@ -194,6 +194,188 @@ AUDIT_LOG_PATCHES = (
     """,
 )
 
+# S6.4: envíos automáticos de correo en espera de reintento (uno cada 10 min, hasta 1 hora).
+# Sin la dirección del destinatario: se lee de users.email al reintentar.
+EMAIL_RETRY_PATCHES = (
+    """
+    CREATE TABLE IF NOT EXISTS dossier_email_retries (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        kind VARCHAR(20) NOT NULL CHECK (kind IN ('persona', 'reunion')),
+        dossier_ids UUID[] NOT NULL,
+        calendar_event_id UUID REFERENCES calendar_events(id) ON DELETE SET NULL,
+        meeting_title VARCHAR(500),
+        language VARCHAR(10),
+        attempts INTEGER NOT NULL DEFAULT 0,
+        next_attempt_at TIMESTAMPTZ NOT NULL,
+        last_error VARCHAR(100),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_dossier_email_retries_next "
+    "ON dossier_email_retries (next_attempt_at);",
+)
+
+# S6.2: enlaces de un solo uso para leer un dossier desde el correo sin iniciar sesión.
+# Solo el SHA-256 del token; caen con el dossier.
+ACCESS_LINK_PATCHES = (
+    """
+    CREATE TABLE IF NOT EXISTS dossier_access_links (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        token_hash VARCHAR(64) NOT NULL UNIQUE,
+        dossier_id UUID NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        used_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_dossier_access_links_dossier ON dossier_access_links (dossier_id);",
+)
+
+
+PLAN_SETTINGS_PATCHES = (
+    """
+    CREATE TABLE IF NOT EXISTS plan_settings (
+        plan VARCHAR(20) PRIMARY KEY CHECK (plan IN ('free', 'pro', 'enterprise')),
+        max_concurrent_dossiers INTEGER NOT NULL CHECK (max_concurrent_dossiers BETWEEN 1 AND 100),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL
+    );
+    """,
+    # Con la columna de UX-ADMIN-03 ya creada, la siembra debe traer los créditos: Postgres valida
+    # el NOT NULL antes de ver el conflicto, así que un INSERT sin ellos falla al rearrancar.
+    """
+    DO $$
+    BEGIN
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = current_schema()
+              AND table_name = 'plan_settings'
+              AND column_name = 'monthly_credits'
+        ) THEN
+            INSERT INTO plan_settings (plan, max_concurrent_dossiers, monthly_credits)
+            VALUES ('free', 1, 10), ('pro', 3, 500), ('enterprise', 10, 50000)
+            ON CONFLICT (plan) DO NOTHING;
+        ELSE
+            INSERT INTO plan_settings (plan, max_concurrent_dossiers)
+            VALUES ('free', 1), ('pro', 3), ('enterprise', 10)
+            ON CONFLICT (plan) DO NOTHING;
+        END IF;
+    END $$;
+    """,
+)
+
+
+# Latido del proceso que genera: permite detectar trabajos colgados tras una caída.
+JOB_HEARTBEAT_PATCHES = (
+    "ALTER TABLE dossier_generation_jobs ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMPTZ;",
+)
+
+
+# Informe beta: preferencias de notificación de cada usuario (Configuración → Notificaciones).
+USER_NOTIFY_PATCHES = (
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_email BOOLEAN NOT NULL DEFAULT true;",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_browser BOOLEAN NOT NULL DEFAULT true;",
+)
+
+
+# UX-ADMIN-02: fuentes de noticias administrables (ajustes, uso diario y cobro extra).
+# El trigger de cobro suma ``dossier_data.news_extra_credits`` (solo si es un entero de 1 a 4
+# cifras: lo escribe el servidor, pero un valor raro nunca puede restar ni romper el cobro).
+FN_DEBIT_CREDITS_CON_EXTRA = """
+CREATE OR REPLACE FUNCTION fn_debit_credits_on_dossier()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_credits INTEGER;
+    v_extra INTEGER := 0;
+    v_extra_txt TEXT;
+BEGIN
+    IF jsonb_extract_path_text(COALESCE(NEW.dossier_data, '{}'::jsonb), 'billing') = 'none' THEN
+        NEW.credits_consumed := 0;
+        RETURN NEW;
+    END IF;
+
+    v_credits := CASE NEW.depth_level
+        WHEN 'basic'    THEN 1
+        WHEN 'standard' THEN 3
+        WHEN 'deep'     THEN 5
+        ELSE 1
+    END;
+
+    v_extra_txt := jsonb_extract_path_text(COALESCE(NEW.dossier_data, '{}'::jsonb), 'news_extra_credits');
+    IF v_extra_txt ~ '^[0-9]{1,4}$' THEN
+        v_extra := v_extra_txt::INTEGER;
+    END IF;
+    v_credits := v_credits + v_extra;
+
+    IF (SELECT credits_balance FROM organizations WHERE id = NEW.organization_id) < v_credits THEN
+        RAISE EXCEPTION 'Insufficient credits for organization %', NEW.organization_id;
+    END IF;
+
+    -- BUG-2026-10-19-08: el descuento se hace en el AFTER, junto con su anotación.
+    NEW.credits_consumed := v_credits;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+"""
+
+NEWS_SOURCE_PATCHES = (
+    """
+    CREATE TABLE IF NOT EXISTS news_source_settings (
+        provider_key VARCHAR(40) PRIMARY KEY CHECK (provider_key ~ '^[a-z][a-z0-9_]{1,39}$'),
+        enabled BOOLEAN NOT NULL,
+        use_for_corporate BOOLEAN NOT NULL DEFAULT true,
+        use_for_person BOOLEAN NOT NULL DEFAULT true,
+        min_depth VARCHAR(10) NOT NULL DEFAULT 'basic' CHECK (min_depth IN ('basic', 'standard', 'deep')),
+        plan_free BOOLEAN NOT NULL DEFAULT true,
+        plan_pro BOOLEAN NOT NULL DEFAULT true,
+        plan_enterprise BOOLEAN NOT NULL DEFAULT true,
+        extra_credits INTEGER NOT NULL DEFAULT 0 CHECK (extra_credits BETWEEN 0 AND 20),
+        max_results INTEGER NOT NULL DEFAULT 10 CHECK (max_results BETWEEN 1 AND 50),
+        daily_limit INTEGER CHECK (daily_limit IS NULL OR daily_limit BETWEEN 1 AND 100000),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        CHECK (plan_free OR plan_pro OR plan_enterprise)
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS news_source_usage (
+        provider_key VARCHAR(40) NOT NULL,
+        day DATE NOT NULL,
+        queries INTEGER NOT NULL CHECK (queries >= 0),
+        PRIMARY KEY (provider_key, day)
+    );
+    """,
+    FN_DEBIT_CREDITS_CON_EXTRA,
+)
+
+
+# UX-ADMIN-03: créditos al mes de cada plan (se entregan al registrarse y al cambiar de plan).
+PLAN_CREDITS_PATCHES = (
+    "ALTER TABLE plan_settings ADD COLUMN IF NOT EXISTS monthly_credits INTEGER;",
+    """
+    UPDATE plan_settings
+    SET monthly_credits = CASE plan WHEN 'free' THEN 10 WHEN 'pro' THEN 500 ELSE 50000 END
+    WHERE monthly_credits IS NULL;
+    """,
+    "ALTER TABLE plan_settings ALTER COLUMN monthly_credits SET NOT NULL;",
+    """
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'plan_settings_monthly_credits_rango'
+        ) THEN
+            ALTER TABLE plan_settings ADD CONSTRAINT plan_settings_monthly_credits_rango
+                CHECK (monthly_credits BETWEEN 0 AND 1000000);
+        END IF;
+    END $$;
+    """,
+)
+
 
 def apply_schema_patches(engine: Engine) -> None:
     with engine.begin() as conn:
@@ -203,5 +385,12 @@ def apply_schema_patches(engine: Engine) -> None:
             + JOB_QUEUE_PATCHES
             + REFRESH_TOKEN_PATCHES
             + AUDIT_LOG_PATCHES
+            + EMAIL_RETRY_PATCHES
+            + ACCESS_LINK_PATCHES
+            + PLAN_SETTINGS_PATCHES
+            + JOB_HEARTBEAT_PATCHES
+            + USER_NOTIFY_PATCHES
+            + NEWS_SOURCE_PATCHES
+            + PLAN_CREDITS_PATCHES
         ):
             conn.execute(text(sql))
