@@ -23,6 +23,11 @@ def telemetria_de(generado: Any) -> dict[str, Any]:
         "menciones_prensa": [
             m.model_dump(mode="json") for m in (getattr(generado, "menciones_prensa", None) or [])
         ],
+        # S3.5: sin la respuesta cruda del registro (tamaño y contenido no controlados).
+        "registros_europeos": [
+            c.model_dump(mode="json", exclude={"record": {"datos_brutos"}})
+            for c in (getattr(generado, "registros_europeos", None) or [])
+        ],
     }
 
 
@@ -51,5 +56,7 @@ def columnas_telemetria(telemetria: dict[str, Any] | None, *, es_error: bool) ->
         "dossier_data": {
             "fuentes_consultadas": fuentes,
             "agents_skipped": list(telemetria.get("agents_skipped") or []),
+            # S5.5: datos por módulo que el detalle expone en ``modules``.
+            "modulos": {"registros_europeos": list(telemetria.get("registros_europeos") or [])},
         },
     }

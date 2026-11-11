@@ -103,6 +103,8 @@ class CorporateDossierState(TypedDict, total=False):
     news_context: str
     # Menciones que pasaron el filtro de homónimos (S3.3), para persistirlas (S3.4).
     menciones_prensa: list[Any]
+    # Registros europeos que coinciden con la empresa, para la vista del dashboard (S3.5).
+    registros_europeos: list[Any]
 
     final_dossier_markdown: str
 
@@ -319,17 +321,15 @@ def _node_agent_corporate_eu(state: CorporateDossierState) -> dict[str, Any]:
             "fuentes_consultadas": _fuentes_europeas(resultado, empresa),
         }
 
-    lineas = [
-        _registro_europeo_markdown(c)
-        for c in resultado.citas
-        if _coincide_con_empresa(c.record.razon_social, empresa)
-    ]
+    coincidentes = [c for c in resultado.citas if _coincide_con_empresa(c.record.razon_social, empresa)]
+    lineas = [_registro_europeo_markdown(c) for c in coincidentes]
     cuerpo = "\n".join(lineas) or "*Sin coincidencias en los registros europeos consultados.*"
     if resultado.errores:
         cuerpo += "\n\n*Sin respuesta de: " + ", ".join(sorted(resultado.errores)).upper() + ".*"
     logger.info("LangGraph nodo agent_corporate_eu completado (%d registros)", len(lineas))
     return {
         "eu_corporate_context": f"## Registros mercantiles europeos\n\n{cuerpo}\n",
+        "registros_europeos": coincidentes,
         "agents_succeeded": ["agent_corporate_eu"],
         "fuentes_consultadas": _fuentes_europeas(resultado, empresa),
         _PROGRESO: {
@@ -659,6 +659,8 @@ class CorporateDossierResult:
     fuentes_consultadas: list[dict[str, Any]] = field(default_factory=list)
     # Menciones que pasaron el filtro de homónimos (S3.3), para persistirlas (S3.4).
     menciones_prensa: list[Any] = field(default_factory=list)
+    # Registros europeos coincidentes (S3.5), para la vista por módulos del dashboard.
+    registros_europeos: list[Any] = field(default_factory=list)
 
 
 def run_corporate_dossier_langgraph_detailed(
@@ -707,6 +709,7 @@ def run_corporate_dossier_langgraph_detailed(
         # Los agentes terminan en cualquier orden: se ordena para que el registro sea estable.
         fuentes_consultadas=sorted(result.get("fuentes_consultadas") or [], key=_orden_fuente),
         menciones_prensa=list(result.get("menciones_prensa") or []),
+        registros_europeos=list(result.get("registros_europeos") or []),
     )
 
 

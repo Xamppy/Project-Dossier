@@ -922,8 +922,8 @@
       "id": "S3.5",
       "sprint": 3,
       "title": "Ampliar el dashboard con la vista de registros corporativos europeos",
-      "status": "pending",
-      "owner": "DG",
+      "status": "review",
+      "owner": "FD",
       "area": "frontend",
       "activity": "A6",
       "objective": "OE6",
@@ -936,16 +936,19 @@
         "S3.7"
       ],
       "trello": "https://trello.com/c/wVHUTvWP",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S5.5-dossier-por-modulos",
+      "evidence": [
+        "specs/reports/S5.5-dossier-por-modulos.md: CA1 (registros europeos en dossier_data.modulos sin datos_brutos) y CA7 (vista agrupada por país con enlace al registro oficial)"
+      ],
+      "notes": "Traspasada de DG a FD el 2026-11-11. Diseño aprobado por FD: secciones por módulo con botón «Ver informe en texto»; backend aditivo para registros europeos y prensa de los dossiers de empresa.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S3.6",
       "sprint": 3,
       "title": "Ampliar el dashboard con la vista del modulo de prensa",
-      "status": "pending",
-      "owner": "DG",
+      "status": "review",
+      "owner": "FD",
       "area": "frontend",
       "activity": "A6",
       "objective": "OE6",
@@ -958,16 +961,19 @@
         "S3.7"
       ],
       "trello": "https://trello.com/c/VlOF87ZH",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S5.5-dossier-por-modulos",
+      "evidence": [
+        "specs/reports/S5.5-dossier-por-modulos.md: CA8 (prensa con medio, fecha, resumen, proveedor y enlace seguro, desde el contrato o dossier_media_mentions)"
+      ],
+      "notes": "Traspasada de DG a FD el 2026-11-11. Diseño aprobado por FD: secciones por módulo con botón «Ver informe en texto»; backend aditivo para registros europeos y prensa de los dossiers de empresa.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S3.7",
       "sprint": 3,
       "title": "Incorporar las cadenas de interfaz de los modulos nuevos en los seis idiomas (siete catálogos, con en-gb como variante)",
-      "status": "pending",
-      "owner": "DG",
+      "status": "review",
+      "owner": "FD",
       "area": "frontend",
       "activity": "A6",
       "objective": "OE6",
@@ -979,9 +985,12 @@
       ],
       "blocks": [],
       "trello": "https://trello.com/c/EzVXD9fD",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S5.5-dossier-por-modulos",
+      "evidence": [
+        "specs/reports/S5.5-dossier-por-modulos.md: CA10 (49 claves dossier_modules.* en es, en, pt, it, fr y de; en-gb hereda de en)"
+      ],
+      "notes": "Traspasada de DG a FD el 2026-11-11. Diseño aprobado por FD: secciones por módulo con botón «Ver informe en texto»; backend aditivo para registros europeos y prensa de los dossiers de empresa.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S3.8",
@@ -1405,8 +1414,8 @@
       "id": "S5.5",
       "sprint": 5,
       "title": "Renderizar el dossier desde JSON con componentes por modulo",
-      "status": "pending",
-      "owner": "DG",
+      "status": "review",
+      "owner": "FD",
       "area": "frontend",
       "activity": "A6",
       "objective": "OE6",
@@ -1417,9 +1426,12 @@
       ],
       "blocks": [],
       "trello": "https://trello.com/c/Uz45ed5q",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S5.5-dossier-por-modulos",
+      "evidence": [
+        "specs/reports/S5.5-dossier-por-modulos.md: CA5, CA6 y CA9 con Vitest de DossierContent/DossierModules y de lib/dossier-modules; backend `modules` (CA2-CA4) con pruebas unitarias, integración, seguridad y estrés contra PostgreSQL 18; revisado en la aplicación en ejecución"
+      ],
+      "notes": "Traspasada de DG a FD el 2026-11-11. Diseño aprobado por FD: secciones por módulo con botón «Ver informe en texto»; backend aditivo para registros europeos y prensa de los dossiers de empresa.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S5.6",

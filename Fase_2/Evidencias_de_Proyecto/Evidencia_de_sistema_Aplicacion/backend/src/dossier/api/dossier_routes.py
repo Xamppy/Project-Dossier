@@ -34,7 +34,7 @@ from dossier.cache.corporate_dossier_redis import (
     run_with_corporate_cache_lock,
     set_corporate_cached_markdown,
 )
-from dossier.db.models import Dossier, Organization
+from dossier.db.models import Dossier, DossierMediaMention, Organization
 from dossier.graphs.corporate_dossier_graph import (
     JurisdictionScope,
     infer_jurisdiction_scope,
@@ -75,6 +75,7 @@ from dossier.services.dossier_generation_job_service import (
     enqueue_person_research_job,
     enviar_dossier_al_solicitante,
 )
+from dossier.services.dossier_modules import MAX_MENCIONES, modulos_del_dossier
 from dossier.services.dossier_share_service import (
     dossier_permissions_payload,
     list_dossier_shares,
@@ -401,6 +402,17 @@ def get_dossier_by_id(
         role=role,
     )
     contenido = resumen_contenido_dossier(d.dossier_data)
+    # S3.6: prensa guardada por S3.4, más reciente primero; solo de este dossier.
+    filas_prensa = (
+        db.execute(
+            select(DossierMediaMention)
+            .where(DossierMediaMention.dossier_id == d.id)
+            .order_by(DossierMediaMention.published_at.desc().nulls_last(), DossierMediaMention.title)
+            .limit(MAX_MENCIONES)
+        )
+        .scalars()
+        .all()
+    )
     return {
         "id": str(d.id),
         "organization_id": str(d.organization_id),
@@ -416,6 +428,8 @@ def get_dossier_by_id(
         # S4.4: aditivo, no sustituye `dossier_data` (el frontend sigue leyendo `.body`).
         "content_kind": contenido["content_kind"],
         "executive_payload": contenido["executive_payload"],
+        # S5.5: registros corporativos y prensa por módulo (aditivo).
+        "modules": modulos_del_dossier(d.dossier_data, contenido["executive_payload"], filas_prensa),
         "alerts": d.alerts,
         "agents_activated": list(d.agents_activated or []),
         "agents_failed": list(d.agents_failed or []),

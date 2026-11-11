@@ -312,3 +312,35 @@ def test_con_alcance_eu_only_uk_y_usa_se_omiten_sin_consultar(monkeypatch, nodo,
     salida = getattr(grafo, nodo)({"jurisdiction_scope": "eu_only", "participantes": "Acme"})
 
     assert salida["agents_skipped"] == [nombre]
+
+
+# --- S3.5: registros europeos estructurados para la vista del dashboard -----
+
+
+def test_nodo_europeo_devuelve_solo_los_registros_que_coinciden(monkeypatch):
+    monkeypatch.setattr(
+        "dossier.eu_registry.agent.run_eu_registry_agent",
+        lambda nombre, **_: ResultadoAgenteEuropeo(
+            citas=[_cita_eu("DANONE", "552032534"), _cita_eu("OLIVIA DANON", "531722742")]
+        ),
+    )
+    salida = grafo._node_agent_corporate_eu({"jurisdiction_scope": "dual", "empresa_objetivo": "Danone"})
+    assert [c.record.identificador_registro for c in salida["registros_europeos"]] == ["552032534"]
+
+
+def test_nodo_europeo_omitido_o_fallido_no_devuelve_registros(llamadas, monkeypatch):
+    omitido = grafo._node_agent_corporate_eu({"jurisdiction_scope": "uk_only", "empresa_objetivo": "Acme"})
+    assert omitido.get("registros_europeos", []) == []
+
+    def revienta(nombre, **_):
+        raise RuntimeError("caído")
+
+    monkeypatch.setattr("dossier.eu_registry.agent.run_eu_registry_agent", revienta)
+    fallido = grafo._node_agent_corporate_eu({"jurisdiction_scope": "dual", "empresa_objetivo": "Acme"})
+    assert fallido.get("registros_europeos", []) == []
+
+
+def test_el_resultado_del_grafo_expone_los_registros_europeos():
+    from dataclasses import fields
+
+    assert "registros_europeos" in {f.name for f in fields(grafo.CorporateDossierResult)}
