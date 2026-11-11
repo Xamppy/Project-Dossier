@@ -1333,8 +1333,8 @@
       "id": "S5.2",
       "sprint": 5,
       "title": "Consumir el canal en NotificationsProvider y retirar su setInterval",
-      "status": "pending",
-      "owner": "DG",
+      "status": "claimed",
+      "owner": "FD",
       "area": "frontend",
       "activity": "A6",
       "objective": "OE6",
@@ -1345,16 +1345,17 @@
       ],
       "blocks": [],
       "trello": "https://trello.com/c/wmseVTR9",
-      "branch": null,
+      "branch": "feat/S5.2-S5.3-notificaciones-canal",
       "evidence": [],
-      "notes": ""
+      "notes": "Traspasada de DG a FD el 2026-11-10.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S5.3",
       "sprint": 5,
       "title": "Implementar reconexion del canal con retroceso progresivo",
-      "status": "pending",
-      "owner": "DG",
+      "status": "claimed",
+      "owner": "FD",
       "area": "frontend",
       "activity": "A6",
       "objective": "OE6",
@@ -1365,9 +1366,10 @@
       ],
       "blocks": [],
       "trello": "https://trello.com/c/yUmmkdGV",
-      "branch": null,
+      "branch": "feat/S5.2-S5.3-notificaciones-canal",
       "evidence": [],
-      "notes": ""
+      "notes": "Traspasada de DG a FD el 2026-11-10.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S5.4",
