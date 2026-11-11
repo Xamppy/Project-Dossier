@@ -45,6 +45,7 @@ import {
 import { classifyJobOutcome } from "@/lib/dossier-job-outcome";
 import DossierJobProgressDetails from "@/components/dossier/DossierJobProgressDetails";
 import { AUTH_ME_CHANGED_EVENT } from "@/hooks/useAuthMe";
+import { reconnectDelay } from "@/lib/reconnect-backoff";
 import { isPdlProfileFoundInfoWarning } from "@/lib/translate-pdl-warning";
 import {
   translateBackendWarning,
@@ -270,6 +271,13 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
   jobsRef.current = jobs;
   const corporateAbortRef = useRef<Map<string, AbortController>>(new Map());
   const [connections, setConnections] = useState<Record<string, DossierJobConnection>>({});
+  const connectionsRef = useRef(connections);
+  connectionsRef.current = connections;
+  // S5.3: recuperación automática tras un corte de transporte, con retroceso progresivo.
+  // Por job: intentos fallidos seguidos y la espera pendiente.
+  const autoResyncRef = useRef<Map<string, { attempt: number; timer: number | null }>>(new Map());
+  // `resyncJob` se define más abajo; la espera lo llama por esta referencia.
+  const resyncRef = useRef<(jobId: string) => Promise<void>>(async () => {});
   // Hasta restaurar no se escribe sessionStorage: se perderían los IDs por restaurar.
   const [hydrated, setHydrated] = useState(false);
   // Cambia al cambiar de sesión u organización y relanza la restauración.
@@ -290,9 +298,41 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
     if (loadSelectedPersonJobId() === jobId) saveSelectedPersonJobId(null);
   }, []);
 
+  const cancelAutoResync = useCallback((jobId: string) => {
+    const state = autoResyncRef.current.get(jobId);
+    if (state?.timer != null) window.clearTimeout(state.timer);
+    if (state) state.timer = null;
+  }, []);
+
+  const forgetAutoResync = useCallback(
+    (jobId: string) => {
+      cancelAutoResync(jobId);
+      autoResyncRef.current.delete(jobId);
+    },
+    [cancelAutoResync],
+  );
+
+  // Programa la próxima recuperación del job: 1, 2, 4… s hasta 30 s.
+  const scheduleAutoResync = useCallback((jobId: string) => {
+    const state = autoResyncRef.current.get(jobId) ?? { attempt: 0, timer: null };
+    if (state.timer != null) window.clearTimeout(state.timer);
+    const epoch = epochRef.current;
+    const delay = reconnectDelay(state.attempt);
+    state.attempt += 1;
+    state.timer = window.setTimeout(() => {
+      state.timer = null;
+      if (epoch === epochRef.current) void resyncRef.current(jobId);
+    }, delay);
+    autoResyncRef.current.set(jobId, state);
+  }, []);
+
   const closeAllStreams = useCallback(() => {
     for (const stream of streamsRef.current.values()) stream.close();
     streamsRef.current.clear();
+    for (const state of autoResyncRef.current.values()) {
+      if (state.timer != null) window.clearTimeout(state.timer);
+    }
+    autoResyncRef.current.clear();
   }, []);
 
   useEffect(() => {
@@ -368,14 +408,20 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
   const handleStreamError = useCallback(
     (jobId: string, error: DossierJobStreamError) => {
       if (error.kind === "not_found") {
+        forgetAutoResync(jobId);
         setJobs((prev) => prev.filter((j) => j.id !== jobId));
         setConnections((prev) => withoutKey(prev, jobId));
         forgetSelection(jobId);
         return;
       }
-      setConnections((prev) => ({ ...prev, [jobId]: connectionForError(error) }));
+      const connection = connectionForError(error);
+      setConnections((prev) => ({ ...prev, [jobId]: connection }));
+      // Sesión vencida o sin permiso: reintentar no lo arregla (S5.1, CA9).
+      if (connection.state === "interrupted" && connection.reason === "transport") {
+        scheduleAutoResync(jobId);
+      }
     },
-    [forgetSelection],
+    [forgetSelection, forgetAutoResync, scheduleAutoResync],
   );
 
   const openStream = useCallback(
@@ -384,7 +430,10 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
       const isCurrent = () => stream !== null && streamsRef.current.get(jobId) === stream;
       stream = openDossierJobStream(jobId, {
         onSnapshot: (snapshot) => {
-          if (isCurrent()) setJobs((prev) => mergeSnapshot(prev, snapshot));
+          if (!isCurrent()) return;
+          // El canal volvió a entregar datos: el retroceso empieza de nuevo (S5.3).
+          forgetAutoResync(jobId);
+          setJobs((prev) => mergeSnapshot(prev, snapshot));
         },
         // Misma suscripción para el progreso (S5.4): ningún componente abre streams propios.
         onProgress: (event) => {
@@ -399,7 +448,7 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
       });
       streamsRef.current.set(jobId, stream);
     },
-    [handleStreamError],
+    [handleStreamError, forgetAutoResync],
   );
 
   // Reconciliación: abre lo que falta y cierra lo que sobra, sin tocar las
@@ -456,20 +505,25 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
 
   const resyncJob = useCallback(async (jobId: string) => {
     const epoch = epochRef.current;
+    // Una recuperación a mano (o por `online`) sustituye a la espera pendiente.
+    cancelAutoResync(jobId);
     setConnections((prev) => ({ ...prev, [jobId]: { state: "resyncing" } }));
     try {
       const fresh = parseJobSnapshot(await fetchDossierGenerationJob(jobId), jobId);
       if (epoch !== epochRef.current) return;
       if (!fresh) {
         setConnections((prev) => ({ ...prev, [jobId]: { state: "interrupted", reason: "transport" } }));
+        scheduleAutoResync(jobId);
         return;
       }
+      if (!isActiveStatus(fresh.status)) forgetAutoResync(jobId);
       setJobs((prev) => mergeSnapshot(prev, fresh));
       // Sin entrada de conexión, la reconciliación abre un stream nuevo si sigue activo.
       setConnections((prev) => withoutKey(prev, jobId));
     } catch (err) {
       if (epoch !== epochRef.current) return;
       if (err instanceof DossierApiError && err.status === 404) {
+        forgetAutoResync(jobId);
         setJobs((prev) => prev.filter((j) => j.id !== jobId));
         setConnections((prev) => withoutKey(prev, jobId));
         forgetSelection(jobId);
@@ -480,8 +534,29 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
           ? connectionForError(err)
           : ({ state: "interrupted", reason: "transport" } as const);
       setConnections((prev) => ({ ...prev, [jobId]: connection }));
+      if (connection.state === "interrupted" && connection.reason === "transport") {
+        scheduleAutoResync(jobId);
+      }
     }
-  }, [forgetSelection]);
+  }, [forgetSelection, cancelAutoResync, forgetAutoResync, scheduleAutoResync]);
+
+  useEffect(() => {
+    resyncRef.current = resyncJob;
+  }, [resyncJob]);
+
+  // La red volvió: los jobs cortados por transporte se recuperan sin esperar el retroceso.
+  useEffect(() => {
+    function onOnline() {
+      for (const [jobId, connection] of Object.entries(connectionsRef.current)) {
+        if (connection.state === "interrupted" && connection.reason === "transport") {
+          forgetAutoResync(jobId);
+          void resyncJob(jobId);
+        }
+      }
+    }
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [resyncJob, forgetAutoResync]);
 
   const getJobConnection = useCallback(
     (jobId: string) => connections[jobId],

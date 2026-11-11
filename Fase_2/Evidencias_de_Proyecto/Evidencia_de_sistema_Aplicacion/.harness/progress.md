@@ -6,6 +6,28 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-10 · S5.2 y S5.3 · Notificaciones por el canal en vivo y reconexión · FD (agente)
+
+**Hecho.** Rama `feat/S5.2-S5.3-notificaciones-canal`, desde `docmac`. Traspasadas de DG.
+Backend: `GET /dossier-notifications/stream` (`api/dossier_notifications_routes.py` +
+`services/dossier_notifications_stream.py`), con la visibilidad de `GET /dossiers`. Frontend:
+`NotificationsProvider` sin `setInterval` ni consulta al foco, sobre
+`lib/dossier-notifications-stream.ts`; `lib/reconnect-backoff.ts` (1, 2, 4… hasta 30 s) en el canal
+de notificaciones y en el de jobs. Reporte en `specs/reports/S5.2-S5.3-notificaciones-canal.md`,
+con prueba en la aplicación en ejecución (aviso en 2 s; reconexión tras apagar la API).
+
+**Lo que hay que saber.**
+- **El `TestClient` no transmite en vivo**: devuelve el cuerpo completo al final. Los cambios que
+  deben llegar por un stream se hacen desde otro hilo mientras el servidor genera.
+- **El canal de S4.8 es síncrono** y ocupa un hilo del pool (40) por stream durante hasta 10 min.
+  El nuevo es asíncrono (`run_in_threadpool` solo para cada lectura). Migrar el de S4.8 es deuda.
+- Variables nuevas: `DOSSIER_NOTIFICATIONS_CHECK_SECONDS` (5, mínimo 1) y
+  `DOSSIER_NOTIFICATIONS_MAX_SECONDS` (600).
+- El servidor sigue leyendo la base cada 5 s por stream, pero solo una huella liviana (id, estado y
+  carpeta de 25 filas) y comprueba la membresía. La lista completa se arma solo si cambia.
+
+**Rama.** `feat/S5.2-S5.3-notificaciones-canal` · **Estado.** review
+
 ### 2026-11-10 · BUG-2026-10-19-09 · La hora de la reunión salía en UTC · FD (agente)
 
 **Hecho.** Rama `fix/BUG-2026-10-19-09-hora-utc`, desde `docmac`. Traspasada de DG.

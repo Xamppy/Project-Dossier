@@ -37,6 +37,7 @@ from dossier.api.cors_config import build_cors_settings
 from dossier.api.dashboard_routes import router as dashboard_router
 from dossier.api.dossier_access_routes import router as dossier_access_router
 from dossier.api.dossier_job_routes import router as dossier_jobs_router
+from dossier.api.dossier_notifications_routes import router as dossier_notifications_router
 from dossier.api.dossier_routes import router as dossiers_router
 from dossier.api.dossier_stream_routes import router as dossier_stream_router
 from dossier.api.google_login_routes import router as google_login_router
@@ -177,6 +178,7 @@ app.include_router(dossiers_router)
 app.include_router(dossier_access_router)
 app.include_router(dossier_jobs_router)
 app.include_router(dossier_stream_router)
+app.include_router(dossier_notifications_router)
 app.include_router(dashboard_router)
 app.include_router(integrations_router)
 app.include_router(google_login_router)
