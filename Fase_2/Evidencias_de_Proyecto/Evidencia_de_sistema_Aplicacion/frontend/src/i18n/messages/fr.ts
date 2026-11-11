@@ -194,7 +194,7 @@ const messages = {
   "person_research.job_area_ph": "ex. Ingénieur logiciel, DAF, marketing…",
   "person_research.company": "Entreprise (optionnelle)",
   "person_research.company_ph": "Employeur actuel ou probable",
-  "person_research.country": "Pays / région",
+  "person_research.country": "Pays / région (optionnel)",
   "person_research.country_ph": "Sélectionnez un pays",
   "person_research.city": "Ville (optionnelle)",
   "person_research.city_ph": "ex. Paris",

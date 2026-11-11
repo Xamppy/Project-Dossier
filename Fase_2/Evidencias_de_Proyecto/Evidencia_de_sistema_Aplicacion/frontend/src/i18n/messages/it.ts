@@ -193,7 +193,7 @@ const messages = {
   "person_research.job_area_ph": "es. Ingegnere software, CFO, marketing…",
   "person_research.company": "Azienda (facoltativa)",
   "person_research.company_ph": "Datore di lavoro attuale o probabile",
-  "person_research.country": "Paese / regione",
+  "person_research.country": "Paese / regione (facoltativo)",
   "person_research.country_ph": "Seleziona un paese",
   "person_research.city": "Città (facoltativa)",
   "person_research.city_ph": "es. Roma",

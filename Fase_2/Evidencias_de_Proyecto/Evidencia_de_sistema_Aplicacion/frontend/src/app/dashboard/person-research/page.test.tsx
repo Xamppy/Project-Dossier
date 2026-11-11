@@ -131,6 +131,7 @@ beforeEach(() => {
           email: "qa@dossier.test",
           organization_plan: "pro",
           credits_monthly_limit: 100,
+          credits_balance: 37,
           email_delivery_available: h.emailDisponible,
         });
       }
@@ -231,6 +232,18 @@ const panelGenerando = (nombre: string) =>
   screen.queryByText(t("person_research.generating_title", { name: nombre }));
 
 describe.each(MODOS)("Personas · $nombre · estado general por SSE", (modo) => {
+  it("informe beta · el resumen muestra los créditos disponibles, como Empresas", async () => {
+    render(<Pantalla />);
+    await settle();
+    expect(await screen.findByText(/100 cr\/mes · 37 disp\./)).toBeInTheDocument();
+  });
+
+  it("informe beta · «País / región» se indica como opcional", async () => {
+    render(<Pantalla />);
+    await settle();
+    expect(screen.getByText("País / región (opcional)")).toBeInTheDocument();
+  });
+
   it("CA13 · encola un person_manual asíncrono con su modalidad y abre un único stream", async () => {
     render(<Pantalla />);
     await settle();

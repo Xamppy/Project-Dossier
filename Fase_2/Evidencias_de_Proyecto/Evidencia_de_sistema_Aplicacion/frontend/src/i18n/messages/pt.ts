@@ -930,7 +930,7 @@ const messages = {
   "person_research.job_area_ph": "ex. Engenheira de software, CFO, marketing…",
   "person_research.company": "Empresa (opcional)",
   "person_research.company_ph": "Empregador atual ou provável",
-  "person_research.country": "País / região",
+  "person_research.country": "País / região (opcional)",
   "person_research.country_ph": "Selecione um país",
   "person_research.city": "Cidade (opcional)",
   "person_research.city_ph": "ex. Madrid",

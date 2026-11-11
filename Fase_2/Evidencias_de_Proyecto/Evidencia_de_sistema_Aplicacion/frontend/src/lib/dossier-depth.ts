@@ -20,7 +20,8 @@ export const DEPTH_OPTIONS: DepthOption[] = [
     descKey: "depth.option_basic_desc",
     metaKey: "depth.option_basic_meta",
     credits: 1,
-    etaSeconds: 15,
+    // Informe beta: medido hasta ~1 min; el pipeline es el mismo en las tres profundidades.
+    etaSeconds: 45,
     modules: ["A"],
   },
   {
@@ -29,7 +30,7 @@ export const DEPTH_OPTIONS: DepthOption[] = [
     descKey: "depth.option_standard_desc",
     metaKey: "depth.option_standard_meta",
     credits: 3,
-    etaSeconds: 45,
+    etaSeconds: 50,
     modules: ["A", "B"],
   },
   {
@@ -38,7 +39,7 @@ export const DEPTH_OPTIONS: DepthOption[] = [
     descKey: "depth.option_deep_desc",
     metaKey: "depth.option_deep_meta",
     credits: 5,
-    etaSeconds: 90,
+    etaSeconds: 60,
     modules: ["A", "B", "C"],
   },
 ];

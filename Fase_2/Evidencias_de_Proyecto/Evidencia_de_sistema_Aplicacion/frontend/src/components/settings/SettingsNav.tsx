@@ -14,6 +14,15 @@ export type SettingsSection =
   | "notifications"
   | "members";
 
+const SECTIONS: readonly SettingsSection[] = [
+  "general", "account", "company", "language", "billing", "addressbook", "notifications", "members",
+];
+
+/** La sección pedida en la URL (`?section=`), si es una de las conocidas. */
+export function parseSettingsSection(raw: string | null | undefined): SettingsSection | null {
+  return SECTIONS.includes(raw as SettingsSection) ? (raw as SettingsSection) : null;
+}
+
 type NavItem = {
   id: SettingsSection;
   labelKey: TranslationKey;

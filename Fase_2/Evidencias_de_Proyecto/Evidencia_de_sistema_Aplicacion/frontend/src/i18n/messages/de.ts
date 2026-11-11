@@ -196,7 +196,7 @@ const messages = {
   "person_research.job_area_ph": "z. B. Softwareentwickler, CFO, Marketing…",
   "person_research.company": "Unternehmen (freiwillig)",
   "person_research.company_ph": "Aktueller oder wahrscheinlicher Arbeitgeber",
-  "person_research.country": "Land / Region",
+  "person_research.country": "Land / Region (freiwillig)",
   "person_research.country_ph": "Land auswählen",
   "person_research.city": "Stadt (freiwillig)",
   "person_research.city_ph": "z. B. Berlin",

@@ -193,7 +193,7 @@ const messages = {
   "person_research.job_area_ph": "e.g. Software engineer, CFO, marketing…",
   "person_research.company": "Company (optional)",
   "person_research.company_ph": "Current or likely employer",
-  "person_research.country": "Country / region",
+  "person_research.country": "Country / region (optional)",
   "person_research.country_ph": "Select a country",
   "person_research.city": "City (optional)",
   "person_research.city_ph": "e.g. Madrid",

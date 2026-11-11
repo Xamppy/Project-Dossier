@@ -30,19 +30,12 @@ import {
   JobReconnectButton,
   useDossierJobs,
 } from "@/providers/DossierJobsProvider";
+import { normalizePlanTier, planSummaryLabel } from "@/lib/plans";
 import { usePreferences, useTranslation } from "@/providers/PreferencesProvider";
 
 type ResearchSourceUi = "gemini_web" | "pdl";
 
 const PERSON_RESEARCH_CREDITS = 1;
-
-function formatPlanSummary(me: AuthUser | null, unlimitedLabel: string): string {
-  const plan = (me?.organization_plan ?? "free").trim();
-  const label = plan.charAt(0).toUpperCase() + plan.slice(1);
-  const monthly = me?.credits_monthly_limit ?? 0;
-  if (monthly >= 999_999) return `${label} · ${unlimitedLabel}`;
-  return `${label} · ${monthly} cr/mes`;
-}
 
 function estimatePersonResearchEta(source: ResearchSourceUi, maxProfiles: number): number {
   if (source === "gemini_web") return 35;
@@ -90,7 +83,8 @@ function PersonResearchPageContent() {
       : "person_research.summary_scope_gemini";
   const estimatedEta = estimatePersonResearchEta(researchSource, maxProfiles);
   const planSummary = useMemo(
-    () => formatPlanSummary(me, t("billing.unlimited")),
+    // Informe beta: mismo resumen que Empresas, con los créditos disponibles.
+    () => planSummaryLabel(t, normalizePlanTier(me?.organization_plan), me?.credits_balance, me?.credits_monthly_limit),
     [me, t],
   );
 
