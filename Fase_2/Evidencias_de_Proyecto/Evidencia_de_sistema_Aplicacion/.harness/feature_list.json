@@ -2461,7 +2461,7 @@
       "id": "BUG-2026-10-19-09",
       "sprint": 2,
       "title": "El aviso flotante de generación muestra la hora de la reunión en UTC",
-      "status": "claimed",
+      "status": "review",
       "owner": "FD",
       "area": "frontend",
       "activity": "A9",
@@ -2472,7 +2472,9 @@
       "blocks": [],
       "trello": null,
       "branch": "fix/BUG-2026-10-19-09-hora-utc",
-      "evidence": [],
+      "evidence": [
+        "frontend/src/lib/format.test.ts: 4 pruebas (antes 20:00 en vez de 17:00); Vitest 657 passed, tsc y eslint sin errores"
+      ],
       "notes": "Defecto ad hoc registrado el 2026-10-19. En la demo, una reunión de las 17:00 en America/Santiago aparecía como 20:00 en el aviso flotante de generación. Evidencia: docs/evidencias/fase2/ui/README.md. Traspasada de DG a FD el 2026-11-10.",
       "owner_session": "FD (agente)"
     },

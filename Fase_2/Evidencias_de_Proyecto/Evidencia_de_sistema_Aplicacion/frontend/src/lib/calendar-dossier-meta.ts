@@ -34,7 +34,7 @@ function stripMeetingDatetimeSuffix(label: string): string {
 
 function buildMeetingLabelFromBlock(
   cal: CalendarDossierMeta,
-  prefs?: Pick<UserPreferences, "locale" | "timezone">,
+  prefs?: Pick<UserPreferences, "locale" | "timezone"> & Partial<Pick<UserPreferences, "timezoneFollowSystem">>,
 ): string | null {
   const tema = cal.tema?.trim() || stripMeetingDatetimeSuffix(cal.meeting_label?.trim() || "");
   if (!tema) return null;
@@ -54,7 +54,7 @@ export function getCalendarMeetingLabel(
     calendar_meeting?: string | null;
     dossier_data?: unknown;
   },
-  prefs?: Pick<UserPreferences, "locale" | "timezone">,
+  prefs?: Pick<UserPreferences, "locale" | "timezone"> & Partial<Pick<UserPreferences, "timezoneFollowSystem">>,
 ): string | null {
   const source = (dossier.trigger_source || "").trim();
   const cal = readCalendarBlock(dossier.dossier_data);
