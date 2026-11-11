@@ -49,7 +49,8 @@ export function ExternalLink({ href, children }: { href: string; children: React
 /** Fecha corta en el idioma del usuario. Las fechas sin hora no se desplazan de día. */
 export function formatDay(value: string | null, locale: string): string | null {
   if (!value) return null;
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  // ISO 8601 o la fecha compacta de GDELT (20261103T193800Z) de dossiers guardados antes del arreglo.
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value) ?? /^(\d{4})(\d{2})(\d{2})T\d{6}Z?$/.exec(value);
   if (!match) return value;
   const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
   if (Number.isNaN(date.getTime())) return value;

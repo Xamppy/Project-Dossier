@@ -9,8 +9,10 @@ saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ni
 ### 2026-11-11 · Correcciones vistas al rehacer las capturas del informe final 2.6 · FD (agente)
 
 **Hecho.** Rama `fix/detalles-informe-final`. Tres defectos:
-- La fecha de las menciones de prensa de un dossier de persona salía en bruto («20261103T193800Z»,
-  formato de GDELT). Ahora se muestra como «2026-11-03» (`executive_markdown._fecha_de_prensa`).
+- La fecha de las menciones de prensa salía en bruto («20261103T193800Z», formato de GDELT) en el
+  informe y en el módulo Prensa de un dossier de persona. Ahora el agente de prensa la guarda en
+  ISO 8601 (`news/agent._fecha_iso`), el informe la muestra como «2026-11-03» y el frontend entiende
+  también la fecha compacta de los dossiers ya guardados (`ModuleCard.formatDay`).
 - El PDF de un dossier de empresa decía «Dossier de persona». Ahora dice «Dossier de empresa» en los
   seis idiomas (`dossier_pdf`, según `dossier_data.pipeline`).
 - La resolución automática en la SEC aceptaba trozos de palabra: «Lumière Logistique Démo SAS» se
@@ -20,7 +22,7 @@ saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ni
   Empresas sigue aceptando parte del nombre.
 
 **Pruebas.** `tests/test_corporate_company_search.py` (nuevo), `test_executive_markdown.py` y
-`test_dossier_pdf.py`; primero en rojo.
+`test_dossier_pdf.py`, `test_news_agent.py` y `DossierModules.test.tsx`; primero en rojo.
 
 **Rama.** `fix/detalles-informe-final` · **Estado.** review
 

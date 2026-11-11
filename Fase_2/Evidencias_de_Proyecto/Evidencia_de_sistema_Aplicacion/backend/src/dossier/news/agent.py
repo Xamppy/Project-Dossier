@@ -117,6 +117,19 @@ def _normalizar_titular(titular: str) -> str:
     return " ".join(titular.strip().lower().split())
 
 
+_FECHA_COMPACTA = re.compile(r"(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z?")
+
+
+def _fecha_iso(valor: str | None) -> str | None:
+    """La fecha compacta de GDELT (``20261103T193800Z``) pasa a ISO 8601; las demás quedan igual."""
+    texto = (valor or "").strip()
+    m = _FECHA_COMPACTA.fullmatch(texto)
+    if m:
+        a, mes, d, h, mi, s = m.groups()
+        return f"{a}-{mes}-{d}T{h}:{mi}:{s}Z"
+    return texto or None
+
+
 def _mencion(articulo: ArticuloNoticia, source: SourceCitation) -> PressMention | None:
     url = (articulo.url or "").strip()
     titulo = (articulo.titulo or "").strip()
@@ -129,7 +142,7 @@ def _mencion(articulo: ArticuloNoticia, source: SourceCitation) -> PressMention 
     return PressMention(
         headline=titulo,
         publisher=medio or "Desconocido",
-        published_date=(articulo.publicado or "").strip() or None,
+        published_date=_fecha_iso(articulo.publicado),
         summary=resumen,
         url=url,
         source=source,

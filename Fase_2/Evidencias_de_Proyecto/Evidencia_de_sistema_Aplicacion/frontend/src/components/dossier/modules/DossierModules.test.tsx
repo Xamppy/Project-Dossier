@@ -113,6 +113,17 @@ describe("Prensa (S3.6)", () => {
     expect(enlace.getAttribute("rel")).toBe("noopener noreferrer");
   });
 
+  it("la fecha compacta de GDELT de dossiers ya guardados se muestra legible (informe final 2.6)", () => {
+    const conFechaCompacta = parseModules({ press_mentions: [{ ...MENCION, published_date: "20261103T200100Z" }] });
+    render(<DossierModules payload={null} modules={conFechaCompacta} />);
+    const prensa = seccion(t("dossier_modules.press"));
+    const esperada = new Intl.DateTimeFormat("es", { dateStyle: "medium", timeZone: "UTC" }).format(
+      new Date(Date.UTC(2026, 10, 3)),
+    );
+    expect(within(prensa).queryByText(/20261103T200100Z/)).toBeNull();
+    expect(within(prensa).getByText(new RegExp(esperada))).toBeTruthy();
+  });
+
   it("CA9 · el texto externo nunca se interpreta como HTML", () => {
     const xss = parseModules({
       press_mentions: [{ ...MENCION, headline: '<img src=x onerror="alert(1)">', summary: "<b>negrita</b>", url: "javascript:alert(1)" }],

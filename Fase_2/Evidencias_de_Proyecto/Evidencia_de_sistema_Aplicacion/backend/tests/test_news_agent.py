@@ -170,3 +170,22 @@ def test_query_context_incluye_la_consulta_original(monkeypatch):
     resultado = collect_press_mentions('"Ana Perez" AND "Acme"')
 
     assert resultado.query_context["subject_query"] == '"Ana Perez" AND "Acme"'
+
+
+# Informe final 2.6: la fecha compacta de GDELT llegaba tal cual al dossier («20261103T193800Z»).
+def test_la_fecha_compacta_de_gdelt_queda_en_iso_8601(monkeypatch):
+    monkeypatch.setattr(cliente, "search_gdelt_articles", lambda q, *, limite=10: [_gdelt(seendate="20261103T193800Z")])
+    monkeypatch.setattr(cliente, "search_newsapi_articles", lambda q, *, limite=10: [])
+
+    resultado = collect_press_mentions('"Ana Perez" AND "Acme"')
+
+    assert [m.published_date for m in resultado.mentions] == ["2026-11-03T19:38:00Z"]
+
+
+def test_la_fecha_iso_de_newsapi_no_cambia(monkeypatch):
+    monkeypatch.setattr(cliente, "search_gdelt_articles", lambda q, *, limite=10: [])
+    monkeypatch.setattr(cliente, "search_newsapi_articles", lambda q, *, limite=10: [_newsapi()])
+
+    resultado = collect_press_mentions('"Ana Perez" AND "Acme"')
+
+    assert [m.published_date for m in resultado.mentions] == ["2026-09-10T12:00:00Z"]
