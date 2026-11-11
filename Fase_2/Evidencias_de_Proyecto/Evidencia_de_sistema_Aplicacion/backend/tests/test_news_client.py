@@ -114,3 +114,46 @@ def test_busca_en_newsapi_forma_inesperada_es_error(monkeypatch, respuesta_fija)
     monkeypatch.setattr(client.requests, "get", fake_get)
     with pytest.raises(ProveedorNoticiasError):
         search_newsapi_articles("Ana Perez")
+
+
+# --------------------------------------------------------------------------
+# GDELT limita a una consulta cada 5 s por IP: ante 429 se reintenta una vez
+# --------------------------------------------------------------------------
+
+
+def test_gdelt_429_espera_y_reintenta_una_vez(monkeypatch, respuesta_fija):
+    respuestas = [respuesta_fija({}, status=429), respuesta_fija({"articles": [{"url": "u", "title": "t"}]})]
+    esperas: list[float] = []
+    monkeypatch.setattr(client.requests, "get", lambda *a, **k: respuestas.pop(0))
+    monkeypatch.setattr(client, "_esperar", esperas.append)
+
+    assert search_gdelt_articles("Acme") == [{"url": "u", "title": "t"}]
+    assert esperas == [client.GDELT_ESPERA_LIMITE_SEG]
+
+
+def test_gdelt_429_dos_veces_es_un_limite_del_proveedor(monkeypatch, respuesta_fija):
+    llamadas = []
+
+    def fake_get(*a, **k):
+        llamadas.append(1)
+        return respuesta_fija({}, status=429)
+
+    monkeypatch.setattr(client.requests, "get", fake_get)
+    monkeypatch.setattr(client, "_esperar", lambda s: None)
+    with pytest.raises(client.LimiteProveedorNoticias):
+        search_gdelt_articles("Acme")
+    assert len(llamadas) == 2
+
+
+def test_newsapi_429_es_un_limite_del_proveedor_sin_reintento(monkeypatch, respuesta_fija):
+    llamadas = []
+
+    def fake_get(*a, **k):
+        llamadas.append(1)
+        return respuesta_fija({}, status=429)
+
+    monkeypatch.setenv("NEWS_API_KEY", "clave")
+    monkeypatch.setattr(client.requests, "get", fake_get)
+    with pytest.raises(client.LimiteProveedorNoticias):
+        search_newsapi_articles("Acme")
+    assert len(llamadas) == 1

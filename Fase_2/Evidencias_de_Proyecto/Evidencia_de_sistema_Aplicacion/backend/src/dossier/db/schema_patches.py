@@ -245,10 +245,26 @@ PLAN_SETTINGS_PATCHES = (
         updated_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL
     );
     """,
+    # Con la columna de UX-ADMIN-03 ya creada, la siembra debe traer los créditos: Postgres valida
+    # el NOT NULL antes de ver el conflicto, así que un INSERT sin ellos falla al rearrancar.
     """
-    INSERT INTO plan_settings (plan, max_concurrent_dossiers)
-    VALUES ('free', 1), ('pro', 3), ('enterprise', 10)
-    ON CONFLICT (plan) DO NOTHING;
+    DO $$
+    BEGIN
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = current_schema()
+              AND table_name = 'plan_settings'
+              AND column_name = 'monthly_credits'
+        ) THEN
+            INSERT INTO plan_settings (plan, max_concurrent_dossiers, monthly_credits)
+            VALUES ('free', 1, 10), ('pro', 3, 500), ('enterprise', 10, 50000)
+            ON CONFLICT (plan) DO NOTHING;
+        ELSE
+            INSERT INTO plan_settings (plan, max_concurrent_dossiers)
+            VALUES ('free', 1), ('pro', 3), ('enterprise', 10)
+            ON CONFLICT (plan) DO NOTHING;
+        END IF;
+    END $$;
     """,
 )
 
@@ -338,6 +354,29 @@ NEWS_SOURCE_PATCHES = (
 )
 
 
+# UX-ADMIN-03: créditos al mes de cada plan (se entregan al registrarse y al cambiar de plan).
+PLAN_CREDITS_PATCHES = (
+    "ALTER TABLE plan_settings ADD COLUMN IF NOT EXISTS monthly_credits INTEGER;",
+    """
+    UPDATE plan_settings
+    SET monthly_credits = CASE plan WHEN 'free' THEN 10 WHEN 'pro' THEN 500 ELSE 50000 END
+    WHERE monthly_credits IS NULL;
+    """,
+    "ALTER TABLE plan_settings ALTER COLUMN monthly_credits SET NOT NULL;",
+    """
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'plan_settings_monthly_credits_rango'
+        ) THEN
+            ALTER TABLE plan_settings ADD CONSTRAINT plan_settings_monthly_credits_rango
+                CHECK (monthly_credits BETWEEN 0 AND 1000000);
+        END IF;
+    END $$;
+    """,
+)
+
+
 def apply_schema_patches(engine: Engine) -> None:
     with engine.begin() as conn:
         for sql in (
@@ -352,5 +391,6 @@ def apply_schema_patches(engine: Engine) -> None:
             + JOB_HEARTBEAT_PATCHES
             + USER_NOTIFY_PATCHES
             + NEWS_SOURCE_PATCHES
+            + PLAN_CREDITS_PATCHES
         ):
             conn.execute(text(sql))

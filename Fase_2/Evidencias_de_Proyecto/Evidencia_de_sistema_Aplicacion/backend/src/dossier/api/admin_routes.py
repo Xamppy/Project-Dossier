@@ -37,7 +37,12 @@ from dossier.schemas.admin import (
 from dossier.services.account_service import admin_delete_user_account
 from dossier.services.audit_log import AuditEvent, record
 from dossier.services.news_sources import PLANES, AjusteFuente, leer_ajustes, uso_de_hoy
-from dossier.services.plan_limits import DEFAULT_MAX_CONCURRENT, PLAN_ORDER, is_known_plan
+from dossier.services.plan_limits import (
+    DEFAULT_MAX_CONCURRENT,
+    DEFAULT_MONTHLY_CREDITS,
+    PLAN_ORDER,
+    is_known_plan,
+)
 
 router = APIRouter(prefix="/admin", tags=["Administración plataforma"])
 
@@ -259,6 +264,7 @@ def _plan_item(db: Session, plan: str, fila: PlanSetting | None) -> AdminPlanSet
     return AdminPlanSettingItem(
         plan=plan,
         max_concurrent_dossiers=fila.max_concurrent_dossiers if fila else DEFAULT_MAX_CONCURRENT[plan],
+        monthly_credits=fila.monthly_credits if fila else DEFAULT_MONTHLY_CREDITS[plan],
         updated_at=fila.updated_at if fila else None,
         updated_by_email=email,
     )
@@ -281,27 +287,36 @@ def admin_patch_plan_setting(
     admin: AdminUserDep,
     db: Session = Depends(get_db_if_configured),
 ) -> AdminPlanSettingItem:
-    """Cambia el tope de dossiers a la vez de un plan. Queda en ``audit_logs``."""
+    """Cambia el tope de dossiers a la vez y/o los créditos al mes de un plan. Queda en ``audit_logs``.
+
+    Los créditos se aplican a quien se registre o cambie a este plan desde ahora; el saldo de
+    las organizaciones existentes no cambia.
+    """
     if not is_known_plan(plan):
         raise HTTPException(status_code=404, detail="Plan no encontrado.")
     fila = db.get(PlanSetting, plan, with_for_update=True)
-    antes = fila.max_concurrent_dossiers if fila else DEFAULT_MAX_CONCURRENT[plan]
+    antes = {
+        "max_concurrent_dossiers": fila.max_concurrent_dossiers if fila else DEFAULT_MAX_CONCURRENT[plan],
+        "monthly_credits": fila.monthly_credits if fila else DEFAULT_MONTHLY_CREDITS[plan],
+    }
+    despues = dict(antes)
+    for campo in body.model_fields_set:
+        despues[campo] = getattr(body, campo)
     if fila is None:
-        fila = PlanSetting(plan=plan, max_concurrent_dossiers=body.max_concurrent_dossiers)
+        fila = PlanSetting(plan=plan, **despues)
         db.add(fila)
-    fila.max_concurrent_dossiers = body.max_concurrent_dossiers
+    fila.max_concurrent_dossiers = despues["max_concurrent_dossiers"]
+    fila.monthly_credits = despues["monthly_credits"]
     fila.updated_at = datetime.now(UTC)
     fila.updated_by_user_id = admin.id
+    cambios = {c: {"antes": antes[c], "despues": despues[c]} for c in antes if antes[c] != despues[c]}
     record(
         db,
         AuditEvent(
             action="ADMIN plan_settings",
             resource_type="plan_settings",
             user_id=admin.id,
-            request_data={
-                "plan": plan,
-                "max_concurrent_dossiers": {"antes": antes, "despues": body.max_concurrent_dossiers},
-            },
+            request_data={"plan": plan, **cambios},
         ),
     )
     db.commit()

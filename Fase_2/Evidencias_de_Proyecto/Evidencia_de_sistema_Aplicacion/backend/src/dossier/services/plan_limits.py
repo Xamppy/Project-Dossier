@@ -25,6 +25,10 @@ from dossier.billing.plan_catalog import ALLOWED_PLANS, normalize_plan
 from dossier.db.models import DossierGenerationJob, Organization, PlanSetting, User
 
 DEFAULT_MAX_CONCURRENT: Final[dict[str, int]] = {"free": 1, "pro": 3, "enterprise": 10}
+# UX-ADMIN-03: créditos al mes de cada plan (valores iniciales; los cambia el admin de plataforma).
+DEFAULT_MONTHLY_CREDITS: Final[dict[str, int]] = {"free": 10, "pro": 500, "enterprise": 50_000}
+MIN_MONTHLY_CREDITS: Final = 0
+MAX_MONTHLY_CREDITS: Final = 1_000_000
 MIN_CONCURRENT: Final = 1
 MAX_CONCURRENT: Final = 100
 PLAN_ORDER: Final = ("free", "pro", "enterprise")
@@ -53,6 +57,16 @@ def max_concurrent_dossiers(db: Session, plan: str | None) -> int:
     pid = normalize_plan(plan)
     valor = db.scalar(select(PlanSetting.max_concurrent_dossiers).where(PlanSetting.plan == pid))
     return int(valor) if valor is not None else DEFAULT_MAX_CONCURRENT[pid]
+
+
+def monthly_credits(db: Session | None, plan: str | None) -> int:
+    """Créditos al mes del plan; sin fila (o sin base), el valor inicial."""
+    pid = normalize_plan(plan)
+    if db is not None:
+        valor = db.scalar(select(PlanSetting.monthly_credits).where(PlanSetting.plan == pid))
+        if valor is not None:
+            return int(valor)
+    return DEFAULT_MONTHLY_CREDITS[pid]
 
 
 def active_dossier_jobs(db: Session, *, user_id: UUID, organization_id: UUID, now: datetime | None = None) -> int:

@@ -6,6 +6,25 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-11 · UX-ADMIN-03 · Créditos al mes de cada plan, configurables · FD (agente)
+
+**Hecho.** Rama `feat/creditos-por-plan`. Columna «Créditos al mes» en Administración → Límites
+por plan (`plan_settings.monthly_credits`, Alembic `f1c3e5a7b9d2`). Se aplican al registrarse
+(Free) y al cambiar de plan; `GET /billing/plans` alimenta las tarjetas de Configuración. También en
+la rama: GDELT reintenta una vez ante 429 y el avance muestra el motivo real (`provider_rate_limit`).
+
+**Lo que hay que saber.**
+- El saldo de las organizaciones existentes no cambia al tocar la configuración: no hay
+  renovación mensual (pendiente).
+- En Enterprise lo configurado es el saldo inicial; el tope mensual sigue en 1.000.000, que el
+  frontend muestra como «ilimitado».
+- `ORG_SIGNUP_CREDITS` del `.env` sigue mandando en el registro si está definida.
+- Demo: Gemini 3.8 Flash dejó de responder (colgaba la generación); la demo usa
+  `gemini-flash-lite-latest`. El PostgreSQL de la demo se cayó por un error de Windows
+  (`0xC0000142`) y se levantó con `pg_ctl`.
+
+**Rama.** `feat/creditos-por-plan` · **Estado.** review
+
 ### 2026-11-11 · UX-ADMIN-02 · Fuentes de noticias enchufables y administrables · FD (agente)
 
 **Hecho.** Rama `feat/fuentes-noticias-enchufables`. Pedido del cliente: dejar listo el camino para

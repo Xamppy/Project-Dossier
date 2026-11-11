@@ -7,6 +7,7 @@ import type { TranslationKey } from "@/i18n/types";
 import {
   DossierApiError,
   fetchAuthMe,
+  fetchBillingPlans,
   getStoredAccessToken,
   patchOrganizationPlan,
   type AuthUser,
@@ -53,8 +54,26 @@ function isUnlimitedMonthly(limit: number): boolean {
   return limit >= 999_999;
 }
 
+/** UX-ADMIN-03: créditos al mes que fijó el admin de plataforma (si no responde, el texto de siempre). */
+function usePlanCredits(): Partial<Record<PlanTier, number>> {
+  const [creditos, setCreditos] = useState<Partial<Record<PlanTier, number>>>({});
+  useEffect(() => {
+    let cancelled = false;
+    fetchBillingPlans()
+      .then(({ plans }) => {
+        if (!cancelled) setCreditos(Object.fromEntries(plans.map((p) => [p.plan, p.monthly_credits])));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return creditos;
+}
+
 export default function BillingPanel() {
   const { t } = usePreferences();
+  const planCredits = usePlanCredits();
   const [me, setMe] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -101,6 +120,10 @@ export default function BillingPanel() {
   }
 
   const currentPlan = (me?.organization_plan as PlanTier | undefined) ?? "free";
+  const creditsLabel = (plan: PlanTier) =>
+    plan !== "enterprise" && planCredits[plan] !== undefined
+      ? t("billing.plan_credits_per_month", { credits: planCredits[plan] as number })
+      : t(PLAN_CREDITS_KEYS[plan]);
   const isAdmin = me?.role === "admin";
   const balance = me?.credits_balance ?? 0;
   const monthly = me?.credits_monthly_limit ?? 0;
@@ -225,7 +248,7 @@ export default function BillingPanel() {
                 {t(PLAN_PRICE_KEYS[plan.id])}
               </p>
               <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
-                {t(PLAN_CREDITS_KEYS[plan.id])}
+                {creditsLabel(plan.id)}
               </p>
             </div>
             <ul className="flex flex-1 flex-col gap-2 text-sm" style={{ color: "var(--text-muted)" }}>

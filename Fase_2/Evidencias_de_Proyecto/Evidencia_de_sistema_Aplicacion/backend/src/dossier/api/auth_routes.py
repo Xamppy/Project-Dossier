@@ -104,6 +104,7 @@ from dossier.services.org_membership_service import (
     remove_org_member,
     update_org_member_role,
 )
+from dossier.services.plan_limits import monthly_credits
 
 router = APIRouter(prefix="/auth", tags=["Autenticación app"])
 
@@ -120,12 +121,13 @@ def _normalize_register_locale(raw: str | None) -> str:
     return loc
 
 
-def _signup_org_credits() -> tuple[int, int]:
+def _signup_org_credits(db: Session | None = None) -> tuple[int, int]:
     """
     Créditos iniciales de la organización al registrarse (`/auth/register`).
 
-    Variables opcionales en `.env`:
-    - `ORG_SIGNUP_CREDITS` — saldo inicial (≥ 0). Por defecto **10** (tier Free del informe).
+    Por defecto, los créditos al mes del plan Free que fija el admin de plataforma
+    (UX-ADMIN-03, ``plan_settings``). Variables opcionales en `.env`, que mandan si existen:
+    - `ORG_SIGNUP_CREDITS` — saldo inicial (≥ 0).
     - `ORG_SIGNUP_CREDITS_MONTHLY_LIMIT` — tope mensual; si no se define, igual al saldo.
     """
 
@@ -139,7 +141,7 @@ def _signup_org_credits() -> tuple[int, int]:
             return default
         return max(0, v)
 
-    balance = _parse("ORG_SIGNUP_CREDITS", 10)
+    balance = _parse("ORG_SIGNUP_CREDITS", monthly_credits(db, "free"))
     lim_raw = os.getenv("ORG_SIGNUP_CREDITS_MONTHLY_LIMIT")
     if lim_raw is not None and str(lim_raw).strip():
         limit = _parse("ORG_SIGNUP_CREDITS_MONTHLY_LIMIT", balance)
@@ -598,7 +600,7 @@ def register_user(
         org_settings = {"workspace_kind": "work"}
         org_name = (body.company_name or "").strip()[:255]
 
-    credits_balance, credits_monthly_limit = _signup_org_credits()
+    credits_balance, credits_monthly_limit = _signup_org_credits(db)
     org = Organization(
         name=org_name,
         slug=slug,
@@ -1200,7 +1202,7 @@ def patch_organization_plan(
             detail="Solo un administrador de la organización puede cambiar el plan.",
         )
     try:
-        apply_plan_to_organization(org, body.plan)
+        apply_plan_to_organization(org, body.plan, credits=monthly_credits(db, body.plan))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     db.add(org)

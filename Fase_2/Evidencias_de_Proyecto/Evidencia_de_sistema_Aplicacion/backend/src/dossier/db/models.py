@@ -540,6 +540,8 @@ class PlanSetting(Base):
 
     plan: Mapped[str] = mapped_column(String(20), primary_key=True)
     max_concurrent_dossiers: Mapped[int] = mapped_column(Integer)
+    # UX-ADMIN-03: créditos que recibe la organización al registrarse o al pasar a este plan.
+    monthly_credits: Mapped[int] = mapped_column(Integer)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True

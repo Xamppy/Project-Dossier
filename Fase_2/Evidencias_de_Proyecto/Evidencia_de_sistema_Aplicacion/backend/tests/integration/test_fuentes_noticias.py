@@ -320,6 +320,31 @@ def test_persona_con_la_prensa_caida_igual_sale_y_no_cobra_el_extra(admin, mundo
     assert etapa["status"] == "failed"
 
 
+def test_persona_con_la_prensa_limitada_muestra_el_motivo(admin, mundo, prensa_real):
+    from dossier.news.client import LimiteProveedorNoticias
+
+    prensa_real["error"] = LimiteProveedorNoticias("HTTP 429")
+    job = procesar(mundo, pedir_persona(mundo, mundo.a_admin, mundo.org_a))
+    (scope,) = job["progress"]["scopes"]
+    etapa = next(e for e in scope["stages"] if e["stage_id"] == "person.press_search")
+    assert (etapa["status"], etapa["reason_code"]) == ("failed", "provider_rate_limit")
+    assert job["status"] == "completed"
+
+
+def test_empresa_con_la_prensa_limitada_muestra_el_motivo(admin, mundo, prensa_real):
+    from dossier.news.client import LimiteProveedorNoticias
+
+    prensa_real["error"] = LimiteProveedorNoticias("HTTP 429")
+    resp = cliente(mundo.a_admin, mundo.org_a).post(
+        "/dossiers/corporate/generate", json={"subject_query": "Acme Corp", "depth": "basic", "async_mode": True}
+    )
+    mundo.jobs.append(resp.json()["job_id"])
+    job = procesar(mundo, resp.json()["job_id"])
+    (scope,) = job["progress"]["scopes"]
+    prensa = next(a for a in scope["agents"] if a["agent_name"] == "agent_news")
+    assert (prensa["status"], prensa["reason_code"]) == ("failed", "provider_rate_limit")
+
+
 def test_persona_estima_el_extra_al_encolar(admin, mundo):
     _ajustar(admin, "gdelt_news", extra_credits=2)
     resp = cliente(mundo.a_admin, mundo.org_a).post(

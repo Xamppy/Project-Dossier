@@ -109,7 +109,7 @@ def resolver_usuario_google(
     if user is None:
         user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
         if user is None:
-            credits_balance, credits_monthly_limit = _signup_org_credits()
+            credits_balance, credits_monthly_limit = _signup_org_credits(db)
             org = Organization(
                 name=ORG_NAME_PERSONAL_PLACEHOLDER,
                 slug=allocate_org_slug(db, email),

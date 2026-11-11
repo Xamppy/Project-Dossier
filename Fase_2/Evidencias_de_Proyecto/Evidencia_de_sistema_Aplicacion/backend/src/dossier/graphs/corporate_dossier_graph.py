@@ -417,6 +417,7 @@ def _node_agent_news(state: CorporateDossierState) -> dict[str, Any]:
             "agents_failed": ["agent_news"],
             "fuentes_consultadas": _fuentes_prensa(caidos, [], resultado),
             "creditos_extra_prensa": extra,
+            _PROGRESO: {"reason_code": agente_noticias.motivo_de_fallo(resultado)},
         }
 
     menciones, descartadas = agente_noticias.filtrar_homonimos(resultado.mentions, empresa)
@@ -679,7 +680,7 @@ def _instrumentar(agente: str, nodo: Any, progress: Any) -> Any:
         if agente in (salida.get("agents_skipped") or []):
             progress.agent(agente, "skipped", motivo_omision)
         elif agente in (salida.get("agents_failed") or []):
-            progress.agent(agente, "failed", "provider_error")
+            progress.agent(agente, "failed", pista.get("reason_code") or "provider_error")
         else:
             seccion = _SECCION_PREVIA.get(agente)
             if seccion and pista.get("preview"):

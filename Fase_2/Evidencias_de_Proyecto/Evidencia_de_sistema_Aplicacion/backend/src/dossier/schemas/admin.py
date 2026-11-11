@@ -84,6 +84,8 @@ class AdminPlanSettingItem(BaseModel):
 
     plan: Literal["free", "pro", "enterprise"]
     max_concurrent_dossiers: int
+    # UX-ADMIN-03: créditos que recibe la organización al registrarse o al pasar a este plan.
+    monthly_credits: int
     updated_at: datetime | None = None
     updated_by_email: str | None = None
 
@@ -93,11 +95,35 @@ class AdminPlanSettingsResponse(BaseModel):
 
 
 class AdminPlanSettingPatch(BaseModel):
-    """Entero estricto entre 1 y 100: ``2.5`` o ``"3"`` no se aceptan."""
+    """Cambios de un plan: solo lo enviado cambia, al menos un campo.
+
+    Enteros estrictos: ``2.5`` o ``"3"`` no se aceptan, tampoco ``null``.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    max_concurrent_dossiers: StrictInt = Field(ge=1, le=100)
+    max_concurrent_dossiers: StrictInt | None = Field(default=None, ge=1, le=100)
+    monthly_credits: StrictInt | None = Field(default=None, ge=0, le=1_000_000)
+
+    @model_validator(mode="after")
+    def _con_cambios(self) -> AdminPlanSettingPatch:
+        if not self.model_fields_set:
+            raise ValueError("No hay cambios que guardar.")
+        for campo in self.model_fields_set:
+            if getattr(self, campo) is None:
+                raise ValueError(f"{campo} no puede ser null.")
+        return self
+
+
+class BillingPlanItem(BaseModel):
+    plan: Literal["free", "pro", "enterprise"]
+    monthly_credits: int
+
+
+class BillingPlansResponse(BaseModel):
+    """UX-ADMIN-03: créditos al mes de cada plan, para las tarjetas de Configuración."""
+
+    plans: list[BillingPlanItem]
 
 
 # --- UX-ADMIN-02: fuentes de noticias -------------------------------------------------------

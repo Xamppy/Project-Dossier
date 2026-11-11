@@ -1317,6 +1317,21 @@ CREATE TABLE IF NOT EXISTS news_source_usage (
 
 
 -- =============================================================================
+-- MIGRACIÓN INCREMENTAL: créditos al mes de cada plan (Alembic f1c3e5a7b9d2)
+-- Se entregan al registrarse (Free) y al cambiar de plan. Los cambia el admin de
+-- plataforma. DDL en schema_patches.PLAN_CREDITS_PATCHES.
+-- =============================================================================
+
+ALTER TABLE plan_settings ADD COLUMN IF NOT EXISTS monthly_credits INTEGER;
+UPDATE plan_settings
+SET monthly_credits = CASE plan WHEN 'free' THEN 10 WHEN 'pro' THEN 500 ELSE 50000 END
+WHERE monthly_credits IS NULL;
+ALTER TABLE plan_settings ALTER COLUMN monthly_credits SET NOT NULL;
+ALTER TABLE plan_settings ADD CONSTRAINT plan_settings_monthly_credits_rango
+    CHECK (monthly_credits BETWEEN 0 AND 1000000);
+
+
+-- =============================================================================
 -- FIN DEL SCHEMA
 -- Total de tablas: 16 principales + 2 vistas
 -- Extensiones: uuid-ossp, pgcrypto

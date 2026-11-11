@@ -129,7 +129,7 @@ def _buscar_prensa(
         return [], 0
     detalle = [f for f in (getattr(resultado, "fuentes", None) or []) if f.estado != "limite_diario"]
     if not resultado.mentions and detalle and all(f.estado == "error" for f in detalle):
-        progress.stage(_ETAPA_PRENSA, "failed", "provider_error")
+        progress.stage(_ETAPA_PRENSA, "failed", agente_noticias.motivo_de_fallo(resultado))
         return [], 0
     menciones, descartadas = agente_noticias.filtrar_homonimos(
         resultado.mentions, nombre, [empresa] if empresa else []
