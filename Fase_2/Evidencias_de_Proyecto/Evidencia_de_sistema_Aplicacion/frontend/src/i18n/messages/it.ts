@@ -1170,7 +1170,7 @@ const messages = {
   "admin.news.status_off": "Disattivata",
   "admin.news.no_key_needed": "Non serve una chiave",
   "admin.news.key_ok": "Chiave configurata",
-  "admin.news.key_missing": "Manca la chiave {var}: non viene consultata",
+  "admin.news.key_missing": "Manca la chiave {var}",
   "admin.news.used_today": "Oggi: {used} consultazioni",
   "admin.news.used_today_limit": "Oggi: {used} di {limit} consultazioni",
   "admin.news.use_for": "Usare per",
@@ -1202,6 +1202,7 @@ const messages = {
   "generate.press_none": "Nessuna",
   "generate.credits_with_press": "{total} (fino a {extra} per la stampa)",
   "progress.stage.person.press_search": "Cercare menzioni sulla stampa",
+  "admin.news.status_no_key": "Senza chiave: non viene usata",
 } as const;
 
 export default messages;

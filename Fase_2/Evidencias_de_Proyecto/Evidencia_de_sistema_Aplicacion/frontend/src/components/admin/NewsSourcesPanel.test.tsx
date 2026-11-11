@@ -76,6 +76,10 @@ describe("NewsSourcesPanel", () => {
 
     const newsapi = tarjeta("NewsAPI");
     expect(within(newsapi).getByText(t("admin.news.key_missing", { var: "NEWS_API_KEY" }))).toBeInTheDocument();
+    // Activa pero sin clave: la etiqueta no dice «Activa» (solo queda la casilla con ese texto).
+    expect(within(newsapi).getByText(t("admin.news.status_no_key"))).toBeInTheDocument();
+    expect(within(newsapi).getAllByText(t("admin.news.status_on"))).toHaveLength(1);
+    expect(within(gdelt).getAllByText(t("admin.news.status_on"))).toHaveLength(2);
     expect(within(newsapi).getByText(t("admin.news.used_today_limit", { used: 7, limit: 100 }))).toBeInTheDocument();
     expect(within(newsapi).getByText(/ops@alloxentric\.com/)).toBeInTheDocument();
     // Sin cambios no se puede guardar.

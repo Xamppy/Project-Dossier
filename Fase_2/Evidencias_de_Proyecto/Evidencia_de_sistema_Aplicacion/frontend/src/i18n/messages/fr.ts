@@ -1175,7 +1175,7 @@ const messages = {
   "admin.news.status_off": "Désactivée",
   "admin.news.no_key_needed": "Aucune clé requise",
   "admin.news.key_ok": "Clé configurée",
-  "admin.news.key_missing": "Clé {var} manquante : non consultée",
+  "admin.news.key_missing": "Clé {var} manquante",
   "admin.news.used_today": "Aujourd'hui : {used} requêtes",
   "admin.news.used_today_limit": "Aujourd'hui : {used} sur {limit} requêtes",
   "admin.news.use_for": "Utiliser pour",
@@ -1207,6 +1207,7 @@ const messages = {
   "generate.press_none": "Aucune",
   "generate.credits_with_press": "{total} (jusqu'à {extra} pour la presse)",
   "progress.stage.person.press_search": "Rechercher des mentions dans la presse",
+  "admin.news.status_no_key": "Sans clé : non utilisée",
 } as const;
 
 export default messages;

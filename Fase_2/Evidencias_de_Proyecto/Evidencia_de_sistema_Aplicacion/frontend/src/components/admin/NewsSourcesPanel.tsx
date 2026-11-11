@@ -202,10 +202,19 @@ export function NewsSourcesPanel() {
                   className="rounded-full border px-2 py-0.5"
                   style={{
                     borderColor: "var(--border-default)",
-                    color: f.enabled ? "var(--accent-from)" : "var(--text-muted)",
+                    color: !f.enabled
+                      ? "var(--text-muted)"
+                      : f.configured
+                        ? "var(--accent-from)"
+                        : "var(--status-warning, #f59e0b)",
                   }}
                 >
-                  {f.enabled ? t("admin.news.status_on") : t("admin.news.status_off")}
+                  {/* Activa pero sin su clave: no se consulta, así que no se muestra como activa. */}
+                  {!f.enabled
+                    ? t("admin.news.status_off")
+                    : f.configured
+                      ? t("admin.news.status_on")
+                      : t("admin.news.status_no_key")}
                 </span>
                 <span
                   className="rounded-full border px-2 py-0.5"
