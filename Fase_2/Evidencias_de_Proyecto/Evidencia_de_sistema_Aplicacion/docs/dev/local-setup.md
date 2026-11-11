@@ -54,7 +54,7 @@ $env:DATABASE_URL="postgresql://usuario:clave@localhost:5432/sistemadossier"
 alembic upgrade head
 ```
 
-Esto crea el esquema completo (22 tablas: las 19 de `Migracion.md` más `dossier_shares`,
+Esto crea el esquema completo (25 tablas al 2026-11-11, verificado en una base vacía; antes eran 22: las 19 de `Migracion.md` más `dossier_shares`,
 `org_invites` y la cola `dossier_generation_jobs`; 2 vistas y 9 triggers/funciones, incluido el
 trigger real de cobro de créditos) **y** aplica los parches de `db/schema_patches.py`
 (columnas agregadas después). Es idempotente: si ya
@@ -84,7 +84,7 @@ psql -U postgres -d sistemadossier -f docs/sql/schema_project_dossier.sql
 ### 3.3 Verificar que quedó bien
 
 ```sql
--- Deberían ser 22 tablas + 2 vistas (23 tablas si usaste 3.1, por alembic_version)
+-- Deberían ser 25 tablas + 2 vistas (26 tablas si usaste 3.1, por alembic_version)
 SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';
 SELECT count(*) FROM information_schema.views WHERE table_schema='public';
 ```

@@ -6,6 +6,25 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-11 · S7.6 · Documentación técnica · FD (agente)
+
+**Hecho.** Rama `feat/S7.6-documentacion-tecnica` (sale de la de S7.2). Documento de entrada en
+`docs/tecnica/README.md`: arquitectura, requisitos, instalación, despliegue, referencia de variables
+de entorno, operación, pruebas, registro de decisiones y problemas conocidos. Remite a las guías
+existentes (local, VPS, correo, OAuth). Se corrigió la cuenta de tablas en `local-setup.md` y en
+`despliegue-vps.md` (25 tablas y 2 vistas, verificado en una base vacía) y se enlazó desde el README.
+
+**Lo que hay que saber.**
+- **La lista de variables salió del código** (`os.getenv`, `limit_from_env` y los nombres en
+  variables). Al agregar una variable nueva hay que sumarla a `docs/tecnica/README.md` §5 y a
+  `backend/.env.example`.
+- **Hallazgo:** `PATCH /organization/plan` deja que el administrador de una organización la pase a
+  Enterprise sin pago (no hay pasarela). Quedó como problema conocido en §9; no se cambió.
+- El criterio del plan («un tercero instala y opera siguiendo solo el documento») requiere que otra
+  persona lo pruebe: queda para la revisión.
+
+**Rama.** `feat/S7.6-documentacion-tecnica` · **Estado.** review
+
 ### 2026-11-11 · S7.2 · Tolerancia a fallos por agente · FD (agente)
 
 **Hecho.** Rama `feat/S7.2-tolerancia-fallos`. Pruebas de punta a punta con cada agente cayendo
