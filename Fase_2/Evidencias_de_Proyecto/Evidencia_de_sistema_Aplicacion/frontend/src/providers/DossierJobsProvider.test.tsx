@@ -725,3 +725,132 @@ describe("DossierJobsProvider · estado general por SSE", () => {
     expect(within(outlookToast).getByText(t("dossier_jobs.connection_lost"))).toBeInTheDocument();
   });
 });
+
+// S5.3: tras un corte de transporte el job se recupera solo, con retroceso progresivo.
+// El montaje y la restauración usan relojes reales; el retroceso, relojes simulados.
+describe("DossierJobsProvider · reconexión automática (S5.3)", () => {
+  async function montarConCorte(kind: DossierJobStreamErrorKind = "network") {
+    h.api.fetchDossierGenerationJobs.mockResolvedValue({ jobs: [job({ id: "j1", status: "running" })] });
+    renderProvider();
+    await settle();
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(1); // esperas exactas de 1, 2, 4… s
+    streamError("j1", kind, kind === "http" ? 503 : null);
+  }
+
+  async function avanzar(ms: number) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it.each(["network", "http", "unexpected_eof", "protocol"] as const)(
+    "CA10 · un corte %s se recupera solo al segundo, sin pulsar «Reconectar»",
+    async (kind) => {
+      await montarConCorte(kind);
+      h.api.fetchDossierGenerationJob.mockResolvedValue(job({ id: "j1", status: "running", credits_consumed: 1 }));
+
+      await avanzar(999);
+      expect(h.api.fetchDossierGenerationJob).not.toHaveBeenCalled();
+      await avanzar(1);
+
+      expect(h.api.fetchDossierGenerationJob).toHaveBeenCalledTimes(1);
+      expect(openSubs("j1")).toHaveLength(1);
+      expect(subsFor("j1")).toHaveLength(2);
+      expect(ctx().jobs[0].credits_consumed).toBe(1);
+      expect(screen.queryByText(t("dossier_jobs.connection_lost"))).not.toBeInTheDocument();
+    },
+  );
+
+  it("CA10 · si la recuperación también falla, espera 2 s y luego 4 s", async () => {
+    await montarConCorte();
+    h.api.fetchDossierGenerationJob.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    await avanzar(1000);
+    expect(h.api.fetchDossierGenerationJob).toHaveBeenCalledTimes(1);
+    await avanzar(1999);
+    expect(h.api.fetchDossierGenerationJob).toHaveBeenCalledTimes(1);
+    await avanzar(1);
+    expect(h.api.fetchDossierGenerationJob).toHaveBeenCalledTimes(2);
+    await avanzar(4000);
+    expect(h.api.fetchDossierGenerationJob).toHaveBeenCalledTimes(3);
+    expect(statusOf("j1")).toBe("running");
+  });
+
+  it("CA10 · cuando el stream nuevo entrega datos, el retroceso vuelve a 1 s", async () => {
+    await montarConCorte();
+    h.api.fetchDossierGenerationJob.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    h.api.fetchDossierGenerationJob.mockResolvedValue(job({ id: "j1", status: "running" }));
+    await avanzar(1000); // falla
+    await avanzar(2000); // recupera y reabre
+    emit(job({ id: "j1", status: "running" }), "job_status", "1");
+
+    streamError("j1", "network");
+    await avanzar(1000);
+    expect(h.api.fetchDossierGenerationJob).toHaveBeenCalledTimes(3);
+    expect(openSubs("j1")).toHaveLength(1);
+  });
+
+  it.each([
+    ["unauthorized", 401],
+    ["forbidden", 403],
+  ] as const)("CA10 · con %s no hay recuperación automática", async (kind, status) => {
+    h.api.fetchDossierGenerationJobs.mockResolvedValue({ jobs: [job({ id: "j1", status: "running" })] });
+    renderProvider();
+    await settle();
+    vi.useFakeTimers();
+    streamError("j1", kind, status);
+    await avanzar(10 * 60_000);
+    expect(h.api.fetchDossierGenerationJob).not.toHaveBeenCalled();
+  });
+
+  it("CA10 · pulsar «Reconectar» durante la espera no duplica la recuperación", async () => {
+    await montarConCorte();
+    h.api.fetchDossierGenerationJob.mockResolvedValue(job({ id: "j1", status: "running" }));
+
+    await act(async () => {
+      screen.getByRole("button", { name: t("dossier_jobs.reconnect") }).click();
+    });
+    await avanzar(5000);
+
+    expect(h.api.fetchDossierGenerationJob).toHaveBeenCalledTimes(1);
+    expect(openSubs("j1")).toHaveLength(1);
+  });
+
+  it("CA9 · al volver la red se recupera enseguida", async () => {
+    await montarConCorte();
+    h.api.fetchDossierGenerationJob.mockResolvedValue(job({ id: "j1", status: "running" }));
+
+    await act(async () => {
+      window.dispatchEvent(new Event("online"));
+    });
+    expect(h.api.fetchDossierGenerationJob).toHaveBeenCalledTimes(1);
+    await avanzar(5000);
+    expect(h.api.fetchDossierGenerationJob).toHaveBeenCalledTimes(1);
+    expect(openSubs("j1")).toHaveLength(1);
+  });
+
+  it("desmontar cancela la recuperación pendiente", async () => {
+    h.api.fetchDossierGenerationJobs.mockResolvedValue({ jobs: [job({ id: "j1", status: "running" })] });
+    const vista = renderProvider();
+    await settle();
+    vi.useFakeTimers();
+    streamError("j1", "network");
+    vista.unmount();
+    await avanzar(60_000);
+    expect(h.api.fetchDossierGenerationJob).not.toHaveBeenCalled();
+  });
+
+  it("un cambio de sesión cancela la recuperación pendiente de la identidad anterior", async () => {
+    await montarConCorte();
+    act(() => {
+      window.dispatchEvent(new Event(AUTH_ME_CHANGED_EVENT));
+    });
+    await avanzar(60_000);
+    expect(h.api.fetchDossierGenerationJob).not.toHaveBeenCalled();
+  });
+});
