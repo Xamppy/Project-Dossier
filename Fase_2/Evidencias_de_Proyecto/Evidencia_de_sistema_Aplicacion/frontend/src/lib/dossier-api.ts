@@ -173,6 +173,11 @@ export type DossierDetailResponse = {
   shares?: DossierShareItem[];
   /** S6.1: estado del envío por correo. */
   email_delivery?: DossierEmailDelivery;
+  /** S4.4: si trae el contrato estructurado y su forma validada. */
+  content_kind?: "structured" | "legacy_markdown";
+  executive_payload?: unknown;
+  /** S5.5: registros corporativos y prensa por módulo (se valida con `parseModules`). */
+  modules?: unknown;
 };
 
 export type DossierEmailDelivery = {
