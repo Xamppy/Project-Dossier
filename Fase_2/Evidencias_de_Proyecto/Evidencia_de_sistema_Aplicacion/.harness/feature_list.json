@@ -1848,7 +1848,7 @@
       "id": "S7.5",
       "sprint": 7,
       "title": "Medir el estado final de deuda tecnica y compararlo con la linea base",
-      "status": "pending",
+      "status": "review",
       "owner": "FD",
       "area": "quality",
       "activity": "A9",
@@ -1862,9 +1862,12 @@
         "S7.8"
       ],
       "trello": "https://trello.com/c/TlvmKJNl",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S7.5-deuda-tecnica-final",
+      "evidence": [
+        "docs/evidencias/fase2/deuda-final/README.md: comparación con S0.3 y 8 mediciones (.txt y .png): pytest+cobertura 1618 passed y 72 %, ruff 0, mypy 0, pip-audit 0, eslint 0 errores, tsc 0, Vitest 653 y 41 %, npm audit 0"
+      ],
+      "notes": "",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S7.6",

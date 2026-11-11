@@ -1,0 +1,187 @@
+# Backend: pruebas y cobertura (S7.5)
+# Fecha: 2026-11-10 22:24:45 -0300
+# Commit: 80f074dc7e792b6158c7f6785d9464ab466feb3d
+# Directorio: backend/
+# Comando: python -m pytest -q --cov=src/dossier --cov-report=term   # con TEST_DATABASE_URL (PostgreSQL 18), sin .env local
+# Código de salida: 0
+# ---- salida literal ----
+........................................................................ [  4%]
+........................................................................ [  8%]
+........................................................................ [ 13%]
+........................................................................ [ 17%]
+........................................................................ [ 22%]
+........................................................................ [ 26%]
+........................................................................ [ 31%]
+........................................s.s............................. [ 35%]
+........................................................................ [ 40%]
+........................................................................ [ 44%]
+........................................................................ [ 48%]
+........................................................................ [ 53%]
+........................................................................ [ 57%]
+........................................................................ [ 62%]
+........................................................................ [ 66%]
+........................................................................ [ 71%]
+........................................................................ [ 75%]
+........................................................................ [ 80%]
+........................................................................ [ 84%]
+........................................................................ [ 88%]
+........................................................................ [ 93%]
+........................................................................ [ 97%]
+....................................                                     [100%]
+============================== warnings summary ===============================
+tests/security/test_dashboard_summary_seguridad.py::test_sin_cabecera_o_con_token_malformado_o_manipulado_es_401
+  E:\Proyecto Dossier\Project-Dossier\Fase_2\Evidencias_de_Proyecto\Evidencia_de_sistema_Aplicacion\backend\.venv\Lib\site-packages\jwt\api_jwt.py:149: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+    return self._jws.encode(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=============================== tests coverage ================================
+_______________ coverage: platform win32, python 3.11.9-final-0 _______________
+
+Name                                                     Stmts   Miss  Cover
+----------------------------------------------------------------------------
+src\dossier\__init__.py                                      2      0   100%
+src\dossier\api\__init__.py                                  2      0   100%
+src\dossier\api\admin_routes.py                             74     44    41%
+src\dossier\api\app.py                                     623    403    35%
+src\dossier\api\audit_middleware.py                        159      8    95%
+src\dossier\api\auth_routes.py                             539    159    71%
+src\dossier\api\cors_config.py                              50      0   100%
+src\dossier\api\dashboard_routes.py                         13      0   100%
+src\dossier\api\dossier_access_routes.py                    37      3    92%
+src\dossier\api\dossier_job_routes.py                       29      2    93%
+src\dossier\api\dossier_routes.py                          253     48    81%
+src\dossier\api\dossier_stream_routes.py                    30      0   100%
+src\dossier\api\google_login_routes.py                     113     15    87%
+src\dossier\api\integrations_routes.py                      27     21    22%
+src\dossier\api\refresh_cookie.py                           24      0   100%
+src\dossier\api_errors.py                                   11      4    64%
+src\dossier\billing\__init__.py                              0      0   100%
+src\dossier\billing\credit_policy.py                        31      1    97%
+src\dossier\billing\entitlements.py                         42      8    81%
+src\dossier\billing\plan_catalog.py                         26     15    42%
+src\dossier\cache\__init__.py                                2      0   100%
+src\dossier\cache\corporate_dossier_redis.py               149     59    60%
+src\dossier\cache\person_dossier_redis.py                   49     23    53%
+src\dossier\companies_house\__init__.py                      0      0   100%
+src\dossier\companies_house\cli.py                         230    195    15%
+src\dossier\companies_house\converters.py                   27      0   100%
+src\dossier\companies_house\prompt_templates.py              9      5    44%
+src\dossier\config.py                                       19      5    74%
+src\dossier\db\__init__.py                                   4      0   100%
+src\dossier\db\base.py                                       3      0   100%
+src\dossier\db\connection.py                                38     26    32%
+src\dossier\db\models.py                                   299      0   100%
+src\dossier\db\schema_patches.py                            15      0   100%
+src\dossier\db\session.py                                   24     13    46%
+src\dossier\db\settings.py                                  40     20    50%
+src\dossier\eu_registry\__init__.py                          0      0   100%
+src\dossier\eu_registry\agent.py                            84      4    95%
+src\dossier\eu_registry\client.py                           35      2    94%
+src\dossier\eu_registry\mapper.py                           21      0   100%
+src\dossier\graphs\__init__.py                               2      0   100%
+src\dossier\graphs\corporate_dossier_graph.py              275      7    97%
+src\dossier\llm\__init__.py                                  3      0   100%
+src\dossier\llm\client.py                                   62     17    73%
+src\dossier\llm\common.py                                   47     25    47%
+src\dossier\llm\document_analyze.py                         47     33    30%
+src\dossier\llm\structured_synthesis.py                     45      0   100%
+src\dossier\llm\text_generate.py                             4      1    75%
+src\dossier\news\__init__.py                                 2      0   100%
+src\dossier\news\agent.py                                  120      4    97%
+src\dossier\news\client.py                                  37      0   100%
+src\dossier\org_dossier_context.py                          36     21    42%
+src\dossier\org_email_domain.py                             34     12    65%
+src\dossier\org_workspace.py                                11      0   100%
+src\dossier\schemas\__init__.py                              0      0   100%
+src\dossier\schemas\admin.py                                58      0   100%
+src\dossier\schemas\auth.py                                139     13    91%
+src\dossier\schemas\calendar_dossier.py                     10      0   100%
+src\dossier\schemas\corporate_registry.py                   40      0   100%
+src\dossier\schemas\dashboard_summary.py                    34      0   100%
+src\dossier\schemas\dossier_executive_payload.py           108      0   100%
+src\dossier\schemas\dossier_generation.py                   70     22    69%
+src\dossier\schemas\dossier_generation_job.py               27      0   100%
+src\dossier\schemas\dossier_share.py                        32      0   100%
+src\dossier\schemas\org_invite.py                           43      0   100%
+src\dossier\schemas\person_research.py                      48      4    92%
+src\dossier\sec_edgar\__init__.py                            0      0   100%
+src\dossier\sec_edgar\cli.py                               167    135    19%
+src\dossier\sec_edgar\converters.py                         32      1    97%
+src\dossier\sec_edgar\user_agent.py                          7      0   100%
+src\dossier\security\__init__.py                             3      0   100%
+src\dossier\security\jwt_tokens.py                          41     12    71%
+src\dossier\security\passwords.py                           10      2    80%
+src\dossier\security\rate_limit.py                         131      1    99%
+src\dossier\security\rbac.py                                19      0   100%
+src\dossier\security\refresh_tokens.py                     113      3    97%
+src\dossier\services\__init__.py                             2      0   100%
+src\dossier\services\account_service.py                     95     68    28%
+src\dossier\services\audit_log.py                           94      1    99%
+src\dossier\services\calendar_automation.py                353    230    35%
+src\dossier\services\calendar_automation_worker.py          35     25    29%
+src\dossier\services\calendar_event_dossiers.py            689     89    87%
+src\dossier\services\calendar_event_filters.py              75     20    73%
+src\dossier\services\calendar_integrations.py               86     76    12%
+src\dossier\services\calendar_meeting_labels.py             84      1    99%
+src\dossier\services\calendar_range.py                      69      0   100%
+src\dossier\services\corporate_company_search.py           107     80    25%
+src\dossier\services\corporate_dossier_telemetry.py         11      0   100%
+src\dossier\services\corporate_registry_context.py         377    325    14%
+src\dossier\services\dashboard_summary.py                  164      5    97%
+src\dossier\services\dossier_access_links.py                51      1    98%
+src\dossier\services\dossier_deletion_service.py            34     10    71%
+src\dossier\services\dossier_email.py                      190     16    92%
+src\dossier\services\dossier_email_retry.py                130     31    76%
+src\dossier\services\dossier_entities_writer.py             21      0   100%
+src\dossier\services\dossier_folder_utils.py                63     14    78%
+src\dossier\services\dossier_generation_job_service.py     310    103    67%
+src\dossier\services\dossier_generation_worker.py           48     35    27%
+src\dossier\services\dossier_job_progress.py               171     10    94%
+src\dossier\services\dossier_pdf.py                        277      6    98%
+src\dossier\services\dossier_progress_events.py             45      0   100%
+src\dossier\services\dossier_progress_model.py             243     14    94%
+src\dossier\services\dossier_progress_stream.py             82      7    91%
+src\dossier\services\dossier_prompt_locales.py              20      3    85%
+src\dossier\services\dossier_retention.py                   13      0   100%
+src\dossier\services\dossier_retention_worker.py           126     33    74%
+src\dossier\services\dossier_share_service.py               66     17    74%
+src\dossier\services\dossier_visibility.py                  46      4    91%
+src\dossier\services\dossiers_correo_ajeno.py              129      2    98%
+src\dossier\services\email_service.py                      131      4    97%
+src\dossier\services\executive_markdown.py                  46      0   100%
+src\dossier\services\google_calendar_api.py                162     40    75%
+src\dossier\services\google_calendar_token.py               51     35    31%
+src\dossier\services\graph_calendar.py                     302    121    60%
+src\dossier\services\lusha_company.py                       49     10    80%
+src\dossier\services\lusha_profile_facts.py                156     32    79%
+src\dossier\services\meeting_identity.py                    31      2    94%
+src\dossier\services\meeting_prep_kpi.py                   107      1    99%
+src\dossier\services\microsoft_calendar_token.py            50     34    32%
+src\dossier\services\org_invite_service.py                 154    106    31%
+src\dossier\services\org_membership_service.py              71     29    59%
+src\dossier\services\output_language.py                     71     12    83%
+src\dossier\services\pdl_client.py                          89     58    35%
+src\dossier\services\pdl_contact_parse.py                   22      5    77%
+src\dossier\services\pdl_research.py                       173     24    86%
+src\dossier\services\pdl_search.py                         208     72    65%
+src\dossier\services\person_analysis_prompts.py             33      1    97%
+src\dossier\services\person_dossier_dedup.py                63      3    95%
+src\dossier\services\person_dossier_locales.py              39      4    90%
+src\dossier\services\person_gemini_analysis.py              48      2    96%
+src\dossier\services\person_gemini_web_research.py          57     43    25%
+src\dossier\services\person_profile_lookup.py               44      4    91%
+src\dossier\services\person_research_config.py               8      0   100%
+src\dossier\services\person_research_pipeline.py           179     26    85%
+src\dossier\services\person_research_progress.py            34      1    97%
+src\dossier\services\person_research_service.py            178     11    94%
+src\dossier\services\press_mentions_writer.py               38      0   100%
+src\dossier\services\source_provenance.py                   39      2    95%
+src\dossier\services\summary_cache.py                       63      2    97%
+src\dossier\utils\__init__.py                                0      0   100%
+src\dossier\utils\html_text.py                              28      1    96%
+----------------------------------------------------------------------------
+TOTAL                                                    12020   3307    72%
+=========================== short test summary info ===========================
+SKIPPED [1] tests\stress\test_ejemplo_estres.py:103: Se habilita con S2.4 — tolerancia a fallos del agente europeo
+SKIPPED [1] tests\stress\test_ejemplo_estres.py:143: Se habilita con S5.8 — limitación de tasa
+1618 passed, 2 skipped, 1 warning in 423.71s (0:07:03)

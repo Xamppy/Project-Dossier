@@ -1,0 +1,8 @@
+# Backend: pip-audit (S7.5)
+# Fecha: 2026-11-10 22:24:45 -0300
+# Commit: 80f074dc7e792b6158c7f6785d9464ab466feb3d
+# Directorio: backend/
+# Comando: python -m pip_audit -r requirements.txt --progress-spinner off
+# Código de salida: 0
+# ---- salida literal ----
+No known vulnerabilities found
