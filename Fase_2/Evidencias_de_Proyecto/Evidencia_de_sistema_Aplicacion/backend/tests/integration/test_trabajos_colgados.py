@@ -293,7 +293,7 @@ def test_la_migracion_agrega_y_quita_la_columna(base, alembic_cfg):
             )
 
     assert tiene_columna()
-    command.downgrade(alembic_cfg, "-1")
+    command.downgrade(alembic_cfg, "c7e2a9d4f1b6")  # la revisión anterior al latido
     assert not tiene_columna()
     command.upgrade(alembic_cfg, "head")
     assert tiene_columna()

@@ -108,7 +108,8 @@ def test_ca1_la_migracion_deja_los_valores_iniciales(base):
 
 
 def test_ca1_downgrade_quita_la_tabla_y_upgrade_la_repone(base, alembic_cfg):
-    command.downgrade(alembic_cfg, "-1")
+    # Revisión fija (la anterior a UX-ADMIN-01): «-1» deja de servir cuando se agrega otra migración.
+    command.downgrade(alembic_cfg, "b4e8f2a6c0d3")
     with base.engine.connect() as c:
         assert c.execute(text("SELECT to_regclass('plan_settings')")).scalar_one() is None
     command.upgrade(alembic_cfg, "head")
