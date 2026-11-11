@@ -612,6 +612,8 @@ class DossierGenerationJob(Base):
     completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Latido del proceso que lo genera; sin latido reciente, el trabajo quedó colgado.
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 # S4.5: las tres tablas siguen el DDL de Migracion.md (secciones 7, 14 y 15) más

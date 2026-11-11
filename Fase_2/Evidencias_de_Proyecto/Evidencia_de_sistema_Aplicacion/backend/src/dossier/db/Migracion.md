@@ -1262,6 +1262,16 @@ ON CONFLICT (plan) DO NOTHING;
 
 
 -- =============================================================================
+-- MIGRACIÓN INCREMENTAL: latido de los trabajos de generación (Alembic e1b5c9d3a7f2)
+-- Mientras genera, el proceso actualiza heartbeat_at. Un barrido marca como
+-- failed los trabajos running sin latido reciente (caída del servidor).
+-- DDL en schema_patches.JOB_HEARTBEAT_PATCHES.
+-- =============================================================================
+
+ALTER TABLE dossier_generation_jobs ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMPTZ;
+
+
+-- =============================================================================
 -- FIN DEL SCHEMA
 -- Total de tablas: 16 principales + 2 vistas
 -- Extensiones: uuid-ossp, pgcrypto

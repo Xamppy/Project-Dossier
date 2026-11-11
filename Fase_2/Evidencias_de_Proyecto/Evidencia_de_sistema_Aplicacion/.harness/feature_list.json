@@ -2578,6 +2578,27 @@
       ],
       "notes": "Ampliación solicitada por FD el 2026-11-11, adicional al plan. Decisiones de FD: lo configura solo el admin de plataforma en /dashboard/admin; la automatización del calendario no cuenta para el límite; valores iniciales Free 1, Pro 3, Enterprise 10. El panel queda preparado para sumar más ajustes.",
       "owner_session": "FD (agente)"
+    },
+    {
+      "id": "BUG-2026-11-11-01",
+      "sprint": 7,
+      "title": "Los trabajos de generación quedan «en curso» para siempre tras una caída del servidor",
+      "status": "review",
+      "owner": "FD",
+      "area": "backend",
+      "activity": "A9",
+      "objective": "OE6",
+      "gap": null,
+      "due": null,
+      "depends_on": [],
+      "blocks": [],
+      "trello": null,
+      "branch": "fix/trabajos-colgados",
+      "evidence": [
+        "backend/tests/integration/test_trabajos_colgados.py (16 pruebas contra PostgreSQL 18: umbral, estados, canal en vivo, auditoría, cupo, barridos simultáneos, latido, cierre que no pisa el fallido, migración) y tests/test_worker_recuperacion.py; frontend/src/lib/translate-job-interrupted.test.ts (7 idiomas); prueba en vivo: trabajo con 10 min sin latido marcado fallido al reiniciar la API"
+      ],
+      "notes": "Hallado en UX-ADMIN-01 (2026-11-11). Si el proceso caía a mitad de una generación, el trabajo quedaba running: el aviso no terminaba y el usuario podía quedar sin cupo. Arreglo aprobado por FD: latido heartbeat_at cada 30 s y barrido al arrancar y cada 60 s que marca failed los que no tienen latido en 180 s. Sin créditos que devolver: se cobran al guardar el dossier.",
+      "owner_session": "FD (agente)"
     }
   ]
 }

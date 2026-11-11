@@ -1156,6 +1156,7 @@ const messages = {
   "admin.plan_limits.save_error": "Impossible d'enregistrer la limite. Réessayez.",
   "admin.plan_limits.load_error": "Impossible de charger les limites par offre.",
   "admin.plan_limits.invalid": "Utilisez un nombre entre 1 et 100.",
+  "backend.status_job_interrupted": "La génération a été interrompue car le serveur a redémarré. Réessayez.",
 } as const;
 
 export default messages;

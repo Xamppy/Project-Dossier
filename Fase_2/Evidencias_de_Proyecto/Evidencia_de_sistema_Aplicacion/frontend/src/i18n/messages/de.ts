@@ -1158,6 +1158,7 @@ const messages = {
   "admin.plan_limits.save_error": "Das Limit konnte nicht gespeichert werden. Versuchen Sie es erneut.",
   "admin.plan_limits.load_error": "Die Limits pro Tarif konnten nicht geladen werden.",
   "admin.plan_limits.invalid": "Verwenden Sie eine Zahl zwischen 1 und 100.",
+  "backend.status_job_interrupted": "Die Erstellung wurde unterbrochen, weil der Server neu gestartet wurde. Bitte versuchen Sie es erneut.",
 } as const;
 
 export default messages;

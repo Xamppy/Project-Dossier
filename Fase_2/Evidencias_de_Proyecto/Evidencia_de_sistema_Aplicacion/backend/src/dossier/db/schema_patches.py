@@ -253,6 +253,12 @@ PLAN_SETTINGS_PATCHES = (
 )
 
 
+# Latido del proceso que genera: permite detectar trabajos colgados tras una caída.
+JOB_HEARTBEAT_PATCHES = (
+    "ALTER TABLE dossier_generation_jobs ADD COLUMN IF NOT EXISTS heartbeat_at TIMESTAMPTZ;",
+)
+
+
 def apply_schema_patches(engine: Engine) -> None:
     with engine.begin() as conn:
         for sql in (
@@ -264,5 +270,6 @@ def apply_schema_patches(engine: Engine) -> None:
             + EMAIL_RETRY_PATCHES
             + ACCESS_LINK_PATCHES
             + PLAN_SETTINGS_PATCHES
+            + JOB_HEARTBEAT_PATCHES
         ):
             conn.execute(text(sql))
