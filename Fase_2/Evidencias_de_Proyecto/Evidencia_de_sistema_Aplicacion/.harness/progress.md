@@ -6,6 +6,22 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-10 · BUG-2026-10-19-09 · La hora de la reunión salía en UTC · FD (agente)
+
+**Hecho.** Rama `fix/BUG-2026-10-19-09-hora-utc`, desde `docmac`. Traspasada de DG.
+`lib/format.formatCalendarMeetingInstant` usaba `prefs.timezone || "UTC"`; ahora usa
+`getEffectiveTimezone(timezone, timezoneFollowSystem)`. Prueba en `src/lib/format.test.ts`.
+
+**Lo que hay que saber.**
+- **Causa:** las preferencias por omisión traen `timezone: "UTC"` con `timezoneFollowSystem: true`.
+  Cualquier formato de fecha debe pasar por `getEffectiveTimezone` (o usar `effectiveTimezone` del
+  `PreferencesProvider`), nunca `preferences.timezone` a secas.
+- El mismo arreglo corrige la campana de notificaciones y la etiqueta de los dossiers del
+  calendario, que usan la misma función.
+- Para probar zonas en Vitest: `vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions")`.
+
+**Rama.** `fix/BUG-2026-10-19-09-hora-utc` · **Estado.** review
+
 ### 2026-11-10 · S7.5 · Deuda técnica final contra la línea base · FD (agente)
 
 **Hecho.** Rama `feat/S7.5-deuda-tecnica-final`, desde `docmac`. Evidencias y comparación en
