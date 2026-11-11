@@ -20,7 +20,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from dossier.news.client import ProveedorNoticiasError
+from dossier.news.client import LimiteProveedorNoticias, ProveedorNoticiasError
 from dossier.news.proveedores.base import ArticuloNoticia, ProveedorNoticias
 from dossier.schemas.dossier_executive_payload import PressMention, SourceCitation, SourceType
 
@@ -44,6 +44,8 @@ class FalloProveedor:
 
     provider: str
     error: str
+    # Motivo estable para la pantalla: provider_error, provider_rate_limit o provider_timeout.
+    motivo: str = "provider_error"
 
 
 @dataclass(frozen=True)
@@ -72,6 +74,8 @@ class ResultadoFuente:
     estado: EstadoFuente
     creditos_extra: int = 0
     consultado_en: datetime | None = None
+    # Si falló: provider_error, provider_rate_limit o provider_timeout.
+    motivo: str | None = None
 
 
 @dataclass
@@ -88,6 +92,14 @@ class ResultadoRecoleccionPrensa:
     def creditos_extra_usados(self) -> int:
         """Lo que se cobra: las fuentes que respondieron, nunca las que fallaron u omitidas."""
         return sum(f.creditos_extra for f in self.fuentes if f.estado in ("consultada", "sin_resultados"))
+
+
+def motivo_de_fallo(resultado: ResultadoRecoleccionPrensa) -> str:
+    """Motivo común de las fuentes que fallaron (p. ej. todas por límite); si no, error genérico."""
+    motivos = {f.motivo or "provider_error" for f in resultado.fuentes if f.estado == "error"}
+    if not motivos:
+        motivos = {f.motivo for f in resultado.failed_providers}
+    return motivos.pop() if len(motivos) == 1 else "provider_error"
 
 
 def _normalizar_url(url: str) -> str:
@@ -233,11 +245,14 @@ def collect_press_mentions(
     for futuro, fuente in futuros.items():
         p = fuente.proveedor
         error: str | None = None
+        motivo = "provider_error"
         articulos: list[ArticuloNoticia] = []
         try:
             articulos = futuro.result(timeout=timeout_seg)
         except FutureTimeoutError:
-            error = "tiempo de espera agotado"
+            error, motivo = "tiempo de espera agotado", "provider_timeout"
+        except LimiteProveedorNoticias as exc:
+            error, motivo = str(exc), "provider_rate_limit"
         except ProveedorNoticiasError as exc:
             error = str(exc)
         except Exception as exc:  # noqa: BLE001 - proveedor externo: cualquier fallo se reporta, no se propaga
@@ -245,8 +260,10 @@ def collect_press_mentions(
         ahora = datetime.now(UTC)
         if error is not None:
             logger.warning("Fuente de prensa %s falló: %s", p.clave, error[:300])
-            resultado.failed_providers.append(FalloProveedor(provider=p.clave, error=error))
-            resultado.fuentes.append(ResultadoFuente(p.clave, p.nombre, p.tipo_fuente, "error", 0, ahora))
+            resultado.failed_providers.append(FalloProveedor(provider=p.clave, error=error, motivo=motivo))
+            resultado.fuentes.append(
+                ResultadoFuente(p.clave, p.nombre, p.tipo_fuente, "error", 0, ahora, motivo=motivo)
+            )
             continue
         source = SourceCitation(
             source_type=p.tipo_fuente,

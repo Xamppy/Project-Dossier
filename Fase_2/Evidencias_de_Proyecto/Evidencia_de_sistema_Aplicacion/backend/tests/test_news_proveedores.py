@@ -253,3 +253,21 @@ def test_el_resumen_inventado_no_cuenta_para_homonimos():
     assert "acme.example" in mencion.summary
     conservadas, descartadas = agent.filtrar_homonimos([mencion], "Acme")
     assert conservadas == [] and descartadas == 1
+
+
+# --- Motivo real del fallo (límite de consultas, tiempo de espera) -------------------------
+
+
+def test_el_resultado_distingue_limite_de_consultas_y_error():
+    from dossier.news.client import LimiteProveedorNoticias
+
+    limitada = Falsa("limitada", error=LimiteProveedorNoticias("HTTP 429"))
+    caida = Falsa("caida", error=ProveedorNoticiasError("HTTP 500"))
+    resultado = agent.collect_press_mentions(
+        "Acme", fuentes=[agent.FuentePrensa(limitada, limite=5), agent.FuentePrensa(caida, limite=5)]
+    )
+    motivos = {f.clave: f.motivo for f in resultado.fuentes}
+    assert motivos == {"limitada": "provider_rate_limit", "caida": "provider_error"}
+    assert agent.motivo_de_fallo(resultado) == "provider_error"
+    solo_limite = agent.collect_press_mentions("Acme", fuentes=[agent.FuentePrensa(limitada, limite=5)])
+    assert agent.motivo_de_fallo(solo_limite) == "provider_rate_limit"
