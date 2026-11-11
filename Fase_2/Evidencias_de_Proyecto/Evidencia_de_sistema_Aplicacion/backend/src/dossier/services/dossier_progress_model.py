@@ -34,6 +34,8 @@ PERSON_STAGES: dict[str, tuple[str, ...]] = {
         "person.pdl_enrich",
         "person.pdl_search",
         "person.profile_normalization",
+        # UX-ADMIN-02: menciones de prensa de las fuentes que dejó el administrador.
+        "person.press_search",
         "person.context_analysis",
         "person.profile_synthesis",
         "person.markdown_fallback",
@@ -43,6 +45,7 @@ PERSON_STAGES: dict[str, tuple[str, ...]] = {
     # Web pública: una llamada a DeepSeek sin buscador; no hay etapas de búsqueda.
     "gemini_web": (
         "person.cache_lookup",
+        "person.press_search",
         "person.context_analysis",
         "person.report_finalize",
         "person.persist",

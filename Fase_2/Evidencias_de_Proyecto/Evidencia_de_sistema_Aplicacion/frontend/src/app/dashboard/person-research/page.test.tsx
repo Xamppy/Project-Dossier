@@ -26,6 +26,8 @@ const h = vi.hoisted(() => ({
   forcedJobId: null as string | null,
   /** S6.1: `/auth/me` informa que la instancia puede enviar por correo. */
   emailDisponible: false,
+  /** UX-ADMIN-02: fuentes de prensa que usaría el dossier de persona. */
+  prensa: { sources: [], extra_credits: 0 } as { sources: { key: string; name: string; extra_credits: number }[]; extra_credits: number },
 }));
 
 vi.mock("@/lib/dossier-job-stream", async (importOriginal) => {
@@ -114,6 +116,7 @@ beforeEach(() => {
   h.params = new URLSearchParams();
   h.forcedJobId = null;
   h.emailDisponible = false;
+  h.prensa = { sources: [], extra_credits: 0 };
   servidor = new Map();
   llamadas = [];
   secuencia = 0;
@@ -134,6 +137,9 @@ beforeEach(() => {
           credits_balance: 37,
           email_delivery_available: h.emailDisponible,
         });
+      }
+      if (url.startsWith(`${API}/news-sources/applicable?`)) {
+        return json(h.prensa);
       }
       if (url === `${API}/dossiers/person/research` && method === "POST") {
         secuencia += 1;
@@ -236,6 +242,23 @@ describe.each(MODOS)("Personas · $nombre · estado general por SSE", (modo) => 
     render(<Pantalla />);
     await settle();
     expect(await screen.findByText(/100 cr\/mes · 37 disp\./)).toBeInTheDocument();
+  });
+
+  it("UX-ADMIN-02 · el costo incluye el extra de la prensa y nombra sus fuentes", async () => {
+    h.prensa = { sources: [{ key: "gdelt_news", name: "GDELT DOC 2.0", extra_credits: 1 }], extra_credits: 1 };
+    render(<Pantalla />);
+    await settle();
+    expect(await screen.findByText(t("generate.credits_with_press", { total: 2, extra: 1 }))).toBeInTheDocument();
+    expect(screen.getByText("GDELT DOC 2.0")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("generate.submit", { credits: 2 }) })).toBeInTheDocument();
+    expect(llamadas.some((c) => c.url === `${API}/news-sources/applicable?kind=person&depth=standard`)).toBe(true);
+  });
+
+  it("UX-ADMIN-02 · sin fuentes de prensa el costo es el de siempre", async () => {
+    render(<Pantalla />);
+    await settle();
+    expect(await screen.findByText(t("generate.press_none"))).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: t("generate.submit_one") })).toBeInTheDocument();
   });
 
   it("informe beta · «País / región» se indica como opcional", async () => {

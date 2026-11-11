@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from alembic import command
 from dossier.db.models import Dossier, DossierGenerationJob
+from dossier.news.agent import ResultadoRecoleccionPrensa
 from dossier.services import dossier_generation_job_service as servicio
 from dossier.services import dossier_progress_events as bus
 from dossier.services import pdl_research, person_research_pipeline, person_research_service
@@ -97,6 +98,10 @@ def proveedores(monkeypatch):
     monkeypatch.setattr(
         person_research_service, "analyze_person_profile_bundle", lambda **_: "## Respaldo\n\nAna Prueba."
     )
+    # UX-ADMIN-02: la prensa es un proveedor externo más (sin red ni menciones).
+    monkeypatch.setattr(
+        "dossier.news.agent.collect_press_mentions", lambda e, **_: ResultadoRecoleccionPrensa(mentions=[])
+    )
     return pdl
 
 
@@ -157,6 +162,7 @@ def test_job_pdl_guarda_el_progreso_cerrado_y_lo_expone_aparte_del_resultado(bas
         "person.pdl_enrich": ("completed", None),
         "person.pdl_search": ("skipped", "sufficient_profiles"),
         "person.profile_normalization": ("completed", None),
+        "person.press_search": ("completed", "no_matches"),
         "person.context_analysis": ("skipped", "mode_not_applicable"),
         "person.profile_synthesis": ("completed", None),
         "person.markdown_fallback": ("skipped", "not_required"),
@@ -210,6 +216,7 @@ def test_web_publica_de_punta_a_punta_sin_consultar_pdl(base, proveedores, monke
     etapas, scope = _etapas(datos)
     assert etapas == {
         "person.cache_lookup": ("skipped", "cache_unavailable"),
+        "person.press_search": ("completed", "no_matches"),
         "person.context_analysis": ("completed", None),
         "person.report_finalize": ("completed", None),
         "person.persist": ("completed", None),

@@ -59,6 +59,7 @@ def _build_user_prompt(
     filters: dict[str, Any],
     meeting_context: dict[str, Any] | None = None,
     output_language: str = "es",
+    press_mentions: list[dict[str, Any]] | None = None,
 ) -> str:
     strings = person_web_research_strings(output_language)
     not_indicated = strings["not_indicated"]
@@ -79,11 +80,26 @@ def _build_user_prompt(
 - {strings['company']}: {empresa}
 - {strings['role']}: {cargo}
 
-{reunion_block}---
+{reunion_block}{_bloque_prensa(press_mentions)}---
 
 {strings['instructions']}
 
 {strings['body']}"""
+
+
+def _bloque_prensa(press_mentions: list[dict[str, Any]] | None) -> str:
+    """UX-ADMIN-02: menciones de prensa ya filtradas, marcadas como datos externos."""
+    if not press_mentions:
+        return ""
+    from dossier.news.agent import NOTA_PRENSA_PARA_IA
+
+    lineas = [
+        f"- {m.get('titular')} — {m.get('medio')}"
+        + (f", {m.get('fecha')}" if m.get("fecha") else "")
+        + f". {m.get('resumen')} ({m.get('url')})"
+        for m in press_mentions
+    ]
+    return "---\n" + NOTA_PRENSA_PARA_IA + "\n\n" + "\n".join(lineas) + "\n\n"
 
 
 def analyze_person_with_google_search(
@@ -93,6 +109,7 @@ def analyze_person_with_google_search(
     model: str | None = None,
     max_retries: int = 3,
     output_language: str = "es",
+    press_mentions: list[dict[str, Any]] | None = None,
 ) -> str:
     """
     Informe OSINT de persona vía DeepSeek (nombre histórico de la función).
@@ -119,7 +136,7 @@ def analyze_person_with_google_search(
         or deepseek_model()
     ).strip()
 
-    user_prompt = _build_user_prompt(filters, meeting_context, output_language)
+    user_prompt = _build_user_prompt(filters, meeting_context, output_language, press_mentions)
     return chat_completion(
         user_prompt,
         system_instruction=person_dossier_system_prompt(

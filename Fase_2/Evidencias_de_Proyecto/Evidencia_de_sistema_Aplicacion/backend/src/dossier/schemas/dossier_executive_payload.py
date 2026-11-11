@@ -22,6 +22,8 @@ class SourceType(StrEnum):
     pdl = "pdl"
     gdelt_news = "gdelt_news"
     news_api = "news_api"
+    # UX-ADMIN-02: cualquier otra fuente de noticias agregada como adaptador.
+    news_provider = "news_provider"
     calendar = "calendar"
 
 

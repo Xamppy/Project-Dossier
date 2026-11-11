@@ -546,6 +546,41 @@ class PlanSetting(Base):
     )
 
 
+class NewsSourceSetting(Base):
+    """Ajustes de una fuente de noticias que cambia el admin de plataforma (UX-ADMIN-02).
+
+    Sin fila, la fuente usa los valores de su adaptador. DDL en ``NEWS_SOURCE_PATCHES``.
+    """
+
+    __tablename__ = "news_source_settings"
+
+    provider_key: Mapped[str] = mapped_column(String(40), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean)
+    use_for_corporate: Mapped[bool] = mapped_column(Boolean)
+    use_for_person: Mapped[bool] = mapped_column(Boolean)
+    min_depth: Mapped[str] = mapped_column(String(10))
+    plan_free: Mapped[bool] = mapped_column(Boolean)
+    plan_pro: Mapped[bool] = mapped_column(Boolean)
+    plan_enterprise: Mapped[bool] = mapped_column(Boolean)
+    extra_credits: Mapped[int] = mapped_column(Integer)
+    max_results: Mapped[int] = mapped_column(Integer)
+    daily_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+
+class NewsSourceUsage(Base):
+    """Consultas de cada fuente por día UTC, para su límite diario (UX-ADMIN-02)."""
+
+    __tablename__ = "news_source_usage"
+
+    provider_key: Mapped[str] = mapped_column(String(40), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    queries: Mapped[int] = mapped_column(Integer)
+
+
 class DossierEmailRetry(Base):
     """Envío automático de correo en espera de reintento (S6.4). DDL en ``schema_patches``.
 

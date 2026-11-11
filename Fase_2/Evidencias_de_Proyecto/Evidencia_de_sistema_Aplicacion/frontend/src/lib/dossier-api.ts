@@ -850,6 +850,67 @@ export async function patchAdminPlanSetting(
   });
 }
 
+/** UX-ADMIN-02: plan y profundidad que admite una fuente de noticias. */
+export type NewsSourcePlan = "free" | "pro" | "enterprise";
+export type NewsSourceDepth = "basic" | "standard" | "deep";
+
+/** UX-ADMIN-02: una fuente de noticias instalada y sus ajustes. Nunca trae el valor de su clave. */
+export type AdminNewsSource = {
+  key: string;
+  name: string;
+  description: string;
+  configured: boolean;
+  key_env_var: string | null;
+  default_enabled: boolean;
+  enabled: boolean;
+  use_for_corporate: boolean;
+  use_for_person: boolean;
+  min_depth: NewsSourceDepth;
+  plans: NewsSourcePlan[];
+  extra_credits: number;
+  max_results: number;
+  daily_limit: number | null;
+  used_today: number;
+  updated_at: string | null;
+  updated_by_email: string | null;
+};
+
+export type AdminNewsSourcePatch = Partial<
+  Pick<
+    AdminNewsSource,
+    | "enabled"
+    | "use_for_corporate"
+    | "use_for_person"
+    | "min_depth"
+    | "plans"
+    | "extra_credits"
+    | "max_results"
+    | "daily_limit"
+  >
+>;
+
+export async function fetchAdminNewsSources(): Promise<{ sources: AdminNewsSource[] }> {
+  return getJsonWithAuth<{ sources: AdminNewsSource[] }>("/admin/news-sources");
+}
+
+export async function patchAdminNewsSource(key: string, body: AdminNewsSourcePatch): Promise<AdminNewsSource> {
+  return patchJsonWithAuth<AdminNewsSource>(`/admin/news-sources/${encodeURIComponent(key)}`, body);
+}
+
+/** UX-ADMIN-02: fuentes de prensa que usaría un dossier del plan y su extra máximo de créditos. */
+export type ApplicableNewsSources = {
+  sources: { key: string; name: string; extra_credits: number }[];
+  extra_credits: number;
+};
+
+export async function fetchApplicableNewsSources(
+  kind: "corporate" | "person",
+  depth: NewsSourceDepth = "standard",
+): Promise<ApplicableNewsSources> {
+  const params = new URLSearchParams({ kind, depth });
+  return getJsonWithAuth<ApplicableNewsSources>(`/news-sources/applicable?${params.toString()}`);
+}
+
 /** Elimina una cuenta de usuario (`DELETE /admin/users/{id}`, solo admin de plataforma). */
 export async function deleteAdminUser(userId: string): Promise<void> {
   const token = getStoredAccessToken();
@@ -2315,6 +2376,7 @@ export type DossierPersonStageId =
   | "person.pdl_enrich"
   | "person.pdl_search"
   | "person.profile_normalization"
+  | "person.press_search"
   | "person.context_analysis"
   | "person.profile_synthesis"
   | "person.markdown_fallback"

@@ -382,7 +382,9 @@ def test_web_publica_no_consulta_pdl_y_solo_publica_texto_al_volver(progreso, en
     _investigar(progreso, fuente="gemini_web")
 
     etapas = _etapas(progreso)
-    assert set(etapas) == {"person.context_analysis", "person.report_finalize"}
+    # UX-ADMIN-02: sin fuentes de prensa indicadas, su etapa se informa omitida.
+    assert set(etapas) == {"person.press_search", "person.context_analysis", "person.report_finalize"}
+    assert etapas["person.press_search"] == [("skipped", "feature_disabled")]
     assert etapas["person.context_analysis"][:2] == [("running", None), ("completed", None)]
     assert all(d["research_source"] == "gemini_web" for d in progreso.de("stage_progress"))
     contexto = _parcial(progreso, "person_context_report")

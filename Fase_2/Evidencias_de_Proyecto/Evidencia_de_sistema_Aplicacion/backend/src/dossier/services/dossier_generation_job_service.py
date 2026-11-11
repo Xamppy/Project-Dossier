@@ -53,6 +53,7 @@ from dossier.services.google_calendar_api import obtener_reunion_google_por_id
 from dossier.services.google_calendar_token import get_google_calendar_access_token_for_user
 from dossier.services.graph_calendar import merge_reunion_payload, obtener_reunion_por_id
 from dossier.services.microsoft_calendar_token import get_microsoft_graph_access_token_for_user
+from dossier.services.news_sources import creditos_extra_maximos, fuentes_aplicables
 from dossier.services.output_language import effective_output_language
 from dossier.services.person_dossier_dedup import person_research_fingerprint
 from dossier.services.person_research_pipeline import run_person_research_and_persist
@@ -96,6 +97,8 @@ def estimate_reunion_credits(
     *,
     depth: DossierDepth = "standard",
     plan: str | None = None,
+    extra_empresa: int = 0,
+    extra_persona: int = 0,
 ) -> int:
     parsed = parse_calendar_event_for_dossiers(reunion)
     has_corporate = bool(parsed.get("company_corporate") or parsed.get("participantes"))
@@ -109,6 +112,8 @@ def estimate_reunion_credits(
         has_corporate=has_corporate,
         person_count=person_count,
         depth=depth,
+        extra_empresa=extra_empresa,
+        extra_persona=extra_persona,
     )
 
 
@@ -170,8 +175,10 @@ def enqueue_person_research_job(
     label = body.full_name.strip()[:512] or "Persona"
     charge = credit_charging_enabled()
     is_refinement = body.replace_dossier_id is not None
-    credits = 0 if is_refinement else person_research_credit_cost()
     db.refresh(org)
+    # UX-ADMIN-02: lo máximo que puede costar, con el extra de las fuentes de prensa.
+    prensa = fuentes_aplicables(db, tipo="person", profundidad="basic", plan=org.plan, cobrar=charge)
+    credits = 0 if is_refinement else person_research_credit_cost() + creditos_extra_maximos(prensa)
     if not is_refinement:
         assert_sufficient_credits(org, credits, charge=charge)
 
@@ -226,8 +233,10 @@ def enqueue_corporate_manual_job(
     assert_can_start_dossiers(db, user=user, org=org)
 
     charge = credit_charging_enabled()
-    credits = DEPTH_CREDITS[body.depth] if charge else 0
     db.refresh(org)
+    # UX-ADMIN-02: lo máximo que puede costar, con el extra de las fuentes de prensa.
+    prensa = fuentes_aplicables(db, tipo="corporate", profundidad=body.depth, plan=org.plan, cobrar=charge)
+    credits = DEPTH_CREDITS[body.depth] + creditos_extra_maximos(prensa) if charge else 0
     assert_sufficient_credits(org, credits, charge=charge)
     _participantes, etiqueta = build_corporate_generation_strings(body)
 
@@ -294,8 +303,19 @@ def enqueue_calendar_dossier_job(
     assert_can_start_dossiers(db, user=user, org=org)
 
     charge = credit_charging_enabled()
-    credits = estimate_reunion_credits(reunion, depth=depth, plan=org.plan)
     db.refresh(org)
+    # UX-ADMIN-02: con el extra máximo de la prensa de la empresa y de cada asistente.
+    credits = estimate_reunion_credits(
+        reunion,
+        depth=depth,
+        plan=org.plan,
+        extra_empresa=creditos_extra_maximos(
+            fuentes_aplicables(db, tipo="corporate", profundidad=depth, plan=org.plan, cobrar=charge)
+        ),
+        extra_persona=creditos_extra_maximos(
+            fuentes_aplicables(db, tipo="person", profundidad="basic", plan=org.plan, cobrar=charge)
+        ),
+    )
     assert_depth_allowed(org, depth)
     assert_sufficient_credits(org, credits, charge=charge)
 
@@ -359,6 +379,11 @@ def _credits_consumed_from_saved(
 ) -> int:
     if not charge:
         return 0
+    # UX-ADMIN-02: cada dossier guardado informa lo que cobró (incluido el extra de prensa).
+    refs = [saved.get("corporate"), *(saved.get("persons") or [saved.get("person")])]
+    refs = [r for r in refs if isinstance(r, dict)]
+    if refs and all("credits_consumed" in r for r in refs):
+        return sum(int(r.get("credits_consumed") or 0) for r in refs)
     r = result or {}
     total = 0
     corp = saved.get("corporate")
@@ -700,6 +725,8 @@ def _process_calendar_manual_job(db: Session, job: DossierGenerationJob) -> None
         depth=depth,
         output_language=out_lang,
         progress=progress,
+        fuentes_prensa_empresa=fuentes_aplicables(db, tipo="corporate", profundidad=depth, plan=org.plan),
+        fuentes_prensa_persona=fuentes_aplicables(db, tipo="person", profundidad="basic", plan=org.plan),
     )
     elapsed_ms = int((time.perf_counter() - t0) * 1000)
 

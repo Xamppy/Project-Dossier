@@ -7,7 +7,7 @@ Requieren `users.is_platform_admin = TRUE`. Otorgar con SQL tras la migración
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -15,11 +15,15 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from dossier.api.auth_routes import get_current_user, get_db_if_configured, load_primary_membership
-from dossier.db.models import Dossier, Organization, OrgMembership, PlanSetting, User
+from dossier.db.models import Dossier, NewsSourceSetting, Organization, OrgMembership, PlanSetting, User
+from dossier.news.proveedores.registro import proveedores_instalados
 from dossier.org_workspace import read_workspace_kind
 from dossier.schemas.admin import (
     AdminDossierListItem,
     AdminDossierListResponse,
+    AdminNewsSourceItem,
+    AdminNewsSourcePatch,
+    AdminNewsSourcesResponse,
     AdminOrganizationListItem,
     AdminOrganizationListResponse,
     AdminOverviewResponse,
@@ -32,6 +36,7 @@ from dossier.schemas.admin import (
 )
 from dossier.services.account_service import admin_delete_user_account
 from dossier.services.audit_log import AuditEvent, record
+from dossier.services.news_sources import PLANES, AjusteFuente, leer_ajustes, uso_de_hoy
 from dossier.services.plan_limits import DEFAULT_MAX_CONCURRENT, PLAN_ORDER, is_known_plan
 
 router = APIRouter(prefix="/admin", tags=["Administración plataforma"])
@@ -302,3 +307,108 @@ def admin_patch_plan_setting(
     db.commit()
     db.refresh(fila)
     return _plan_item(db, plan, fila)
+
+
+# --- UX-ADMIN-02: fuentes de noticias -------------------------------------------------------
+
+_CAMPOS_FUENTE = (
+    "enabled",
+    "use_for_corporate",
+    "use_for_person",
+    "min_depth",
+    "plans",
+    "extra_credits",
+    "max_results",
+    "daily_limit",
+)
+
+
+def _valores(ajuste: AjusteFuente) -> dict[str, Any]:
+    return {
+        "enabled": ajuste.enabled,
+        "use_for_corporate": ajuste.use_for_corporate,
+        "use_for_person": ajuste.use_for_person,
+        "min_depth": ajuste.min_depth,
+        "plans": [p for p in PLANES if p in ajuste.plans],
+        "extra_credits": ajuste.extra_credits,
+        "max_results": ajuste.max_results,
+        "daily_limit": ajuste.daily_limit,
+    }
+
+
+def _fuente_item(db: Session, clave: str, ajuste: AjusteFuente, usos: dict[str, int]) -> AdminNewsSourceItem:
+    proveedor = proveedores_instalados()[clave]
+    email = None
+    if ajuste.updated_by_user_id is not None:
+        email = db.scalar(select(User.email).where(User.id == ajuste.updated_by_user_id))
+    return AdminNewsSourceItem(
+        key=clave,
+        name=proveedor.nombre,
+        description=proveedor.descripcion or "",
+        configured=proveedor.configurado(),
+        key_env_var=proveedor.variable_clave,
+        default_enabled=bool(proveedor.activo_por_defecto),
+        used_today=usos.get(clave, 0),
+        updated_at=ajuste.updated_at,
+        updated_by_email=email,
+        **_valores(ajuste),
+    )
+
+
+@router.get("/news-sources", response_model=AdminNewsSourcesResponse)
+def admin_list_news_sources(
+    _admin: AdminUserDep,
+    db: Session = Depends(get_db_if_configured),
+) -> AdminNewsSourcesResponse:
+    """Fuentes de noticias instaladas, sus ajustes y las consultas de hoy (UTC)."""
+    ajustes = leer_ajustes(db)
+    usos = uso_de_hoy(db)
+    return AdminNewsSourcesResponse(sources=[_fuente_item(db, c, a, usos) for c, a in ajustes.items()])
+
+
+@router.patch("/news-sources/{key}", response_model=AdminNewsSourceItem)
+def admin_patch_news_source(
+    key: str,
+    body: AdminNewsSourcePatch,
+    admin: AdminUserDep,
+    db: Session = Depends(get_db_if_configured),
+) -> AdminNewsSourceItem:
+    """Cambia los ajustes de una fuente. Cada cambio queda en ``audit_logs`` con antes y después."""
+    if key not in proveedores_instalados():
+        raise HTTPException(status_code=404, detail="Fuente de noticias no encontrada.")
+    actual = leer_ajustes(db)[key]
+    antes = _valores(actual)
+    despues = dict(antes)
+    for campo in body.model_fields_set:
+        despues[campo] = getattr(body, campo)
+    planes = set(despues["plans"])
+
+    fila = db.get(NewsSourceSetting, key, with_for_update=True)
+    if fila is None:
+        fila = NewsSourceSetting(provider_key=key)
+        db.add(fila)
+    fila.enabled = bool(despues["enabled"])
+    fila.use_for_corporate = bool(despues["use_for_corporate"])
+    fila.use_for_person = bool(despues["use_for_person"])
+    fila.min_depth = str(despues["min_depth"])
+    fila.plan_free, fila.plan_pro, fila.plan_enterprise = ("free" in planes, "pro" in planes, "enterprise" in planes)
+    fila.extra_credits = int(despues["extra_credits"])
+    fila.max_results = int(despues["max_results"])
+    fila.daily_limit = despues["daily_limit"]
+    fila.updated_at = datetime.now(UTC)
+    fila.updated_by_user_id = admin.id
+
+    cambios = {c: {"antes": antes[c], "despues": despues[c]} for c in _CAMPOS_FUENTE if antes[c] != despues[c]}
+    if cambios:
+        record(
+            db,
+            AuditEvent(
+                action="ADMIN news_source_settings",
+                resource_type="news_source_settings",
+                user_id=admin.id,
+                request_data={"source": key, "cambios": cambios},
+            ),
+        )
+    db.commit()
+    return _fuente_item(db, key, leer_ajustes(db)[key], uso_de_hoy(db))
+

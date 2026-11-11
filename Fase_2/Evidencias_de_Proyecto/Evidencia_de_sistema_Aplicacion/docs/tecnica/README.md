@@ -43,7 +43,7 @@ recherche-entreprises (FR), OffeneRegister (DE), GDELT, NewsAPI, Google y Micros
 | Grafo corporativo | `backend/src/dossier/graphs/corporate_dossier_graph.py` | LangGraph: agentes de Reino Unido, EE. UU., Europa y prensa en paralelo, y luego la síntesis con IA |
 | Investigación de personas | `backend/src/dossier/services/person_research_*.py` | PDL (o web pública) más síntesis estructurada con IA |
 | Trabajos | `services/dossier_generation_job_service.py` y `services/dossier_generation_worker.py` | Cola en `dossier_generation_jobs`, procesada por un hilo con latido; recuperación de colgados |
-| Esquema | `backend/alembic/` y `src/dossier/db/schema_patches.py` | Migraciones Alembic (la cabeza es `a2c4e6f8b0d1`) y los mismos parches idempotentes al arrancar |
+| Esquema | `backend/alembic/` y `src/dossier/db/schema_patches.py` | Migraciones Alembic (la cabeza es `d4f6a8c2e0b3`) y los mismos parches idempotentes al arrancar |
 | Frontend | `frontend/src/` | Dashboard Next.js; siete idiomas en `src/i18n/messages/` |
 
 **Un solo proceso a propósito.** Los workers son hilos de la API y el bus de los canales en vivo
@@ -83,7 +83,7 @@ copy .env.example .env      # completa DATABASE_URL, JWT_SECRET (16+ caracteres)
 
 # 2. Base de datos: crea la base vacía y aplica el esquema completo
 $env:DATABASE_URL="postgresql://usuario:clave@localhost:5432/dossier"
-alembic upgrade head        # 25 tablas (más alembic_version), 2 vistas y los triggers de cobro
+alembic upgrade head        # 27 tablas (más alembic_version), 2 vistas y los triggers de cobro
 
 # 3. API en http://127.0.0.1:8000 (documentación interactiva en /docs)
 python -m uvicorn dossier.api.app:app --app-dir src --host 127.0.0.1 --port 8000
@@ -149,7 +149,7 @@ código (`os.getenv`) el 2026-11-11. «—» significa sin valor por omisión.
 | `PERSON_RESEARCH_PROVIDER` | `pdl` | Fuente por omisión para los asistentes de una reunión |
 | `COMPANIES_HOUSE_API_KEY` | — | Registro del Reino Unido |
 | `SEC_USER_AGENT` | — | SEC EDGAR exige un User-Agent con contacto |
-| `NEWS_API_KEY` | — | NewsAPI (GDELT no necesita clave) |
+| `NEWS_API_KEY` | — | NewsAPI (GDELT no necesita clave). Sin ella NewsAPI no se consulta. Cada fuente de noticias agregada usa su propia variable ([guía](agregar-fuente-noticias.md)) |
 | `EU_REGISTRY_DE_API_BASE`, `EU_REGISTRY_DE_DATABASE`, `EU_REGISTRY_DE_TABLE` | `https://db.offeneregister.de`, `openregister`, `company` | Registro alemán (OffeneRegister). El francés no necesita configuración |
 | `DEEPSEEK_MODEL`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_TEXT_TIMEOUT_SEC` | `deepseek-chat`, API oficial, 120 | Modelo, endpoint y espera máxima por llamada |
 | `DEEPSEEK_DISABLE_PERSON_WEB`, `DEEPSEEK_PERSON_WEB_ALWAYS`, `DEEPSEEK_PERSON_WEB_MODEL`, `DEEPSEEK_PERSON_MAX_JSON_CHARS` | — | Ajustes del análisis web de personas |
@@ -237,6 +237,10 @@ WHERE status IN ('queued', 'running') ORDER BY created_at;
   `UPDATE users SET is_platform_admin = true WHERE email = 'persona@empresa.com';`
 - En `/dashboard/admin` (sección «Límites por plan") se ajusta el tope de dossiers a la vez por
   plan (Free 1, Pro 3, Enterprise 10 al inicio). Cada cambio queda en `audit_logs`.
+- En la sección «Fuentes de noticias» se decide cuándo se usa cada fuente de prensa: empresas o
+  personas, profundidad mínima, planes, créditos extra, máximo de noticias y límite diario. Las
+  claves siguen en el entorno del servidor. Para conectar otra API:
+  [Agregar una fuente de noticias](agregar-fuente-noticias.md).
 - **Cambiar el plan de una organización:** `PATCH /organization/plan`, que puede usar el
   administrador de esa organización. Ajusta los créditos según `billing/plan_catalog.py`. No hay
   pasarela de pago: ver [9](#9-problemas-conocidos).
@@ -312,6 +316,7 @@ Cada una tiene su especificación en `specs/proposals/` y su verificación en `s
 | Empresas por la cola | `POST /dossiers/corporate/generate` con `async_mode`: trabajo `corporate_manual` con avance por agente; la ruta síncrona se conserva | Informe beta |
 | Preferencias de notificación | `users.notify_email` (apaga el PDF automático) y `notify_browser` (aviso del sistema operativo); riesgo y resumen semanal «Próximamente» | Informe beta |
 | Cambio de plan sin pago | Intencional para pruebas rápidas: el admin de la organización cambia el plan desde Configuración | Decisión de FD |
+| Fuentes de noticias | Adaptadores enchufables descubiertos al arrancar; ajustes por fuente en el panel; claves solo en el entorno; extra de créditos solo si la fuente responde (lo suma el trigger); límite diario atómico; prensa también en personas | UX-ADMIN-02 |
 
 ## 9. Problemas conocidos
 

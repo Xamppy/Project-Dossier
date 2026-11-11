@@ -31,6 +31,7 @@ import {
   useDossierJobs,
 } from "@/providers/DossierJobsProvider";
 import { normalizePlanTier, planSummaryLabel } from "@/lib/plans";
+import { creditsLabel, useApplicableNewsSources } from "@/lib/use-news-sources";
 import { usePreferences, useTranslation } from "@/providers/PreferencesProvider";
 
 type ResearchSourceUi = "gemini_web" | "pdl";
@@ -82,6 +83,9 @@ function PersonResearchPageContent() {
       ? "person_research.summary_scope_pdl"
       : "person_research.summary_scope_gemini";
   const estimatedEta = estimatePersonResearchEta(researchSource, maxProfiles);
+  // UX-ADMIN-02: prensa que usaría el dossier y su extra máximo (solo si las fuentes responden).
+  const prensa = useApplicableNewsSources("person");
+  const runCredits = PERSON_RESEARCH_CREDITS + prensa.extra_credits;
   const planSummary = useMemo(
     // Informe beta: mismo resumen que Empresas, con los créditos disponibles.
     () => planSummaryLabel(t, normalizePlanTier(me?.organization_plan), me?.credits_balance, me?.credits_monthly_limit),
@@ -473,9 +477,9 @@ function PersonResearchPageContent() {
                 <PrimaryButton type="submit" loading={submitting} className="ui-new-dossier-btn w-full sm:w-auto">
                   {replaceDossierId
                     ? t("person_research.submit_replace")
-                    : PERSON_RESEARCH_CREDITS === 1
+                    : runCredits === 1
                       ? t("generate.submit_one")
-                      : t("generate.submit", { credits: PERSON_RESEARCH_CREDITS })}
+                      : t("generate.submit", { credits: runCredits })}
                 </PrimaryButton>
               </div>
             )}
@@ -495,7 +499,13 @@ function PersonResearchPageContent() {
                 <div className="flex justify-between gap-4">
                   <dt style={{ color: "var(--text-muted)" }}>{t("generate.credits_cost")}</dt>
                   <dd style={{ color: "var(--accent-from)" }}>
-                    {replaceDossierId ? 0 : PERSON_RESEARCH_CREDITS}
+                    {replaceDossierId ? 0 : creditsLabel(t, PERSON_RESEARCH_CREDITS, prensa.extra_credits)}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt style={{ color: "var(--text-muted)" }}>{t("generate.press_sources")}</dt>
+                  <dd className="max-w-[65%] text-right text-xs leading-snug" style={{ color: "var(--text-primary)" }}>
+                    {prensa.sources.length ? prensa.sources.map((s) => s.name).join(", ") : t("generate.press_none")}
                   </dd>
                 </div>
                 <div className="flex justify-between gap-4">

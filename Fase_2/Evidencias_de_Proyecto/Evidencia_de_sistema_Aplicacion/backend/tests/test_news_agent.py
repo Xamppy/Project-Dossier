@@ -9,10 +9,22 @@ from __future__ import annotations
 
 from datetime import UTC
 
-import dossier.news.agent as agent
+import pytest
+
+import dossier.news.client as cliente
 from dossier.news.agent import collect_press_mentions
 from dossier.news.client import ProveedorNoticiasError
 from dossier.schemas.dossier_executive_payload import SourceType
+
+
+@pytest.fixture(autouse=True)
+def _newsapi_con_clave(monkeypatch):
+    """UX-ADMIN-02: NewsAPI sin clave ya no se consulta; estas pruebas la necesitan configurada.
+
+    Los adaptadores llaman al cliente HTTP (``news/client.py``): ahí se reemplaza la red.
+    """
+    monkeypatch.setenv("NEWS_API_KEY", "clave-de-prueba")
+
 
 
 def _gdelt(url="https://ejemplo.com/nota", title="Ana Perez asume cargo", domain="ejemplo.com", seendate="20260910T120000Z"):
@@ -35,8 +47,8 @@ def _newsapi(url="https://otromedio.com/nota", title="Ana Perez asume cargo", no
 # --------------------------------------------------------------------------
 
 def test_flujo_normal_devuelve_press_mentions_con_source_correcto(monkeypatch):
-    monkeypatch.setattr(agent, "search_gdelt_articles", lambda q, *, limite=10: [_gdelt()])
-    monkeypatch.setattr(agent, "search_newsapi_articles", lambda q, *, limite=10: [_newsapi(title="Otra nota distinta")])
+    monkeypatch.setattr(cliente, "search_gdelt_articles", lambda q, *, limite=10: [_gdelt()])
+    monkeypatch.setattr(cliente, "search_newsapi_articles", lambda q, *, limite=10: [_newsapi(title="Otra nota distinta")])
 
     resultado = collect_press_mentions('"Ana Perez" AND "Acme"')
 
@@ -58,10 +70,10 @@ def test_flujo_normal_devuelve_press_mentions_con_source_correcto(monkeypatch):
 
 def test_articulo_sin_url_o_sin_titulo_se_descarta_sin_romper(monkeypatch):
     monkeypatch.setattr(
-        agent, "search_gdelt_articles",
+        cliente, "search_gdelt_articles",
         lambda q, *, limite=10: [_gdelt(), {"title": "Sin url"}, {"url": "https://x.com"}],
     )
-    monkeypatch.setattr(agent, "search_newsapi_articles", lambda q, *, limite=10: [])
+    monkeypatch.setattr(cliente, "search_newsapi_articles", lambda q, *, limite=10: [])
 
     resultado = collect_press_mentions("Ana Perez")
 
@@ -79,10 +91,10 @@ def test_dedup_misma_url_normalizada_entre_variantes(monkeypatch):
         "https://ejemplo.com/nota#seccion",
     ]
     monkeypatch.setattr(
-        agent, "search_gdelt_articles",
+        cliente, "search_gdelt_articles",
         lambda q, *, limite=10: [_gdelt(url=variantes[0]), _gdelt(url=variantes[1], title="Titular distinto")],
     )
-    monkeypatch.setattr(agent, "search_newsapi_articles", lambda q, *, limite=10: [_newsapi(url=variantes[2])])
+    monkeypatch.setattr(cliente, "search_newsapi_articles", lambda q, *, limite=10: [_newsapi(url=variantes[2])])
 
     resultado = collect_press_mentions("Ana Perez")
 
@@ -91,11 +103,11 @@ def test_dedup_misma_url_normalizada_entre_variantes(monkeypatch):
 
 def test_dedup_mismo_titular_normalizado_y_mismo_medio_url_distinta(monkeypatch):
     monkeypatch.setattr(
-        agent, "search_gdelt_articles",
+        cliente, "search_gdelt_articles",
         lambda q, *, limite=10: [_gdelt(url="https://ejemplo.com/a", title="  Ana   Perez asume CARGO ")],
     )
     monkeypatch.setattr(
-        agent, "search_newsapi_articles",
+        cliente, "search_newsapi_articles",
         lambda q, *, limite=10: [_newsapi(url="https://ejemplo.com/b-completamente-distinta",
                                            nombre_medio="ejemplo.com", title="ana perez asume cargo")],
     )
@@ -107,11 +119,11 @@ def test_dedup_mismo_titular_normalizado_y_mismo_medio_url_distinta(monkeypatch)
 
 def test_no_deduplica_mismo_titular_en_medios_distintos(monkeypatch):
     monkeypatch.setattr(
-        agent, "search_gdelt_articles",
+        cliente, "search_gdelt_articles",
         lambda q, *, limite=10: [_gdelt(url="https://medio-uno.com/a", domain="medio-uno.com")],
     )
     monkeypatch.setattr(
-        agent, "search_newsapi_articles",
+        cliente, "search_newsapi_articles",
         lambda q, *, limite=10: [_newsapi(url="https://medio-dos.com/b", nombre_medio="medio-dos.com")],
     )
 
@@ -128,8 +140,8 @@ def test_un_proveedor_falla_el_otro_responde_no_propaga_excepcion(monkeypatch):
     def gdelt_falla(q, *, limite=10):
         raise ProveedorNoticiasError("boom")
 
-    monkeypatch.setattr(agent, "search_gdelt_articles", gdelt_falla)
-    monkeypatch.setattr(agent, "search_newsapi_articles", lambda q, *, limite=10: [_newsapi()])
+    monkeypatch.setattr(cliente, "search_gdelt_articles", gdelt_falla)
+    monkeypatch.setattr(cliente, "search_newsapi_articles", lambda q, *, limite=10: [_newsapi()])
 
     resultado = collect_press_mentions("Ana Perez")
 
@@ -142,8 +154,8 @@ def test_ambos_proveedores_fallan_devuelve_vacio_sin_propagar(monkeypatch):
     def falla(q, *, limite=10):
         raise ProveedorNoticiasError("boom")
 
-    monkeypatch.setattr(agent, "search_gdelt_articles", falla)
-    monkeypatch.setattr(agent, "search_newsapi_articles", falla)
+    monkeypatch.setattr(cliente, "search_gdelt_articles", falla)
+    monkeypatch.setattr(cliente, "search_newsapi_articles", falla)
 
     resultado = collect_press_mentions("Ana Perez")
 
@@ -152,8 +164,8 @@ def test_ambos_proveedores_fallan_devuelve_vacio_sin_propagar(monkeypatch):
 
 
 def test_query_context_incluye_la_consulta_original(monkeypatch):
-    monkeypatch.setattr(agent, "search_gdelt_articles", lambda q, *, limite=10: [])
-    monkeypatch.setattr(agent, "search_newsapi_articles", lambda q, *, limite=10: [])
+    monkeypatch.setattr(cliente, "search_gdelt_articles", lambda q, *, limite=10: [])
+    monkeypatch.setattr(cliente, "search_newsapi_articles", lambda q, *, limite=10: [])
 
     resultado = collect_press_mentions('"Ana Perez" AND "Acme"')
 

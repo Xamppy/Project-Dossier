@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { NewsSourcesPanel } from "@/components/admin/NewsSourcesPanel";
 import { PlanLimitsPanel } from "@/components/admin/PlanLimitsPanel";
 import TopBar from "@/components/dashboard/TopBar";
 import {
@@ -46,7 +47,7 @@ function workspaceOrgLabel(
   return n && n !== "" ? n : "—";
 }
 
-type SectionKey = "plans" | "users" | "orgs" | "dossiers";
+type SectionKey = "plans" | "news" | "users" | "orgs" | "dossiers";
 
 function AdminAccordionPanel({
   title,
@@ -116,6 +117,7 @@ export default function AdminDashboardPage() {
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [openSection, setOpenSection] = useState<Record<SectionKey, boolean>>({
     plans: false,
+    news: false,
     users: false,
     orgs: false,
     dossiers: false,
@@ -274,6 +276,16 @@ export default function AdminDashboardPage() {
           onToggle={() => toggleSection("plans")}
         >
           <PlanLimitsPanel />
+        </AdminAccordionPanel>
+
+        {/* UX-ADMIN-02: fuentes de noticias (uso, planes, costo y límite diario). */}
+        <AdminAccordionPanel
+          title={t("admin.section_news_sources")}
+          summary={t("admin.news.summary")}
+          open={openSection.news}
+          onToggle={() => toggleSection("news")}
+        >
+          <NewsSourcesPanel />
         </AdminAccordionPanel>
 
         <AdminAccordionPanel

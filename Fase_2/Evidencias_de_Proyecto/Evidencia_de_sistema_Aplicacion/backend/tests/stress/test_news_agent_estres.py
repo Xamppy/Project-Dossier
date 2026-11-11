@@ -7,9 +7,21 @@ from __future__ import annotations
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-import dossier.news.agent as agent
+import pytest
+
+import dossier.news.client as cliente
 from dossier.news.agent import collect_press_mentions
 from dossier.news.client import ProveedorNoticiasError
+
+
+@pytest.fixture(autouse=True)
+def _newsapi_con_clave(monkeypatch):
+    """UX-ADMIN-02: NewsAPI sin clave ya no se consulta; estas pruebas la necesitan configurada.
+
+    Los adaptadores llaman al cliente HTTP (``news/client.py``): ahí se reemplaza la red.
+    """
+    monkeypatch.setenv("NEWS_API_KEY", "clave-de-prueba")
+
 
 
 def _articulos_gdelt(cantidad: int, duplicados_por: int) -> list[dict]:
@@ -33,11 +45,12 @@ def _articulos_gdelt(cantidad: int, duplicados_por: int) -> list[dict]:
 # --------------------------------------------------------------------------
 
 def test_volumen_cientos_de_articulos_con_duplicados_se_procesan_rapido(monkeypatch):
-    monkeypatch.setattr(agent, "search_gdelt_articles", lambda q, *, limite=10: _articulos_gdelt(600, 6))
-    monkeypatch.setattr(agent, "search_newsapi_articles", lambda q, *, limite=10: [])
+    monkeypatch.setattr(cliente, "search_gdelt_articles", lambda q, *, limite=10: _articulos_gdelt(600, 6))
+    monkeypatch.setattr(cliente, "search_newsapi_articles", lambda q, *, limite=10: [])
 
     inicio = time.perf_counter()
-    resultado = collect_press_mentions("Ana Perez")
+    # UX-ADMIN-02: el agente recorta a «máximo de noticias» por fuente; aquí se pide todo.
+    resultado = collect_press_mentions("Ana Perez", limite=600)
     transcurrido = time.perf_counter() - inicio
 
     assert len(resultado.mentions) == 100, "600 articulos en grupos de 6 duplicados deben colapsar a 100"
@@ -49,8 +62,8 @@ def test_volumen_cientos_de_articulos_con_duplicados_se_procesan_rapido(monkeypa
 # --------------------------------------------------------------------------
 
 def test_concurrencia_muchas_consultas_simultaneas_sin_excepciones(monkeypatch):
-    monkeypatch.setattr(agent, "search_gdelt_articles", lambda q, *, limite=10: _articulos_gdelt(10, 2))
-    monkeypatch.setattr(agent, "search_newsapi_articles", lambda q, *, limite=10: [])
+    monkeypatch.setattr(cliente, "search_gdelt_articles", lambda q, *, limite=10: _articulos_gdelt(10, 2))
+    monkeypatch.setattr(cliente, "search_newsapi_articles", lambda q, *, limite=10: [])
 
     errores: list[BaseException] = []
     resultados = []
@@ -78,10 +91,10 @@ def test_degradacion_proveedor_lento_no_bloquea_mas_alla_del_timeout(monkeypatch
         time.sleep(2.0)
         return []
 
-    monkeypatch.setattr(agent, "search_gdelt_articles", lambda q, *, limite=10: [
+    monkeypatch.setattr(cliente, "search_gdelt_articles", lambda q, *, limite=10: [
         {"url": "https://medio.ejemplo.com/nota", "title": "Nota rapida", "domain": "medio.ejemplo.com"}
     ])
-    monkeypatch.setattr(agent, "search_newsapi_articles", newsapi_lenta)
+    monkeypatch.setattr(cliente, "search_newsapi_articles", newsapi_lenta)
 
     inicio = time.perf_counter()
     resultado = collect_press_mentions("Ana Perez", timeout_seg=0.1)
@@ -96,8 +109,8 @@ def test_degradacion_ambos_proveedores_caidos_no_rompe_el_agente(monkeypatch):
     def caido(q, *, limite=10):
         raise ProveedorNoticiasError("proveedor caido")
 
-    monkeypatch.setattr(agent, "search_gdelt_articles", caido)
-    monkeypatch.setattr(agent, "search_newsapi_articles", caido)
+    monkeypatch.setattr(cliente, "search_gdelt_articles", caido)
+    monkeypatch.setattr(cliente, "search_newsapi_articles", caido)
 
     resultado = collect_press_mentions("Ana Perez")
 

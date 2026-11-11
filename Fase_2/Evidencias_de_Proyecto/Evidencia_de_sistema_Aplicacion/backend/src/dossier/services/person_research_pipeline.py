@@ -7,6 +7,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from dossier.billing.credit_policy import (
@@ -22,13 +23,14 @@ from dossier.cache.person_dossier_redis import (
     run_with_person_cache_lock,
     set_person_cached_payload,
 )
-from dossier.db.models import Dossier, Organization, User
+from dossier.db.models import Dossier, DossierMediaMention, Organization, User
 from dossier.llm.common import normalize_person_report_text
 from dossier.org_dossier_context import format_dossier_context_for_prompt
 from dossier.schemas.person_research import PersonResearchRequest
 from dossier.services.calendar_event_dossiers import _person_failure_message
 from dossier.services.dossier_entities_writer import escribir_entidades_ejecutivas
 from dossier.services.dossier_job_progress import NULL_SCOPE
+from dossier.services.news_sources import creditos_extra_maximos, fuentes_aplicables
 from dossier.services.output_language import effective_output_language
 from dossier.services.person_dossier_dedup import (
     person_research_cache_payload_from_result,
@@ -46,6 +48,7 @@ from dossier.services.person_research_progress import (
     scope_copy,
 )
 from dossier.services.person_research_service import run_person_research
+from dossier.services.press_mentions_writer import escribir_menciones_prensa
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +90,10 @@ def run_person_research_and_persist(
     person_cost = person_research_credit_cost()
     is_refinement = body.replace_dossier_id is not None
     db.refresh(org)
+    # UX-ADMIN-02: fuentes de prensa para personas según el plan (un refinamiento no cobra).
+    fuentes_prensa = fuentes_aplicables(
+        db, tipo="person", profundidad="basic", plan=org.plan, cobrar=charge and not is_refinement
+    )
 
     cache_hit = False
     cached_payload: dict[str, Any] | None = None
@@ -109,7 +116,7 @@ def run_person_research_and_persist(
 
     if not cache_hit:
         if not is_refinement:
-            assert_sufficient_credits(org, person_cost, charge=charge)
+            assert_sufficient_credits(org, person_cost + creditos_extra_maximos(fuentes_prensa), charge=charge)
 
         def _compute() -> None:
             nonlocal cache_hit, cached_payload, result, elapsed_ms, research_error
@@ -129,6 +136,7 @@ def run_person_research_and_persist(
                     organization_context_block=org_ctx,
                     output_language=out_lang,
                     progress=progress,
+                    fuentes_prensa=fuentes_prensa,
                 )
             except ValueError as e:
                 research_error = str(e)
@@ -215,6 +223,8 @@ def run_person_research_and_persist(
             and not cache_hit
             and existing is None
         )
+        # UX-ADMIN-02: el trigger de cobro suma el extra de las fuentes de prensa que respondieron.
+        extra_prensa = int(result.get("news_extra_credits") or 0) if will_charge else 0
         dossier_data_body: dict[str, Any] = {
             "format": "markdown",
             "body": md,
@@ -240,6 +250,7 @@ def run_person_research_and_persist(
             },
             "lusha_diagnostics": lusha_diag,
             "output_language": out_lang,
+            "news_extra_credits": extra_prensa,
             **_progress_copy(progress),
         }
         # S4.3: el contrato validado va junto al Markdown derivado de él; `format`,
@@ -271,6 +282,8 @@ def run_person_research_and_persist(
                 payload=dossier_data_body.get("executive_payload"),
                 reemplazo=True,
             )
+            if not cache_hit:
+                _reemplazar_menciones(db, existing.id, result, body.full_name)
             db.commit()
             db.refresh(existing)
             dossier = existing
@@ -287,7 +300,7 @@ def run_person_research_and_persist(
                 module_corporate=False,
                 module_media=False,
                 depth_level="basic",
-                credits_consumed=person_cost if will_charge else 0,
+                credits_consumed=person_cost + extra_prensa if will_charge else 0,
                 status=status,
                 status_message="Error en el informe generado." if is_err else None,
                 dossier_data=dossier_data_body,
@@ -309,6 +322,10 @@ def run_person_research_and_persist(
                 payload=dossier_data_body.get("executive_payload"),
                 reemplazo=False,
             )
+            if not cache_hit:
+                escribir_menciones_prensa(
+                    db, dossier_id=dossier_id, menciones=result.get("press_mentions"), consulta=body.full_name
+                )
             db.commit()
             db.refresh(dossier)
             db.refresh(org)
@@ -415,6 +432,12 @@ def run_person_research_and_persist(
     result["dossier_source"] = "generated" if skip_cache else ("redis_cache" if cache_hit else "generated")
     result["force_refresh"] = skip_cache
     return result
+
+
+def _reemplazar_menciones(db: Session, dossier_id: uuid.UUID, result: dict[str, Any], consulta: str) -> None:
+    """Al actualizar un dossier, su prensa es la de la nueva investigación."""
+    db.execute(delete(DossierMediaMention).where(DossierMediaMention.dossier_id == dossier_id))
+    escribir_menciones_prensa(db, dossier_id=dossier_id, menciones=result.get("press_mentions"), consulta=consulta)
 
 
 def _progress_copy(progress: Any) -> dict[str, Any]:

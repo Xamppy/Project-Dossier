@@ -37,6 +37,7 @@ from dossier.services.graph_calendar import (
     obtener_reunion_por_id,
 )
 from dossier.services.microsoft_calendar_token import get_microsoft_graph_access_token_for_user
+from dossier.services.news_sources import fuentes_aplicables
 from dossier.services.org_membership_service import active_organization_id_for_user
 from dossier.services.output_language import resolve_dossier_output_language_for_user
 
@@ -589,12 +590,15 @@ def process_due_calendar_events(db: Session) -> dict[str, int]:
         t0 = time.perf_counter()
         guardados: dict[str, Any] | None = None
         try:
+            plan = org.plan if org else None
             result = generate_dossiers_from_calendar_event(
                 reunion,
                 organization_context_block=org_ctx or None,
                 organization_id=org_id,
-                organization_plan=org.plan if org else None,
+                organization_plan=plan,
                 output_language=out_lang,
+                fuentes_prensa_empresa=fuentes_aplicables(db, tipo="corporate", profundidad="standard", plan=plan),
+                fuentes_prensa_persona=fuentes_aplicables(db, tipo="person", profundidad="basic", plan=plan),
             )
             elapsed_ms = int((time.perf_counter() - t0) * 1000)
             persist_calendar_dossiers(
