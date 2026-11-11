@@ -6,6 +6,28 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-11 · UX-ADMIN-01 · Dossiers a la vez por usuario según el plan · FD (agente)
+
+**Hecho.** Rama `feat/UX-ADMIN-01-limites-por-plan`, desde `docmac`. Ampliación pedida por FD.
+Tabla `plan_settings` (Alembic `c7e2a9d4f1b6`, Free 1 · Pro 3 · Enterprise 10);
+`services/plan_limits.py` bloquea la fila del usuario y cuenta sus trabajos manuales activos de
+los últimos 30 min al encolar Personas o Calendario (409 `CONCURRENT_DOSSIER_LIMIT`).
+`GET`/`PATCH /admin/plan-settings` para admin de plataforma, con auditoría. Sección
+«Límites por plan» en `/dashboard/admin` (`components/admin/PlanLimitsPanel.tsx`).
+Reporte en `specs/reports/UX-ADMIN-01-limites-por-plan.md`.
+
+**Lo que hay que saber.**
+- **No hay recuperación de trabajos `running` colgados** tras una caída. La ventana
+  `DOSSIER_CONCURRENCY_WINDOW_MINUTES` (30) evita que bloqueen al usuario. Recuperarlos al
+  arrancar queda pendiente.
+- El tope usa **409**, no 429: `translateApiError` convierte todo 429 en «espera N segundos».
+- Calendario con varias reuniones: se comprueba el total antes de encolar (todo o nada) y cada
+  encolado vuelve a comprobar con la fila bloqueada.
+- Para dar admin de plataforma sigue haciendo falta SQL (`users.is_platform_admin`).
+- Los catálogos de idiomas se editaron a nivel de bytes (finales de línea mixtos; ver S5.5).
+
+**Rama.** `feat/UX-ADMIN-01-limites-por-plan` · **Estado.** review
+
 ### 2026-11-11 · S5.5, S3.5, S3.6 y S3.7 · El dossier por módulos · FD (agente)
 
 **Hecho.** Rama `feat/S5.5-dossier-por-modulos`, desde `docmac`. Traspasadas de DG. Diseño
