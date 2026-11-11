@@ -6,6 +6,22 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-11 · S7.3 · Créditos y aislamiento en el flujo completo · FD (agente)
+
+**Hecho.** Rama `feat/S7.3-creditos-aislamiento`. Diez casos de punta a punta (API, worker real,
+pipelines reales y trigger de cobro) en `tests/integration/test_s7_3_creditos_aislamiento.py` y
+`tests/stress/test_s7_3_creditos_estres.py`. **Sin defectos.** Reporte en
+`specs/reports/S7.3-creditos-aislamiento.md`.
+
+**Lo que hay que saber.**
+- En una reunión, un asistente sin datos genera un dossier **fallido con 0 créditos** y sin
+  movimiento en `credit_ledger`. Es correcto: una prueba que espere un movimiento por dossier falla.
+- Para procesar muchos trabajos en una prueba, se crean por ORM: por la API choca con el tope de
+  dossiers a la vez (UX-ADMIN-01, Pro = 3).
+- El fixture `mundo` (dos organizaciones y todos los dobles de proveedores) sirve para S7.2.
+
+**Rama.** `feat/S7.3-creditos-aislamiento` · **Estado.** review
+
 ### 2026-11-11 · BUG-2026-11-11-01 · Trabajos de generación colgados tras una caída · FD (agente)
 
 **Hecho.** Rama `fix/trabajos-colgados`, desde `docmac`. Columna `dossier_generation_jobs.heartbeat_at`

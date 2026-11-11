@@ -1820,7 +1820,7 @@
       "id": "S7.3",
       "sprint": 7,
       "title": "Verificar descuento de creditos y aislamiento en el flujo completo",
-      "status": "claimed",
+      "status": "review",
       "owner": "FD",
       "area": "quality",
       "activity": "A9",
@@ -1835,7 +1835,9 @@
       ],
       "trello": "https://trello.com/c/gxi7THee",
       "branch": "feat/S7.3-creditos-aislamiento",
-      "evidence": [],
+      "evidence": [
+        "specs/reports/S7.3-creditos-aislamiento.md: 10 casos en el flujo completo (API, worker real, pipelines reales de Personas y Calendario, trigger de cobro) contra PostgreSQL 18; sin defectos: un cobro por dossier guardado, ninguno por fallos o cancelaciones, y sin fuga entre organizaciones"
+      ],
       "notes": "",
       "owner_session": "FD (agente)"
     },
