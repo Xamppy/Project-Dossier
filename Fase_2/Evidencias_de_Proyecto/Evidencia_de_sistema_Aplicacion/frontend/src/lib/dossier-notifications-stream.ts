@@ -106,7 +106,12 @@ export function openDossierNotificationsStream(
     // Sin esto la librería corta y reabre la conexión cada vez que cambia la visibilidad.
     openWhenHidden: true,
     // S3.9: si el token de acceso venció, `authFetch` lo renueva y reabre una vez.
-    fetch: (input, init) => authFetch(input, init),
+    fetch: (input, init) => {
+      const respuesta = authFetch(input, init);
+      // Al cerrar el canal se cancela la petición: esa cancelación es esperada, no un error.
+      respuesta.catch(() => undefined);
+      return respuesta;
+    },
     async onopen(response) {
       if (!response.ok) throw errorForStatus(response.status);
       const contentType = response.headers.get("content-type") ?? "";
