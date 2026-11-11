@@ -633,7 +633,7 @@ def resolve_corporate_brief(company_query: str) -> tuple[str, JurisdictionScope]
     if len(q) < 2:
         return q, "dual"
 
-    us_hits = find_sec_matches(q, limit=5)
+    us_hits = find_sec_matches(q, limit=5, estricto=True)
     if us_hits:
         h = us_hits[0]
         title = h.get("title") or q

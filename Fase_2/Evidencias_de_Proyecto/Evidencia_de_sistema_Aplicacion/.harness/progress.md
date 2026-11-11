@@ -6,6 +6,24 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-11 · Correcciones vistas al rehacer las capturas del informe final 2.6 · FD (agente)
+
+**Hecho.** Rama `fix/detalles-informe-final`. Tres defectos:
+- La fecha de las menciones de prensa de un dossier de persona salía en bruto («20261103T193800Z»,
+  formato de GDELT). Ahora se muestra como «2026-11-03» (`executive_markdown._fecha_de_prensa`).
+- El PDF de un dossier de empresa decía «Dossier de persona». Ahora dice «Dossier de empresa» en los
+  seis idiomas (`dossier_pdf`, según `dossier_data.pipeline`).
+- La resolución automática en la SEC aceptaba trozos de palabra: «Lumière Logistique Démo SAS» se
+  resolvía como Canadian Pacific Kansas City («SAS» dentro de «Kansas»), el dossier de calendario
+  quedaba «solo EE. UU.» y se saltaba Europa. `find_sec_matches(..., estricto=True)` exige palabras
+  completas y descarta formas jurídicas; lo usan el calendario y el agente de EE. UU. El buscador de
+  Empresas sigue aceptando parte del nombre.
+
+**Pruebas.** `tests/test_corporate_company_search.py` (nuevo), `test_executive_markdown.py` y
+`test_dossier_pdf.py`; primero en rojo.
+
+**Rama.** `fix/detalles-informe-final` · **Estado.** review
+
 ### 2026-11-11 · UX-ADMIN-03 · Créditos al mes de cada plan, configurables · FD (agente)
 
 **Hecho.** Rama `feat/creditos-por-plan`. Columna «Créditos al mes» en Administración → Límites

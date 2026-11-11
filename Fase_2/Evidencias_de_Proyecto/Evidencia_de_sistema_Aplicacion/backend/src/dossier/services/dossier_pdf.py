@@ -112,6 +112,7 @@ _FORMATO_FECHA = {
 _TEXTOS: dict[str, dict[str, str]] = {
     "es": {
         "kind": "Dossier de persona",
+        "kind_company": "Dossier de empresa",
         "complete": "Completo",
         "report_in": "Informe en español",
         "dates": "Creado {created} · Actualizado {updated}",
@@ -122,6 +123,7 @@ _TEXTOS: dict[str, dict[str, str]] = {
     },
     "en": {
         "kind": "People dossier",
+        "kind_company": "Company dossier",
         "complete": "Complete",
         "report_in": "Report in English",
         "dates": "Created {created} · Updated {updated}",
@@ -132,6 +134,7 @@ _TEXTOS: dict[str, dict[str, str]] = {
     },
     "pt": {
         "kind": "Dossiê de pessoa",
+        "kind_company": "Dossiê de empresa",
         "complete": "Completo",
         "report_in": "Relatório em português",
         "dates": "Criado {created} · Atualizado {updated}",
@@ -142,6 +145,7 @@ _TEXTOS: dict[str, dict[str, str]] = {
     },
     "it": {
         "kind": "Dossier persona",
+        "kind_company": "Dossier aziendale",
         "complete": "Completato",
         "report_in": "Report in italiano",
         "dates": "Creato {created} · Aggiornato {updated}",
@@ -152,6 +156,7 @@ _TEXTOS: dict[str, dict[str, str]] = {
     },
     "fr": {
         "kind": "Dossier personne",
+        "kind_company": "Dossier entreprise",
         "complete": "Complet",
         "report_in": "Rapport en français",
         "dates": "Créé {created} · Mis à jour {updated}",
@@ -162,6 +167,7 @@ _TEXTOS: dict[str, dict[str, str]] = {
     },
     "de": {
         "kind": "Personen-Dossier",
+        "kind_company": "Unternehmens-Dossier",
         "complete": "Abgeschlossen",
         "report_in": "Bericht auf Deutsch",
         "dates": "Erstellt {created} · Aktualisiert {updated}",
@@ -427,10 +433,17 @@ def _insignia(texto: str, color: colors.Color, est: dict) -> Table:
     ]))
 
 
+def _es_de_empresa(dossier: Dossier) -> bool:
+    """Los dossiers de empresa (grafo corporativo) se guardan con ``pipeline=langgraph_corporate``."""
+    data = dossier.dossier_data if isinstance(dossier.dossier_data, dict) else {}
+    return data.get("pipeline") == "langgraph_corporate"
+
+
 def _encabezado(dossier: Dossier, nombre: str, t: dict[str, str], lang: str, est: dict) -> list[Flowable]:
     ancho = A4[0] - 36 * mm
     logo = Image(str(_LOGO), width=46 * mm, height=46 * mm * 231 / 720, mask="auto")
-    marca = Table([[logo, Paragraph(_esc(t["kind"]), est["tipo"])]], colWidths=[ancho * 0.6, ancho * 0.4],
+    tipo = t["kind_company"] if _es_de_empresa(dossier) else t["kind"]
+    marca = Table([[logo, Paragraph(_esc(tipo), est["tipo"])]], colWidths=[ancho * 0.6, ancho * 0.4],
                   style=_estilo_tabla([("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                                     ("LEFTPADDING", (0, 0), (-1, -1), 0),
                                     ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))

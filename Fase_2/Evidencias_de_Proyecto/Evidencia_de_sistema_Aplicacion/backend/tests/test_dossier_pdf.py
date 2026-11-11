@@ -282,3 +282,22 @@ def test_negrita_cursiva_y_codigo_tambien_usan_la_fuente_incrustada():
     assert not [f for f in fuentes if "Helvetica" in f or "Courier" in f or "Times" in f], fuentes
     for variante in ("DejaVuSans", "DejaVuSans-Bold", "DejaVuSans-Oblique", "DejaVuSans-BoldOblique", "DejaVuSansMono"):
         assert any(f.endswith(variante) for f in fuentes), (variante, fuentes)
+
+
+# Informe final 2.6: el PDF de un dossier de empresa decía «Dossier de persona».
+@pytest.mark.parametrize(
+    ("pipeline", "codigo", "etiqueta", "ajena"),
+    [
+        ("langgraph_corporate", "es", "Dossier de empresa", "Dossier de persona"),
+        ("langgraph_corporate", "en", "Company dossier", "People dossier"),
+        ("langgraph_corporate", "de", "Unternehmens-Dossier", "Personen-Dossier"),
+        ("person_research", "es", "Dossier de persona", "Dossier de empresa"),
+    ],
+)
+def test_el_encabezado_dice_si_el_dossier_es_de_persona_o_de_empresa(pipeline, codigo, etiqueta, ajena):
+    dossier = _dossier(body="Breve.", subject_name="Empresa de Prueba SAS", subject_email=None,
+                       data={"pipeline": pipeline, "output_language": codigo})
+    _, texto = _leer(render_dossier_pdf(dossier))
+
+    assert etiqueta in texto
+    assert ajena not in texto
