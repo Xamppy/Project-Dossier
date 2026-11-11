@@ -15,6 +15,7 @@ import {
 } from "@/lib/dossier-api";
 import { classifyJobOutcome } from "@/lib/dossier-job-outcome";
 import { formatMeetingTimeRange } from "@/lib/format";
+import { translateApiErrorMessage } from "@/lib/translate-backend-message";
 import { useDossierJobs } from "@/providers/DossierJobsProvider";
 import { usePreferences, useTranslation } from "@/providers/PreferencesProvider";
 
@@ -152,6 +153,14 @@ export default function CalendarEventDetails({ event, onClose, returnFocusTo, fa
   const progress = job?.progress ?? null;
   const outcome = job && progress && progress.scopes.length > 0 ? classifyJobOutcome(job) : null;
 
+  // Los errores con código (p. ej. el tope de dossiers a la vez, UX-ADMIN-01) se traducen;
+  // el resto conserva el mensaje del servidor, como antes.
+  function apiErrorText(e: DossierApiError): string {
+    const detail = (e.body as { detail?: unknown } | null)?.detail;
+    const coded = typeof detail === "object" && detail !== null && "code" in detail;
+    return coded ? translateApiErrorMessage(e, t) : e.message;
+  }
+
   async function generate() {
     if (!eventId || submitting.current) return;
     submitting.current = true;
@@ -162,7 +171,7 @@ export default function CalendarEventDetails({ event, onClose, returnFocusTo, fa
     } catch (e) {
       setGenErr(
         e instanceof DossierApiError
-          ? e.message
+          ? apiErrorText(e)
           : t(provider === "google" ? "overview.google_generate_error" : "overview.microsoft_generate_error"),
       );
     } finally {

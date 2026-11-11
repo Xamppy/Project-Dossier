@@ -2554,6 +2554,27 @@
       "evidence": [],
       "notes": "Registrada el 2026-10-19. En el informe v2 (PR #34, docs/documentos-capstone/) el texto sobre el avance de FD está marcado «[Texto pendiente de validación por FD.]».",
       "owner_session": null
+    },
+    {
+      "id": "UX-ADMIN-01",
+      "sprint": 7,
+      "title": "Panel de administración: límite de dossiers simultáneos por usuario según el plan",
+      "status": "review",
+      "owner": "FD",
+      "area": "fullstack",
+      "activity": "A6",
+      "objective": "OE6",
+      "gap": null,
+      "due": null,
+      "depends_on": [],
+      "blocks": [],
+      "trello": null,
+      "branch": "feat/UX-ADMIN-01-limites-por-plan",
+      "evidence": [
+        "specs/reports/UX-ADMIN-01-limites-por-plan.md: CA1-CA10 con pruebas de integración, seguridad y estrés contra PostgreSQL 18 y Vitest del panel y del error traducido; prueba en la aplicación en ejecución (cambio desde el panel auditado y 409 con el tope lleno)"
+      ],
+      "notes": "Ampliación solicitada por FD el 2026-11-11, adicional al plan. Decisiones de FD: lo configura solo el admin de plataforma en /dashboard/admin; la automatización del calendario no cuenta para el límite; valores iniciales Free 1, Pro 3, Enterprise 10. El panel queda preparado para sumar más ajustes.",
+      "owner_session": "FD (agente)"
     }
   ]
 }

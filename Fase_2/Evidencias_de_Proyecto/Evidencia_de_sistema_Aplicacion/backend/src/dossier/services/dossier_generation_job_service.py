@@ -47,6 +47,7 @@ from dossier.services.microsoft_calendar_token import get_microsoft_graph_access
 from dossier.services.output_language import effective_output_language
 from dossier.services.person_dossier_dedup import person_research_fingerprint
 from dossier.services.person_research_pipeline import run_person_research_and_persist
+from dossier.services.plan_limits import assert_can_start_dossiers
 
 logger = logging.getLogger(__name__)
 
@@ -154,6 +155,8 @@ def enqueue_person_research_job(
     existing = find_active_person_job(db, user_id=user.id, dedup_key=dedup_key)
     if existing:
         return existing
+    # UX-ADMIN-01: tope de dossiers a la vez según el plan (bloquea la fila del usuario).
+    assert_can_start_dossiers(db, user=user, org=org)
 
     label = body.full_name.strip()[:512] or "Persona"
     charge = credit_charging_enabled()
@@ -222,6 +225,8 @@ def enqueue_calendar_dossier_job(
         existing = find_active_job_for_event(db, user_id=user.id, external_event_id=event_id)
         if existing:
             return existing
+    # UX-ADMIN-01: tope de dossiers a la vez según el plan (bloquea la fila del usuario).
+    assert_can_start_dossiers(db, user=user, org=org)
 
     charge = credit_charging_enabled()
     credits = estimate_reunion_credits(reunion, depth=depth, plan=org.plan)

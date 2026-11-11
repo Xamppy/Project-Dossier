@@ -1134,6 +1134,22 @@ const messages = {
   "dossier_modules.show_text": "Ver relatório em texto",
   "dossier_modules.hide_text": "Ocultar relatório em texto",
   "dossier_modules.text_report": "Relatório completo (texto)",
+  // UX-ADMIN-01: límites por plan del panel de administración.
+  "errors.concurrent_dossier_limit": "Já tem {limit} dossiês a ser gerados, o máximo do seu plano. Aguarde que um termine e tente novamente.",
+  "admin.section_plan_limits": "Limites por plano",
+  "admin.plan_limits.summary": "Dossiês em simultâneo por utilizador",
+  "admin.plan_limits.hint": "Número máximo de dossiês que um mesmo utilizador pode ter a ser gerados ao mesmo tempo. Os criados pela automatização do calendário não contam.",
+  "admin.plan_limits.col_plan": "Plano",
+  "admin.plan_limits.col_max": "Dossiês em simultâneo",
+  "admin.plan_limits.col_updated": "Última alteração",
+  "admin.plan_limits.updated_by": "{date} · {email}",
+  "admin.plan_limits.never": "Valor inicial",
+  "admin.plan_limits.save": "Guardar",
+  "admin.plan_limits.saving": "A guardar…",
+  "admin.plan_limits.saved": "Limite guardado.",
+  "admin.plan_limits.save_error": "Não foi possível guardar o limite. Tente novamente.",
+  "admin.plan_limits.load_error": "Não foi possível carregar os limites por plano.",
+  "admin.plan_limits.invalid": "Use um número entre 1 e 100.",
 } as const;
 
 export default messages;

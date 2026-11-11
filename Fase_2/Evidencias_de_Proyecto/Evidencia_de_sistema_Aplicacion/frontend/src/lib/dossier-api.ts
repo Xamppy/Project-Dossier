@@ -824,6 +824,27 @@ export async function patchAdminUserRoles(
   return patchJsonWithAuth<AdminUserRow>(`/admin/users/${encodeURIComponent(userId)}`, body);
 }
 
+/** UX-ADMIN-01: ajustes de un plan (tope de dossiers generándose a la vez por usuario). */
+export type AdminPlanSetting = {
+  plan: "free" | "pro" | "enterprise";
+  max_concurrent_dossiers: number;
+  updated_at: string | null;
+  updated_by_email: string | null;
+};
+
+export async function fetchAdminPlanSettings(): Promise<{ plans: AdminPlanSetting[] }> {
+  return getJsonWithAuth<{ plans: AdminPlanSetting[] }>("/admin/plan-settings");
+}
+
+export async function patchAdminPlanSetting(
+  plan: AdminPlanSetting["plan"],
+  maxConcurrentDossiers: number,
+): Promise<AdminPlanSetting> {
+  return patchJsonWithAuth<AdminPlanSetting>(`/admin/plan-settings/${encodeURIComponent(plan)}`, {
+    max_concurrent_dossiers: maxConcurrentDossiers,
+  });
+}
+
 /** Elimina una cuenta de usuario (`DELETE /admin/users/{id}`, solo admin de plataforma). */
 export async function deleteAdminUser(userId: string): Promise<void> {
   const token = getStoredAccessToken();

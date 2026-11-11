@@ -1177,6 +1177,22 @@ const messages = {
   "dossier_modules.show_text": "View report as text",
   "dossier_modules.hide_text": "Hide text report",
   "dossier_modules.text_report": "Full report (text)",
+  // UX-ADMIN-01: límites por plan del panel de administración.
+  "errors.concurrent_dossier_limit": "You already have {limit} dossiers being generated, your plan's maximum. Wait for one to finish and try again.",
+  "admin.section_plan_limits": "Plan limits",
+  "admin.plan_limits.summary": "Dossiers at once per user",
+  "admin.plan_limits.hint": "Maximum number of dossiers a single user can have generating at the same time. Dossiers created by the calendar automation don't count.",
+  "admin.plan_limits.col_plan": "Plan",
+  "admin.plan_limits.col_max": "Dossiers at once",
+  "admin.plan_limits.col_updated": "Last change",
+  "admin.plan_limits.updated_by": "{date} · {email}",
+  "admin.plan_limits.never": "Default value",
+  "admin.plan_limits.save": "Save",
+  "admin.plan_limits.saving": "Saving…",
+  "admin.plan_limits.saved": "Limit saved.",
+  "admin.plan_limits.save_error": "The limit could not be saved. Try again.",
+  "admin.plan_limits.load_error": "Plan limits could not be loaded.",
+  "admin.plan_limits.invalid": "Use a number between 1 and 100.",
 } as const;
 
 export default messages;
