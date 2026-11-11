@@ -1197,6 +1197,11 @@ const messages = {
   "dossiers.status_partial": "Partial",
   "backend.status_partial_report": "Partial report: the AI analysis could not be written; the data gathered from the sources is shown.",
   "backend.status_person_sources_unavailable": "The sources for this person could not be consulted. Please try again later.",
+  "notif.coming_soon": "Coming soon",
+  "notif.load_error": "Your notification preferences could not be loaded.",
+  "notif.save_error": "The change could not be saved. Try again.",
+  "notif.browser_blocked": "The browser blocked notifications. Allow them in the site settings and try again.",
+  "notif.browser_unsupported": "This browser does not support notifications.",
 } as const;
 
 export default messages;

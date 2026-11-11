@@ -363,6 +363,8 @@ def build_user_public(
         dossier_output_language=getattr(user, "dossier_output_language", None) or "match",
         dossier_retention_hours=dossier_retention_hours(),
         email_delivery_available=email_delivery_available(),
+        notify_email=bool(getattr(user, "notify_email", True)),
+        notify_browser=bool(getattr(user, "notify_browser", True)),
     )
 
 
@@ -995,9 +997,16 @@ def patch_user_preferences(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db_if_configured),
 ) -> UserPublic:
-    """Sincroniza idioma de interfaz, zona horaria e idioma de salida de dossiers."""
-    if body.locale is None and body.timezone is None and body.dossier_output_language is None:
+    """Sincroniza idioma, zona horaria, idioma de salida y preferencias de notificación."""
+    if all(
+        v is None
+        for v in (body.locale, body.timezone, body.dossier_output_language, body.notify_email, body.notify_browser)
+    ):
         raise HTTPException(status_code=400, detail="No hay campos para actualizar.")
+    if body.notify_email is not None:
+        user.notify_email = body.notify_email
+    if body.notify_browser is not None:
+        user.notify_browser = body.notify_browser
 
     if body.locale is not None:
         loc = body.locale.strip().lower().replace("_", "-")

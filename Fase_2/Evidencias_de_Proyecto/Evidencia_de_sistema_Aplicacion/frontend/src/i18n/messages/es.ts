@@ -1200,6 +1200,11 @@ const messages = {
   "dossiers.status_partial": "Parcial",
   "backend.status_partial_report": "Informe parcial: no se pudo redactar el análisis con IA; se muestran los datos reunidos de las fuentes.",
   "backend.status_person_sources_unavailable": "No se pudieron consultar las fuentes de esta persona. Vuelve a intentarlo más tarde.",
+  "notif.coming_soon": "Próximamente",
+  "notif.load_error": "No se pudieron cargar tus preferencias de notificación.",
+  "notif.save_error": "No se pudo guardar el cambio. Inténtalo de nuevo.",
+  "notif.browser_blocked": "El navegador bloqueó las notificaciones. Permítelas en la configuración del sitio y vuelve a intentarlo.",
+  "notif.browser_unsupported": "Este navegador no admite notificaciones.",
 } as const;
 
 export default messages;

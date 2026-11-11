@@ -1272,6 +1272,17 @@ ALTER TABLE dossier_generation_jobs ADD COLUMN IF NOT EXISTS heartbeat_at TIMEST
 
 
 -- =============================================================================
+-- MIGRACIÓN INCREMENTAL: preferencias de notificación (Alembic a2c4e6f8b0d1)
+-- notify_email apaga el envío automático del dossier por correo (el botón
+-- manual sigue); notify_browser activa el aviso del sistema operativo.
+-- DDL en schema_patches.USER_NOTIFY_PATCHES.
+-- =============================================================================
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_email BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_browser BOOLEAN NOT NULL DEFAULT true;
+
+
+-- =============================================================================
 -- FIN DEL SCHEMA
 -- Total de tablas: 16 principales + 2 vistas
 -- Extensiones: uuid-ossp, pgcrypto

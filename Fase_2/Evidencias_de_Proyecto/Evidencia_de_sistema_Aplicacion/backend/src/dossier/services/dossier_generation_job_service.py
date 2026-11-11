@@ -553,6 +553,9 @@ def enviar_dossier_al_solicitante(db: Session, *, result: dict[str, Any], user: 
         return
     if not (user.email or "").strip() or not email_delivery_available():
         return
+    # Informe beta: el usuario puede apagar el correo automático (el botón manual sigue).
+    if not getattr(user, "notify_email", True):
+        return
     deliver_dossier_after_generation(db, dossier_id=saved["id"], recipient=user.email)
 
 

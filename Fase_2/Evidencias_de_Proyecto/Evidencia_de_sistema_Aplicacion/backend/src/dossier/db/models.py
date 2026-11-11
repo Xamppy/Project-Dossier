@@ -85,6 +85,9 @@ class User(Base):
         DateTime(timezone=True), nullable=True
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Preferencias de notificación (informe beta): correo automático y aviso del navegador.
+    notify_email: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    notify_browser: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
     is_platform_admin: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("false")
     )

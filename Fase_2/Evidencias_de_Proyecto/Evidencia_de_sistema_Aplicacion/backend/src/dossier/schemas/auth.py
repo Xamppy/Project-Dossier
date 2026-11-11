@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, BeforeValidator, EmailStr, Field, field_validator, model_validator
+from pydantic import BaseModel, BeforeValidator, EmailStr, Field, StrictBool, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 
 # bcrypt solo procesa 72 bytes; la versión 5 lanza ValueError por encima en vez de truncar.
@@ -171,6 +171,9 @@ class UserPreferencesPatch(BaseModel):
         max_length=10,
         description="match | es | en | pt | it | fr | de | auto",
     )
+    # Informe beta: preferencias de notificación (booleanos estrictos).
+    notify_email: StrictBool | None = None
+    notify_browser: StrictBool | None = None
     # S6.5: la retención ya no se elige. Un ``dossier_retention_days`` enviado por un cliente
     # antiguo se ignora (Pydantic descarta los campos que el modelo no declara).
 
@@ -207,6 +210,9 @@ class UserPublic(BaseModel):
     dossier_retention_hours: int = 24
     # S6.1: solo si la instancia tiene SMTP configurado; nunca expone la configuración.
     email_delivery_available: bool = False
+    # Informe beta: correo automático del dossier y aviso del navegador.
+    notify_email: bool = True
+    notify_browser: bool = True
 
 
 class OrganizationPlanPatch(BaseModel):
