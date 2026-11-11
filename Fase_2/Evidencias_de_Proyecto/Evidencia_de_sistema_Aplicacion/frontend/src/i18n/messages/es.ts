@@ -1180,6 +1180,22 @@ const messages = {
   "dossier_modules.show_text": "Ver informe en texto",
   "dossier_modules.hide_text": "Ocultar informe en texto",
   "dossier_modules.text_report": "Informe completo (texto)",
+  // UX-ADMIN-01: límites por plan del panel de administración.
+  "errors.concurrent_dossier_limit": "Ya tienes {limit} dossiers generándose, el máximo de tu plan. Espera a que termine uno y vuelve a intentarlo.",
+  "admin.section_plan_limits": "Límites por plan",
+  "admin.plan_limits.summary": "Dossiers a la vez por usuario",
+  "admin.plan_limits.hint": "Máximo de dossiers que un mismo usuario puede tener generándose a la vez. Los que crea la automatización del calendario no cuentan.",
+  "admin.plan_limits.col_plan": "Plan",
+  "admin.plan_limits.col_max": "Dossiers a la vez",
+  "admin.plan_limits.col_updated": "Último cambio",
+  "admin.plan_limits.updated_by": "{date} · {email}",
+  "admin.plan_limits.never": "Valor inicial",
+  "admin.plan_limits.save": "Guardar",
+  "admin.plan_limits.saving": "Guardando…",
+  "admin.plan_limits.saved": "Límite guardado.",
+  "admin.plan_limits.save_error": "No se pudo guardar el límite. Inténtalo de nuevo.",
+  "admin.plan_limits.load_error": "No se pudieron cargar los límites por plan.",
+  "admin.plan_limits.invalid": "Usa un número entre 1 y 100.",
 } as const;
 
 export default messages;

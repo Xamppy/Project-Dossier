@@ -57,3 +57,20 @@ describe("límite de solicitudes (S5.8)", () => {
     expect(translateApiErrorMessage(err, t)).toContain("60");
   });
 });
+
+// UX-ADMIN-01: tope de dossiers a la vez según el plan.
+describe("tope de dossiers a la vez", () => {
+  const limite = (limit: number) =>
+    new DossierApiError(409, "CONCURRENT_DOSSIER_LIMIT", {
+      detail: { code: "CONCURRENT_DOSSIER_LIMIT", limit, active: limit },
+    });
+
+  it.each(SUPPORTED_LOCALES)("explica el tope con su número en %s", (locale) => {
+    const t = createTranslator(locale);
+    const message = translateApiErrorMessage(limite(3), t);
+    expect(message).toBe(t("errors.concurrent_dossier_limit", { limit: 3 }));
+    expect(message).toContain("3");
+    expect(message).not.toContain("CONCURRENT");
+    expect(message).not.toBe("errors.concurrent_dossier_limit");
+  });
+});

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { PlanLimitsPanel } from "@/components/admin/PlanLimitsPanel";
 import TopBar from "@/components/dashboard/TopBar";
 import {
   DossierApiError,
@@ -45,7 +46,7 @@ function workspaceOrgLabel(
   return n && n !== "" ? n : "—";
 }
 
-type SectionKey = "users" | "orgs" | "dossiers";
+type SectionKey = "plans" | "users" | "orgs" | "dossiers";
 
 function AdminAccordionPanel({
   title,
@@ -114,6 +115,7 @@ export default function AdminDashboardPage() {
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [openSection, setOpenSection] = useState<Record<SectionKey, boolean>>({
+    plans: false,
     users: false,
     orgs: false,
     dossiers: false,
@@ -264,6 +266,16 @@ export default function AdminDashboardPage() {
       ) : null}
 
       <div className="flex flex-col gap-3">
+        {/* UX-ADMIN-01: ajustes por plan. El panel carga sus datos al abrirse. */}
+        <AdminAccordionPanel
+          title={t("admin.section_plan_limits")}
+          summary={t("admin.plan_limits.summary")}
+          open={openSection.plans}
+          onToggle={() => toggleSection("plans")}
+        >
+          <PlanLimitsPanel />
+        </AdminAccordionPanel>
+
         <AdminAccordionPanel
           title={t("admin.section_users")}
           summary={usersSummary}

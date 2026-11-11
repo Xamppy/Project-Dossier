@@ -1142,6 +1142,22 @@ const messages = {
   "dossier_modules.show_text": "Bericht als Text anzeigen",
   "dossier_modules.hide_text": "Textbericht ausblenden",
   "dossier_modules.text_report": "Vollständiger Bericht (Text)",
+  // UX-ADMIN-01: límites por plan del panel de administración.
+  "errors.concurrent_dossier_limit": "Für Sie werden bereits {limit} Dossiers erstellt, das Maximum Ihres Tarifs. Warten Sie, bis eines fertig ist, und versuchen Sie es erneut.",
+  "admin.section_plan_limits": "Limits pro Tarif",
+  "admin.plan_limits.summary": "Gleichzeitige Dossiers pro Nutzer",
+  "admin.plan_limits.hint": "Höchstzahl an Dossiers, die ein Nutzer gleichzeitig erstellen lassen kann. Dossiers aus der Kalender-Automatisierung zählen nicht.",
+  "admin.plan_limits.col_plan": "Tarif",
+  "admin.plan_limits.col_max": "Gleichzeitige Dossiers",
+  "admin.plan_limits.col_updated": "Letzte Änderung",
+  "admin.plan_limits.updated_by": "{date} · {email}",
+  "admin.plan_limits.never": "Ausgangswert",
+  "admin.plan_limits.save": "Speichern",
+  "admin.plan_limits.saving": "Wird gespeichert…",
+  "admin.plan_limits.saved": "Limit gespeichert.",
+  "admin.plan_limits.save_error": "Das Limit konnte nicht gespeichert werden. Versuchen Sie es erneut.",
+  "admin.plan_limits.load_error": "Die Limits pro Tarif konnten nicht geladen werden.",
+  "admin.plan_limits.invalid": "Verwenden Sie eine Zahl zwischen 1 und 100.",
 } as const;
 
 export default messages;

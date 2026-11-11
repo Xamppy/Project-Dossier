@@ -1140,6 +1140,22 @@ const messages = {
   "dossier_modules.show_text": "Voir le rapport en texte",
   "dossier_modules.hide_text": "Masquer le rapport texte",
   "dossier_modules.text_report": "Rapport complet (texte)",
+  // UX-ADMIN-01: límites por plan del panel de administración.
+  "errors.concurrent_dossier_limit": "Vous avez déjà {limit} dossiers en cours de génération, le maximum de votre offre. Attendez qu'un se termine et réessayez.",
+  "admin.section_plan_limits": "Limites par offre",
+  "admin.plan_limits.summary": "Dossiers simultanés par utilisateur",
+  "admin.plan_limits.hint": "Nombre maximal de dossiers qu'un même utilisateur peut générer en même temps. Ceux créés par l'automatisation du calendrier ne comptent pas.",
+  "admin.plan_limits.col_plan": "Offre",
+  "admin.plan_limits.col_max": "Dossiers simultanés",
+  "admin.plan_limits.col_updated": "Dernière modification",
+  "admin.plan_limits.updated_by": "{date} · {email}",
+  "admin.plan_limits.never": "Valeur initiale",
+  "admin.plan_limits.save": "Enregistrer",
+  "admin.plan_limits.saving": "Enregistrement…",
+  "admin.plan_limits.saved": "Limite enregistrée.",
+  "admin.plan_limits.save_error": "Impossible d'enregistrer la limite. Réessayez.",
+  "admin.plan_limits.load_error": "Impossible de charger les limites par offre.",
+  "admin.plan_limits.invalid": "Utilisez un nombre entre 1 et 100.",
 } as const;
 
 export default messages;
