@@ -6,6 +6,27 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-11 · S7.2 · Tolerancia a fallos por agente · FD (agente)
+
+**Hecho.** Rama `feat/S7.2-tolerancia-fallos`. Pruebas de punta a punta con cada agente cayendo
+por separado (`tests/integration/test_s7_2_tolerancia_fallos.py`). **Cuatro defectos
+corregidos:** sin síntesis se perdía el dossier de empresa (ahora informe `partial`, sin cobro); un
+informe parcial se habría cacheado; con PDL caído el error se guardaba como dossier completo y se
+cobraba; el detalle técnico de las excepciones llegaba al prompt, a los avisos y al navegador.
+Frontend: estado «Parcial» y mensajes en siete idiomas. Reporte en
+`specs/reports/S7.2-tolerancia-fallos.md`.
+
+**Lo que hay que saber.**
+- **Nunca interpolar una excepción (`{e}`) en texto que vea el usuario o la IA:** el detalle va al
+  log con `logger.exception`/`exc_info`. Las pruebas usan una «clave» falsa para detectarlo.
+- `RuntimeError` en el pipeline de personas se usa como mensaje para el usuario y se reenvía tal
+  cual. Para simular un fallo real de red o del proveedor, usar `ConnectionError`.
+- `es_informe_cacheable` decide qué se cachea en los dos caminos corporativos (Calendario y
+  Empresas): nada con «# Error» ni sin síntesis.
+- El estado `partial` ya existía en el CHECK de `dossiers`; ahora se usa y el frontend lo muestra.
+
+**Rama.** `feat/S7.2-tolerancia-fallos` · **Estado.** review
+
 ### 2026-11-11 · S7.3 · Créditos y aislamiento en el flujo completo · FD (agente)
 
 **Hecho.** Rama `feat/S7.3-creditos-aislamiento`. Diez casos de punta a punta (API, worker real,

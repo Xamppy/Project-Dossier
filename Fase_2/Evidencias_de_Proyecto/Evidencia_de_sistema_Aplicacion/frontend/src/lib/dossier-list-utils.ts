@@ -73,6 +73,8 @@ export function formatDossierStatusLabel(
 ): string {
   if (status === "complete" || status === "completed") return t("dossiers.status_complete");
   if (status === "failed") return t("dossiers.status_failed");
+  // S7.2: sin análisis con IA, el dossier trae solo los datos reunidos de las fuentes.
+  if (status === "partial") return t("dossiers.status_partial");
   if (status === "pending" || status === "processing") return t("dossiers.status_pending");
   return status.replace(/_/g, " ");
 }

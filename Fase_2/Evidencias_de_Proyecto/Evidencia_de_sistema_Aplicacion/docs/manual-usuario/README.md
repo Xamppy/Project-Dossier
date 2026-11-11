@@ -320,5 +320,7 @@ básica 1, estándar 3, profunda 5 por dossier. El costo se muestra antes de gen
 | «Tu sesión expiró o ya no es válida…» | La sesión venció | Vuelve a iniciar sesión |
 | «Este dossier se acaba de enviar…» | Se reenvió el correo hace muy poco | Espera un momento |
 | «Este enlace ya se usó o venció…» | El enlace del correo es de un solo uso y dura 24 h | Entra con tu cuenta |
+| Dossier en estado **Parcial** («Informe parcial: no se pudo redactar el análisis con IA…») | La IA no respondió; se muestran los datos que sí trajeron los registros y la prensa. No se cobró | Vuelve a generarlo más tarde para tener el análisis completo |
+| «No se pudieron consultar las fuentes de esta persona…» | El proveedor de datos de personas no respondió. No se cobró | Vuelve a intentarlo más tarde |
 | «La generación se interrumpió porque el servidor se reinició…» | El servidor se reinició mientras se generaba; no se cobró | Vuelve a generarlo |
 | Falta un dossier antiguo | Se borró a las 24 horas (retención) | Vuelve a generarlo |

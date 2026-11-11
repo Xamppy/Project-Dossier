@@ -174,9 +174,10 @@ def _node_agent_corporate_uk(state: CorporateDossierState) -> dict[str, Any]:
 
     try:
         bloque = build_uk_corporate_context_markdown(state.get("participantes", "") or "")
-    except Exception as e:
+    except Exception:
         logger.exception("Fallo agente UK (Companies House)")
-        bloque = f"## Reino Unido (Companies House)\n\n*Error interno al construir contexto: {e}*\n"
+        # S7.2: el detalle técnico queda en el log; ni el prompt ni el usuario lo ven.
+        bloque = "## Reino Unido (Companies House)\n\n*No se pudo consultar esta fuente en este momento.*\n"
         logger.info("LangGraph nodo agent_corporate_uk falló")
         return {
             "uk_corporate_context": bloque,
@@ -213,9 +214,9 @@ def _node_agent_corporate_usa(state: CorporateDossierState) -> dict[str, Any]:
 
     try:
         bloque = build_us_corporate_context_markdown(state.get("participantes", "") or "")
-    except Exception as e:
+    except Exception:
         logger.exception("Fallo agente USA (SEC)")
-        bloque = f"## Estados Unidos (SEC EDGAR)\n\n*Error interno al construir contexto: {e}*\n"
+        bloque = "## Estados Unidos (SEC EDGAR)\n\n*No se pudo consultar esta fuente en este momento.*\n"
         logger.info("LangGraph nodo agent_corporate_usa falló")
         return {
             "us_corporate_context": bloque,
@@ -304,9 +305,9 @@ def _node_agent_corporate_eu(state: CorporateDossierState) -> dict[str, Any]:
 
     try:
         resultado = agente_europeo.run_eu_registry_agent(empresa)
-    except Exception as e:
+    except Exception:
         logger.exception("Fallo agente Europa (registros FR/DE)")
-        bloque = f"## Registros mercantiles europeos\n\n*Error interno al consultar: {e}*\n"
+        bloque = "## Registros mercantiles europeos\n\n*No se pudo consultar esta fuente en este momento.*\n"
         return {
             "eu_corporate_context": bloque,
             "agents_failed": ["agent_corporate_eu"],
@@ -371,10 +372,10 @@ def _node_agent_news(state: CorporateDossierState) -> dict[str, Any]:
 
     try:
         resultado = agente_noticias.collect_press_mentions(empresa)
-    except Exception as e:
+    except Exception:
         logger.exception("Fallo agente de prensa")
         return {
-            "news_context": f"## Menciones de prensa recientes\n\n*Error interno al consultar: {e}*\n",
+            "news_context": "## Menciones de prensa recientes\n\n*No se pudo consultar esta fuente en este momento.*\n",
             "agents_failed": ["agent_news"],
             "fuentes_consultadas": _fuentes_prensa({p for p, _ in _PROVEEDORES_PRENSA}, []),
         }
@@ -422,6 +423,39 @@ def _contexto_adicional(state: CorporateDossierState) -> str:
         (state.get("news_context") or "").strip(),
     ]
     return "".join(f"---\n{b}\n\n" for b in bloques if b)
+
+
+# S7.2: encabezado del informe parcial cuando la síntesis con IA falla.
+_NOTA_PARCIAL = {
+    "es": "Informe parcial: no se pudo redactar el análisis con IA. Estos son los datos reunidos de las fuentes.",
+    "en": "Partial report: the AI analysis could not be written. These are the data gathered from the sources.",
+    "pt": "Relatório parcial: não foi possível redigir a análise com IA. Estes são os dados reunidos das fontes.",
+    "it": "Report parziale: non è stato possibile redigere l'analisi con l'IA. Ecco i dati raccolti dalle fonti.",
+    "fr": "Rapport partiel : l'analyse par IA n'a pas pu être rédigée. Voici les données recueillies auprès des sources.",
+    "de": "Teilbericht: Die KI-Analyse konnte nicht erstellt werden. Dies sind die aus den Quellen gesammelten Daten.",
+}
+_AGENTES_DE_DATOS = (
+    ("agent_corporate_uk", "uk_corporate_context"),
+    ("agent_corporate_usa", "us_corporate_context"),
+    ("agent_corporate_eu", "eu_corporate_context"),
+    ("agent_news", "news_context"),
+)
+
+
+def informe_parcial_sin_sintesis(state: CorporateDossierState, output_language: str) -> str | None:
+    """Markdown con los bloques de los agentes que respondieron; ``None`` si ninguno trajo datos."""
+    exitosos = set(state.get("agents_succeeded") or [])
+    bloques = [
+        str(state.get(clave) or "").strip()
+        for agente, clave in _AGENTES_DE_DATOS
+        if agente in exitosos and str(state.get(clave) or "").strip()
+    ]
+    if not bloques:
+        return None
+    empresa = (state.get("empresa_objetivo") or state.get("tema_reunion") or "").strip()
+    titulo = f"# {empresa}" if empresa else "#"
+    nota = _NOTA_PARCIAL.get(output_language, _NOTA_PARCIAL["es"])
+    return f"{titulo}\n\n> {nota}\n\n" + "\n\n".join(bloques) + "\n"
 
 
 def _node_synthesize_llm(state: CorporateDossierState) -> dict[str, Any]:
@@ -578,12 +612,13 @@ def _node_synthesize_llm(state: CorporateDossierState) -> dict[str, Any]:
 
     try:
         texto = generate_text_with_llm(user, system_instruction=system)
-    except Exception as e:
+    except Exception:
         logger.exception("Fallo síntesis DeepSeek en LangGraph")
-        err = f"Error en la síntesis del informe: {e}"
+        # S7.2: sin síntesis se entrega lo que reunieron los agentes (informe parcial).
+        parcial = informe_parcial_sin_sintesis(state, output_language)
         return {
-            "final_dossier_markdown": f"# Error en síntesis\n\n{err}",
-            "agent_errors": [*state.get("agent_errors", []), err],
+            "final_dossier_markdown": parcial or "# Error en síntesis\n\nNo se pudo redactar el informe.",
+            "agent_errors": [*state.get("agent_errors", []), "synthesize_llm"],
             "agents_failed": ["synthesize_llm"],
             "fuentes_consultadas": [_fuente("deepseek", "DeepSeek", None, "error")],
         }

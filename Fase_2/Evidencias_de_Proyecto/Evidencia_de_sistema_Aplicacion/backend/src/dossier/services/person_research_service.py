@@ -1,6 +1,7 @@
 """Orquestación: investigación de persona con PDL (People Data Labs) o búsqueda web (IA)."""
 from __future__ import annotations
 
+import logging
 import os
 from datetime import UTC, datetime
 from typing import Any
@@ -25,6 +26,8 @@ from dossier.services.person_gemini_analysis import (
 )
 from dossier.services.person_gemini_web_research import analyze_person_with_google_search
 from dossier.services.source_provenance import normalizar_procedencia_fuentes
+
+logger = logging.getLogger(__name__)
 
 
 def _s(v: str | None) -> str | None:
@@ -103,7 +106,8 @@ def _synthesize_person_report(
         )
     except StructuredSynthesisError as e:
         progress.stage("person.profile_synthesis", "failed", "structured_output_invalid")
-        warnings.append(f"La síntesis JSON no validó ({e}); se generó el informe en Markdown.")
+        logger.warning("La síntesis JSON no validó: %s", e)
+        warnings.append("La síntesis JSON no validó; se generó el informe en Markdown.")
         progress.stage("person.markdown_fallback", "running")
         try:
             markdown = analyze_person_profile_bundle(
@@ -237,8 +241,10 @@ def run_person_research(
         except RuntimeError as e:
             warnings.append(str(e))
             progress.stage("person.context_analysis", "failed", exception_reason(e))
-        except Exception as e:  # noqa: BLE001
-            warnings.append(f"Error en análisis complementario con DeepSeek: {e!s}")
+        except Exception as e:
+            # S7.2: el detalle técnico al log, no a los avisos que llegan al navegador.
+            logger.warning("Error en análisis complementario con DeepSeek", exc_info=True)
+            warnings.append("Error en análisis complementario con DeepSeek.")
             progress.stage("person.context_analysis", "failed", exception_reason(e))
         else:
             contexto = normalize_person_report_text(md_web)
@@ -302,8 +308,9 @@ def run_person_research(
                 )
         except RuntimeError as e:
             warnings.append(str(e))
-        except Exception as e:  # noqa: BLE001
-            warnings.append(f"Error en análisis sobre perfiles: {e!s}")
+        except Exception:
+            logger.warning("Error en análisis sobre perfiles", exc_info=True)
+            warnings.append("Error en análisis sobre perfiles.")
         if llm_md is None and md_web:
             llm_md = md_web
     elif not gemini_only and not profiles:

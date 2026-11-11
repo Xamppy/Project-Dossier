@@ -713,7 +713,8 @@ def _corporate_md_from_cache_or_langgraph(
             progress=progress,
         )
         progress.fields(origin="generated")
-        if not generado.markdown.lstrip().startswith("# Error"):
+        # S7.2: un informe parcial (sin síntesis) no se cachea: el próximo pedido lo reintenta.
+        if es_informe_cacheable(generado):
             set_corporate_cached_markdown(key_hash, generado.markdown)
         md = generado.markdown
         telemetria = telemetria_de(generado)
@@ -902,11 +903,29 @@ def _generate_one_person_dossier(
         out["payload"] = person_payload
         out["cache_hit"] = person_cache_hit
         out["cache_key"] = person_cache_key
-    except Exception as e:
+    except Exception:
+        # S7.2: el detalle técnico queda en el log; el dossier se guarda como fallido, sin cobro.
         logger.exception("Fallo dossier persona desde calendario (%s)", person_name)
-        out["error"] = str(e)
-        out["md"] = f"# Error en dossier persona\n\n{e}"
+        out["error"] = PERSON_SOURCES_UNAVAILABLE
+        out["md"] = None
     return out
+
+
+# S7.2: mensajes que ve el usuario cuando falla una fuente o la IA (sin detalle técnico).
+PERSON_SOURCES_UNAVAILABLE = (
+    "No se pudieron consultar las fuentes de esta persona. Vuelve a intentarlo más tarde."
+)
+def es_informe_cacheable(generado: Any) -> bool:
+    """Solo se cachea un informe completo: ni errores ni informes parciales sin síntesis (S7.2)."""
+    md = str(getattr(generado, "markdown", "") or "")
+    return not md.lstrip().startswith("# Error") and "synthesize_llm" not in (
+        getattr(generado, "agents_failed", None) or []
+    )
+
+
+CORPORATE_PARTIAL_MESSAGE = (
+    "Informe parcial: no se pudo redactar el análisis con IA; se muestran los datos reunidos de las fuentes."
+)
 
 
 # Ayuda que ve el usuario cuando no se pudo generar ningún dossier. Datos ficticios.
@@ -1001,10 +1020,10 @@ def generate_dossiers_from_calendar_event(
             )
             if corporate_telemetria is not None:
                 corporate_agents_failed = corporate_telemetria["agents_failed"]
-        except Exception as e:
+        except Exception:
             logger.exception("Fallo dossier corporativo desde calendario")
-            errors.append(f"Corporativo: {e}")
-            corporate_md = f"# Error en dossier corporativo\n\n{e}"
+            errors.append("Corporativo: no se pudo generar el informe de la empresa.")
+            corporate_md = "# Error en dossier corporativo\n\nNo se pudo generar el informe de la empresa."
 
     elif company_corporate and not include_corporate:
         corporate_skipped_plan_free = True
@@ -1250,7 +1269,9 @@ def persist_calendar_dossiers(
     corporate_md = result.get("dossier_corporativo")
     if _markdown_is_persistable(corporate_md):
         is_err = str(corporate_md).lstrip().startswith("# Error")
-        status = "failed" if is_err else "complete"
+        # S7.2: sin síntesis con IA, el informe trae solo los datos de los agentes (parcial).
+        sin_sintesis = "synthesize_llm" in (result.get("corporate_agents_failed") or [])
+        status = "failed" if is_err else ("partial" if sin_sintesis else "complete")
         # Telemetría real del grafo si se ejecutó en esta llamada (S4.9); si vino de
         # caché o de una excepción fuera del grafo, cae al criterio anterior.
         explicit_agents_failed = result.get("corporate_agents_failed")
@@ -1258,7 +1279,7 @@ def persist_calendar_dossiers(
         corp_agents_failed = (
             list(explicit_agents_failed) if explicit_agents_failed is not None else telemetria["agents_failed"]
         )
-        will_charge_corp = charge and not is_err and not corporate_cache_hit
+        will_charge_corp = charge and status == "complete" and not corporate_cache_hit
         dossier_id = uuid.uuid4()
         subject = (
             parsed.get("company_corporate")
@@ -1281,7 +1302,9 @@ def persist_calendar_dossiers(
             depth_level=depth_key,
             credits_consumed=corp_cost if will_charge_corp else 0,
             status=status,
-            status_message="Error en el informe generado." if is_err else None,
+            status_message=(
+                "Error en el informe generado." if is_err else CORPORATE_PARTIAL_MESSAGE if status == "partial" else None
+            ),
             dossier_data={
                 "format": "markdown",
                 "body": corporate_md,
@@ -1358,7 +1381,13 @@ def persist_calendar_dossiers(
         p_cache_key = pentry.get("cache_key")
 
         valid_person_md = normalize_person_report_text(p_md)
-        if valid_person_md:
+        fuentes_caidas = pentry.get("error") == PERSON_SOURCES_UNAVAILABLE
+        if fuentes_caidas:
+            status = "failed"
+            status_message = PERSON_SOURCES_UNAVAILABLE
+            body = ""
+            success = False
+        elif valid_person_md:
             status = "complete"
             status_message = None
             body = valid_person_md
@@ -1434,7 +1463,9 @@ def persist_calendar_dossiers(
                 **_progress_copy(person_progress),
             },
             agents_activated=[],
-            agents_failed=(["deepseek_person_analysis"] if status == "failed" else []),
+            agents_failed=(
+                (["person_research"] if fuentes_caidas else ["deepseek_person_analysis"]) if status == "failed" else []
+            ),
             data_sources_used=[person_research_source, "deepseek"],
             generation_started_at=now,
             generation_completed_at=now,

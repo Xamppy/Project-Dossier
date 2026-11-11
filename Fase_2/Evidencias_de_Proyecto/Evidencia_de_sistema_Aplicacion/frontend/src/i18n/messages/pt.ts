@@ -1151,6 +1151,9 @@ const messages = {
   "admin.plan_limits.load_error": "Não foi possível carregar os limites por plano.",
   "admin.plan_limits.invalid": "Use um número entre 1 e 100.",
   "backend.status_job_interrupted": "A geração foi interrompida porque o servidor reiniciou. Tente novamente.",
+  "dossiers.status_partial": "Parcial",
+  "backend.status_partial_report": "Relatório parcial: não foi possível redigir a análise com IA; são mostrados os dados reunidos das fontes.",
+  "backend.status_person_sources_unavailable": "Não foi possível consultar as fontes desta pessoa. Tente novamente mais tarde.",
 } as const;
 
 export default messages;
