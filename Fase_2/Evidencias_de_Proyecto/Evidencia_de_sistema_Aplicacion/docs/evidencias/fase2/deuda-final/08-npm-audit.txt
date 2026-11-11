@@ -1,0 +1,8 @@
+# Frontend: npm audit (S7.5)
+# Fecha: 2026-11-10 22:26:45 -0300
+# Commit: 80f074dc7e792b6158c7f6785d9464ab466feb3d
+# Directorio: frontend/
+# Comando: npm audit --omit=dev
+# Código de salida: 0
+# ---- salida literal ----
+found 0 vulnerabilities

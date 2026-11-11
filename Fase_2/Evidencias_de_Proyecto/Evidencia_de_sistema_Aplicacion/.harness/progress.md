@@ -6,6 +6,27 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-10 · S7.5 · Deuda técnica final contra la línea base · FD (agente)
+
+**Hecho.** Rama `feat/S7.5-deuda-tecnica-final`, desde `docmac`. Evidencias y comparación en
+`docs/evidencias/fase2/deuda-final/README.md` (8 mediciones con `.txt` y `.png`).
+
+Línea base S0.3 → final: pruebas del backend 130 (4 en rojo) → 1.618 en verde; cobertura 33 % →
+72 %; ruff 192 → 0; mypy ~45 → 0; npm audit 3 críticas → 0; pip-audit 0 → 0; eslint 21 errores
+→ 0. Frontend: 653 pruebas, 41 % de cobertura de líneas.
+
+**Lo que hay que saber.**
+- **La CI sin Postgres omite 315 pruebas** (sin `TEST_DATABASE_URL`: 1.303 en verde, 317
+  omitidas). Es la deuda más concreta que queda (CHORE-2026-10-19-04).
+- `docs/evidencias/fase2/_herramientas/ev.py` no acepta `--ok-codes` aunque su docstring lo
+  mencione; el código de salida queda igual en el `.txt`.
+- Los módulos con menos cobertura son integraciones externas y flujos de cuenta
+  (`calendar_integrations` 12 %, `corporate_registry_context` 14 %).
+- En la prueba de punta a punta del 10-11 la cuenta de DeepSeek de `backend/.env` respondió 402
+  (sin saldo).
+
+**Rama.** `feat/S7.5-deuda-tecnica-final` · **Estado.** review
+
 ### 2026-11-10 · S6.2 · Enlace de un solo uso en el correo · FD (agente)
 
 **Hecho.** Rama `feat/S6.2-enlace-un-solo-uso`, desde `docmac`. Traspasada de DG. Diseño aprobado

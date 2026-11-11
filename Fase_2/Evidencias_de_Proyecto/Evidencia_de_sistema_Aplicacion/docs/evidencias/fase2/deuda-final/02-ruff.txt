@@ -1,0 +1,9 @@
+# Backend: ruff (S7.5)
+# Fecha: 2026-11-10 22:23:34 -0300
+# Commit: 80f074dc7e792b6158c7f6785d9464ab466feb3d
+# Directorio: backend/
+# Comando: python -m ruff check src/dossier
+# Código de salida: 0
+# ---- salida literal ----
+ruff 0.16.8
+All checks passed!
