@@ -65,6 +65,8 @@ export const PERSON_STAGES_BY_SOURCE: Readonly<
     "person.pdl_enrich",
     "person.pdl_search",
     "person.profile_normalization",
+    // UX-ADMIN-02: menciones de prensa de las fuentes que dejó el administrador.
+    "person.press_search",
     "person.context_analysis",
     "person.profile_synthesis",
     "person.markdown_fallback",
@@ -74,6 +76,7 @@ export const PERSON_STAGES_BY_SOURCE: Readonly<
   // Web pública: una llamada a DeepSeek sin buscador; no hay etapas de búsqueda.
   gemini_web: [
     "person.cache_lookup",
+    "person.press_search",
     "person.context_analysis",
     "person.report_finalize",
     "person.persist",

@@ -1283,6 +1283,40 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_browser BOOLEAN NOT NULL DEFAU
 
 
 -- =============================================================================
+-- MIGRACIÓN INCREMENTAL: fuentes de noticias administrables (Alembic d4f6a8c2e0b3)
+-- news_source_settings: ajustes del admin por fuente (sin fila = valores del
+-- adaptador). news_source_usage: consultas por día UTC, para el límite diario.
+-- fn_debit_credits_on_dossier suma dossier_data.news_extra_credits (entero de
+-- 1 a 4 cifras; otro valor se ignora). DDL en schema_patches.NEWS_SOURCE_PATCHES.
+-- Guía: docs/tecnica/agregar-fuente-noticias.md
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS news_source_settings (
+    provider_key VARCHAR(40) PRIMARY KEY CHECK (provider_key ~ '^[a-z][a-z0-9_]{1,39}$'),
+    enabled BOOLEAN NOT NULL,
+    use_for_corporate BOOLEAN NOT NULL DEFAULT true,
+    use_for_person BOOLEAN NOT NULL DEFAULT true,
+    min_depth VARCHAR(10) NOT NULL DEFAULT 'basic' CHECK (min_depth IN ('basic', 'standard', 'deep')),
+    plan_free BOOLEAN NOT NULL DEFAULT true,
+    plan_pro BOOLEAN NOT NULL DEFAULT true,
+    plan_enterprise BOOLEAN NOT NULL DEFAULT true,
+    extra_credits INTEGER NOT NULL DEFAULT 0 CHECK (extra_credits BETWEEN 0 AND 20),
+    max_results INTEGER NOT NULL DEFAULT 10 CHECK (max_results BETWEEN 1 AND 50),
+    daily_limit INTEGER CHECK (daily_limit IS NULL OR daily_limit BETWEEN 1 AND 100000),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    CHECK (plan_free OR plan_pro OR plan_enterprise)
+);
+
+CREATE TABLE IF NOT EXISTS news_source_usage (
+    provider_key VARCHAR(40) NOT NULL,
+    day DATE NOT NULL,
+    queries INTEGER NOT NULL CHECK (queries >= 0),
+    PRIMARY KEY (provider_key, day)
+);
+
+
+-- =============================================================================
 -- FIN DEL SCHEMA
 -- Total de tablas: 16 principales + 2 vistas
 -- Extensiones: uuid-ossp, pgcrypto

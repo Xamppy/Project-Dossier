@@ -266,6 +266,78 @@ USER_NOTIFY_PATCHES = (
 )
 
 
+# UX-ADMIN-02: fuentes de noticias administrables (ajustes, uso diario y cobro extra).
+# El trigger de cobro suma ``dossier_data.news_extra_credits`` (solo si es un entero de 1 a 4
+# cifras: lo escribe el servidor, pero un valor raro nunca puede restar ni romper el cobro).
+FN_DEBIT_CREDITS_CON_EXTRA = """
+CREATE OR REPLACE FUNCTION fn_debit_credits_on_dossier()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_credits INTEGER;
+    v_extra INTEGER := 0;
+    v_extra_txt TEXT;
+BEGIN
+    IF jsonb_extract_path_text(COALESCE(NEW.dossier_data, '{}'::jsonb), 'billing') = 'none' THEN
+        NEW.credits_consumed := 0;
+        RETURN NEW;
+    END IF;
+
+    v_credits := CASE NEW.depth_level
+        WHEN 'basic'    THEN 1
+        WHEN 'standard' THEN 3
+        WHEN 'deep'     THEN 5
+        ELSE 1
+    END;
+
+    v_extra_txt := jsonb_extract_path_text(COALESCE(NEW.dossier_data, '{}'::jsonb), 'news_extra_credits');
+    IF v_extra_txt ~ '^[0-9]{1,4}$' THEN
+        v_extra := v_extra_txt::INTEGER;
+    END IF;
+    v_credits := v_credits + v_extra;
+
+    IF (SELECT credits_balance FROM organizations WHERE id = NEW.organization_id) < v_credits THEN
+        RAISE EXCEPTION 'Insufficient credits for organization %', NEW.organization_id;
+    END IF;
+
+    -- BUG-2026-10-19-08: el descuento se hace en el AFTER, junto con su anotación.
+    NEW.credits_consumed := v_credits;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+"""
+
+NEWS_SOURCE_PATCHES = (
+    """
+    CREATE TABLE IF NOT EXISTS news_source_settings (
+        provider_key VARCHAR(40) PRIMARY KEY CHECK (provider_key ~ '^[a-z][a-z0-9_]{1,39}$'),
+        enabled BOOLEAN NOT NULL,
+        use_for_corporate BOOLEAN NOT NULL DEFAULT true,
+        use_for_person BOOLEAN NOT NULL DEFAULT true,
+        min_depth VARCHAR(10) NOT NULL DEFAULT 'basic' CHECK (min_depth IN ('basic', 'standard', 'deep')),
+        plan_free BOOLEAN NOT NULL DEFAULT true,
+        plan_pro BOOLEAN NOT NULL DEFAULT true,
+        plan_enterprise BOOLEAN NOT NULL DEFAULT true,
+        extra_credits INTEGER NOT NULL DEFAULT 0 CHECK (extra_credits BETWEEN 0 AND 20),
+        max_results INTEGER NOT NULL DEFAULT 10 CHECK (max_results BETWEEN 1 AND 50),
+        daily_limit INTEGER CHECK (daily_limit IS NULL OR daily_limit BETWEEN 1 AND 100000),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+        CHECK (plan_free OR plan_pro OR plan_enterprise)
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS news_source_usage (
+        provider_key VARCHAR(40) NOT NULL,
+        day DATE NOT NULL,
+        queries INTEGER NOT NULL CHECK (queries >= 0),
+        PRIMARY KEY (provider_key, day)
+    );
+    """,
+    FN_DEBIT_CREDITS_CON_EXTRA,
+)
+
+
 def apply_schema_patches(engine: Engine) -> None:
     with engine.begin() as conn:
         for sql in (
@@ -279,5 +351,6 @@ def apply_schema_patches(engine: Engine) -> None:
             + PLAN_SETTINGS_PATCHES
             + JOB_HEARTBEAT_PATCHES
             + USER_NOTIFY_PATCHES
+            + NEWS_SOURCE_PATCHES
         ):
             conn.execute(text(sql))

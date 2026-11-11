@@ -6,6 +6,32 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-11 · UX-ADMIN-02 · Fuentes de noticias enchufables y administrables · FD (agente)
+
+**Hecho.** Rama `feat/fuentes-noticias-enchufables`. Pedido del cliente: dejar listo el camino para
+conectar las APIs de noticias que Alloxentric quiera y controlarlas desde el panel.
+- **Adaptadores** en `news/proveedores/` (GDELT y NewsAPI migrados; plantilla `_plantilla.py`).
+  El registro los descubre solo y omite los inválidos sin romper el arranque.
+- **Panel «Fuentes de noticias»:** activa, empresas/personas, profundidad mínima, planes,
+  créditos extra (0–20), máximo de noticias y límite diario. Auditado. Claves solo en el entorno.
+- **Créditos extra** solo por fuentes que respondieron; el trigger de cobro los suma
+  (`dossier_data.news_extra_credits`, Alembic `d4f6a8c2e0b3`). Estimación máxima al encolar.
+- **Prensa en personas** (Personas y Calendario): etapa `person.press_search`, nombre exacto más
+  empresa (sin forma jurídica), filtro de homónimos, menciones a la IA como datos externos y
+  tarjeta «Prensa».
+- Guía: `docs/tecnica/agregar-fuente-noticias.md`.
+
+**Lo que hay que saber.**
+- Las fuentes se resuelven **con la sesión de quien llama** (`fuentes_aplicables(db, …)`), nunca
+  con una conexión global: con el motor global las pruebas podían escribir en la base del `.env`.
+- Sin `NEWS_API_KEY`, NewsAPI ya **no** figura como caída: no se consulta.
+- La lectura de ajustes va en un SAVEPOINT: si la tabla falta, se usan los valores por defecto
+  sin arrastrar la transacción del pedido.
+- El cupo diario se anota antes de consultar y cuenta aunque la fuente falle después (la API ya
+  lo descontó de su cuota).
+
+**Rama.** `feat/fuentes-noticias-enchufables` · **Estado.** review
+
 ### 2026-11-11 · Informe de pruebas beta (2026-10-06) · Mejoras · FD (agente)
 
 **Hecho.** Rama `fix/mejoras-informe-beta`. Defectos del informe beta que seguían vigentes:

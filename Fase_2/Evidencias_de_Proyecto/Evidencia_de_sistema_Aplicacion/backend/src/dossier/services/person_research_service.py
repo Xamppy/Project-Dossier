@@ -3,13 +3,15 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from datetime import UTC, datetime
 from typing import Any
 
 from dossier.llm.client import deepseek_api_key
 from dossier.llm.common import normalize_person_report_text
 from dossier.llm.structured_synthesis import StructuredSynthesisError
-from dossier.schemas.dossier_executive_payload import SourceCitation, SourceType
+from dossier.news import agent as agente_noticias
+from dossier.schemas.dossier_executive_payload import PressMention, SourceCitation, SourceType
 from dossier.schemas.person_research import PersonResearchRequest, PersonResearchSource
 from dossier.services.dossier_progress_model import (
     person_partial_markdown,
@@ -76,6 +78,77 @@ def _person_web_always() -> bool:
     return v in ("1", "true", "yes", "on")
 
 
+# Tope de menciones de prensa por persona (las que van a la IA, a la tarjeta y a la base).
+MAX_MENCIONES_PERSONA = 10
+_ETAPA_PRENSA = "person.press_search"
+_FORMAS_JURIDICAS = re.compile(
+    r"[\s,]+(s\.?a\.?|s\.?p\.?a\.?|ltda\.?|inc\.?|corp\.?|corporation|ltd\.?|llc|plc|gmbh|ag|s\.?l\.?|nv|bv)$",
+    re.IGNORECASE,
+)
+
+
+def _empresa_para_prensa(req: PersonResearchRequest, profiles: list[dict[str, Any]]) -> str | None:
+    """Empresa declarada o, si no hay, la actual según PDL; sin la forma jurídica final."""
+    empresa = _s(req.company)
+    if not empresa:
+        for perfil in profiles:
+            datos = perfil.get("data") if isinstance(perfil, dict) else None
+            nombre = str((datos or {}).get("job_company_name") or "").strip()
+            if nombre:
+                empresa = nombre
+                break
+    if not empresa:
+        return None
+    limpia = _FORMAS_JURIDICAS.sub("", empresa).strip(" ,.")
+    return limpia or empresa
+
+
+def _buscar_prensa(
+    req: PersonResearchRequest,
+    profiles: list[dict[str, Any]],
+    fuentes: list[Any] | None,
+    progress: Any,
+) -> tuple[list[PressMention], int]:
+    """Menciones de prensa de la persona y créditos extra de las fuentes que respondieron.
+
+    Nombre exacto entre comillas y, si se conoce, la empresa: con un nombre común, sin
+    empresa, el filtro de homónimos exige todas las palabras del nombre.
+    """
+    if not fuentes:
+        progress.stage(_ETAPA_PRENSA, "skipped", "feature_disabled")
+        return [], 0
+    nombre = " ".join(req.full_name.split())
+    empresa = _empresa_para_prensa(req, profiles)
+    consulta = f'"{nombre}"' + (f' "{empresa}"' if empresa else "")
+    progress.stage(_ETAPA_PRENSA, "running")
+    try:
+        resultado = agente_noticias.collect_press_mentions(consulta, fuentes=fuentes)
+    except Exception as exc:
+        logger.warning("Fallo la búsqueda de prensa de la persona", exc_info=True)
+        progress.stage(_ETAPA_PRENSA, "failed", exception_reason(exc))
+        return [], 0
+    detalle = [f for f in (getattr(resultado, "fuentes", None) or []) if f.estado != "limite_diario"]
+    if not resultado.mentions and detalle and all(f.estado == "error" for f in detalle):
+        progress.stage(_ETAPA_PRENSA, "failed", "provider_error")
+        return [], 0
+    menciones, descartadas = agente_noticias.filtrar_homonimos(
+        resultado.mentions, nombre, [empresa] if empresa else []
+    )
+    if descartadas:
+        logger.info("Prensa de persona: %d menciones homónimas descartadas", descartadas)
+    menciones = menciones[:MAX_MENCIONES_PERSONA]
+    progress.stage(_ETAPA_PRENSA, "completed", None if menciones else "no_matches")
+    return menciones, int(getattr(resultado, "creditos_extra_usados", 0) or 0)
+
+
+def _citas_de_prensa(menciones: list[PressMention]) -> list[SourceCitation]:
+    """Una cita por fuente de prensa que aportó menciones (procedencia del informe)."""
+    vistas: dict[tuple[str, str], SourceCitation] = {}
+    for m in menciones:
+        vistas.setdefault((m.source.source_type.value, m.source.source_name), m.source)
+    return list(vistas.values())
+
+
 def _synthesize_person_report(
     *,
     filters: dict[str, Any],
@@ -86,6 +159,7 @@ def _synthesize_person_report(
     warnings: list[str],
     fuentes_consultadas: list[SourceCitation],
     progress: Any,
+    menciones_prensa: list[PressMention] | None = None,
 ) -> tuple[str | None, dict[str, Any] | None]:
     """Una llamada JSON (S4.2) con el Markdown derivado por código.
 
@@ -94,6 +168,7 @@ def _synthesize_person_report(
     ``progress`` recibe la síntesis y, solo si de verdad se invoca, el respaldo.
     """
     progress.stage("person.profile_synthesis", "running")
+    prensa_prompt = agente_noticias.menciones_para_prompt(menciones_prensa or []) or None
     try:
         payload = analyze_person_profile_bundle_structured(
             filters=filters,
@@ -103,6 +178,7 @@ def _synthesize_person_report(
             lusha_verified_facts=verified_facts,
             enrichment_provider="pdl",
             output_language=output_language,
+            press_mentions=prensa_prompt,
         )
     except StructuredSynthesisError as e:
         progress.stage("person.profile_synthesis", "failed", "structured_output_invalid")
@@ -118,6 +194,7 @@ def _synthesize_person_report(
                 lusha_verified_facts=verified_facts,
                 enrichment_provider="pdl",
                 output_language=output_language,
+                press_mentions=prensa_prompt,
             )
         except Exception as exc:
             progress.stage("person.markdown_fallback", "failed", exception_reason(exc))
@@ -139,6 +216,9 @@ def _synthesize_person_report(
     # realmente consultadas antes de renderizar el Markdown y de persistir el
     # payload, para que ambos coincidan.
     payload = normalizar_procedencia_fuentes(payload, fuentes_consultadas)
+    if menciones_prensa:
+        # UX-ADMIN-02: la prensa del informe es la que encontró el sistema, no la que redacte la IA.
+        payload = payload.model_copy(update={"press_mentions": list(menciones_prensa)})
     markdown = render_executive_markdown(payload, output_language)
     progress.stage("person.profile_synthesis", "completed")
     progress.stage("person.markdown_fallback", "skipped", "not_required")
@@ -165,8 +245,12 @@ def run_person_research(
     meeting_context: dict[str, Any] | None = None,
     output_language: str | None = None,
     progress: Any = None,
+    fuentes_prensa: list[Any] | None = None,
 ) -> dict[str, Any]:
     """Investiga una persona. ``progress`` (S5.10) es el scope ``person:N`` del job.
+
+    ``fuentes_prensa`` (UX-ADMIN-02): fuentes de noticias que dejó el administrador; sin
+    ellas la etapa de prensa se omite.
 
     Recibe las etapas que de verdad corren, en su orden real. La caché y el
     guardado los informa el wrapper que llama (manual o calendario).
@@ -215,6 +299,10 @@ def run_person_research(
     if req.include_posts and not gemini_only:
         warnings.append("La opción «incluir posts» no está disponible; se ignoró.")
 
+    menciones_prensa, extra_prensa = _buscar_prensa(req, profiles, fuentes_prensa, progress)
+    source_citations.extend(_citas_de_prensa(menciones_prensa))
+    prensa_prompt = agente_noticias.menciones_para_prompt(menciones_prensa) or None
+
     llm_md: str | None = None
     executive_payload: dict[str, Any] | None = None
     gemini_google_search_used = False
@@ -236,6 +324,7 @@ def run_person_research(
                 filters=filters_gem,
                 meeting_context=meeting_context,
                 output_language=out_lang,
+                press_mentions=prensa_prompt,
             )
             gemini_google_search_used = True
         except RuntimeError as e:
@@ -298,6 +387,7 @@ def run_person_research(
                 warnings=warnings,
                 fuentes_consultadas=source_citations,
                 progress=progress,
+                menciones_prensa=menciones_prensa,
             )
             if md_web and not llm_md:
                 llm_md = md_web
@@ -370,6 +460,10 @@ def run_person_research(
         "executive_payload": executive_payload,
         "gemini_google_search_used": gemini_google_search_used,
         "warnings": warnings,
+        # UX-ADMIN-02: prensa encontrada (para la tarjeta y la procedencia) y su cobro extra.
+        "press_mentions": [m.model_dump(mode="json") for m in menciones_prensa],
+        "press_query": req.full_name.strip(),
+        "news_extra_credits": extra_prensa,
     }
 
 

@@ -89,6 +89,7 @@ def _person_user_prompt(
     enrichment_provider: str,
     output_language: str,
     instructions: str | None,
+    press_mentions: list[dict[str, Any]] | None = None,
 ) -> str:
     """Datos investigados más las instrucciones de la variante (None = informe Markdown)."""
     max_chars = int(os.getenv("DEEPSEEK_PERSON_MAX_JSON_CHARS", os.getenv("GEMINI_PERSON_MAX_JSON_CHARS", "120000")))
@@ -99,6 +100,12 @@ def _person_user_prompt(
     }
     if meeting_context:
         bundle["contexto_reunion"] = meeting_context
+    if press_mentions:
+        # UX-ADMIN-02: menciones de prensa ya filtradas; datos externos, no instrucciones.
+        from dossier.news.agent import NOTA_PRENSA_PARA_IA
+
+        bundle["nota_menciones_de_prensa"] = NOTA_PRENSA_PARA_IA
+        bundle["menciones_de_prensa"] = press_mentions
     return _build_user_prompt(
         filters=filters,
         bundle_json=_truncate_json(bundle, max_chars),
@@ -119,6 +126,7 @@ def analyze_person_profile_bundle(
     lusha_verified_facts: dict[str, Any] | None = None,
     enrichment_provider: str = "lusha",
     output_language: str = "es",
+    press_mentions: list[dict[str, Any]] | None = None,
 ) -> str:
     user_prompt = _person_user_prompt(
         filters=filters,
@@ -129,6 +137,7 @@ def analyze_person_profile_bundle(
         enrichment_provider=enrichment_provider,
         output_language=output_language,
         instructions=None,
+        press_mentions=press_mentions,
     )
     return generate_text_with_llm(
         user_prompt,
@@ -148,6 +157,7 @@ def analyze_person_profile_bundle_structured(
     lusha_verified_facts: dict[str, Any] | None = None,
     enrichment_provider: str = "lusha",
     output_language: str = "es",
+    press_mentions: list[dict[str, Any]] | None = None,
 ) -> DossierExecutivePayload:
     """Igual que ``analyze_person_profile_bundle``, pero devuelve el contrato de S4.1 validado."""
     user_prompt = _person_user_prompt(
@@ -159,6 +169,7 @@ def analyze_person_profile_bundle_structured(
         enrichment_provider=enrichment_provider,
         output_language=output_language,
         instructions=_STRUCTURED_USER_INSTRUCTIONS + dossier_language_instruction(output_language),
+        press_mentions=press_mentions,
     )
     return synthesize_executive_payload(
         user_prompt,

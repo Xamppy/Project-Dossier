@@ -108,6 +108,7 @@ from dossier.services.graph_calendar import (
     listar_reuniones_rango,
 )
 from dossier.services.microsoft_calendar_token import get_microsoft_graph_access_token_for_user
+from dossier.services.news_sources import fuentes_aplicables
 from dossier.services.output_language import effective_output_language
 from dossier.services.plan_limits import assert_can_start_dossiers
 
@@ -1013,6 +1014,8 @@ def _run_calendar_dossier_batch(
             organization_plan=org.plan,
             depth=depth_key,
             output_language=out_lang,
+            fuentes_prensa_empresa=fuentes_aplicables(db, tipo="corporate", profundidad=depth_key, plan=org.plan),
+            fuentes_prensa_persona=fuentes_aplicables(db, tipo="person", profundidad="basic", plan=org.plan),
         )
         elapsed_ms = int((time.perf_counter() - t0) * 1000)
         item = persist_calendar_dossiers(

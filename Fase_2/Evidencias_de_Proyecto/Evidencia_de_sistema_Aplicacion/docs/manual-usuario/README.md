@@ -298,6 +298,24 @@ organización. Valores iniciales: **Free 1 · Pro 3 · Enterprise 10**.
 
 Los dossiers que genera la **automatización del calendario no cuentan** para este límite.
 
+### Fuentes de noticias
+
+Lista las fuentes de prensa que consultan los dossiers (hoy GDELT y NewsAPI). Para cada una se ve
+si está activa, si su clave está configurada en el servidor y cuántas consultas lleva hoy.
+
+| Ajuste | Para qué |
+|---|---|
+| **Activa** | Encender o apagar la fuente |
+| **Empresas / Personas** | En qué tipo de dossier se consulta |
+| **Profundidad mínima (empresas)** | Usarla solo desde cierta profundidad (por ejemplo, solo en *Profunda*). Las personas siempre usan la básica |
+| **Planes** | En qué planes se usa |
+| **Créditos extra por dossier** | De 0 a 20. Se suman al costo **solo si la fuente responde** |
+| **Máximo de noticias** | De 1 a 50 por consulta |
+| **Límite diario de consultas** | Vacío = sin límite. Al llegar al tope, la fuente se omite hasta el día siguiente (UTC), sin cobro |
+
+Pulsa **Guardar** en la fuente que cambiaste. Cada cambio queda en la auditoría. Una fuente
+recién agregada por el equipo técnico aparece **apagada** hasta que la actives.
+
 ## 13. Planes, créditos y límites
 
 | | Free | Pro | Enterprise |
@@ -311,7 +329,9 @@ Los dossiers que genera la **automatización del calendario no cuentan** para es
 \* Valores iniciales; los ajusta el equipo de la plataforma ([12](#límites-por-plan)).
 
 **Costo en créditos:** dossier de persona, 1 crédito. Dossier de una reunión según la profundidad:
-básica 1, estándar 3, profunda 5 por dossier. El costo se muestra antes de generar.
+básica 1, estándar 3, profunda 5 por dossier. Si el equipo de la plataforma fijó un **extra por
+fuente de prensa**, se suma solo cuando esa fuente responde. El costo máximo se muestra antes de
+generar, por ejemplo «3 (hasta 2 por prensa)».
 
 ## 14. Mensajes frecuentes y qué hacer
 

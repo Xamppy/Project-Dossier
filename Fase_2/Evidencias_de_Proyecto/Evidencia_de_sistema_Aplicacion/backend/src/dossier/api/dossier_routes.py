@@ -7,7 +7,7 @@ import time
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -42,10 +42,12 @@ from dossier.graphs.corporate_dossier_graph import (
     run_corporate_dossier_langgraph_detailed,
 )
 from dossier.org_dossier_context import format_dossier_context_for_prompt
+from dossier.schemas.admin import NewsSourceApplicableItem, NewsSourcesApplicableResponse
 from dossier.schemas.dossier_executive_payload import resumen_contenido_dossier
 from dossier.schemas.dossier_generation import (
     DEPTH_CREDITS,
     CreateCorporateDossierRequest,
+    DossierDepth,
     build_corporate_generation_strings,
 )
 from dossier.schemas.dossier_share import DossierShareCreate
@@ -98,12 +100,36 @@ from dossier.services.email_service import (
     EmailNotConfiguredError,
     email_delivery_available,
 )
+from dossier.services.news_sources import creditos_extra_maximos, fuentes_aplicables
 from dossier.services.output_language import effective_output_language
 from dossier.services.person_research_pipeline import run_person_research_and_persist
 from dossier.services.press_mentions_writer import escribir_menciones_prensa
 from dossier.utils.html_text import strip_html_to_plain_line
 
 router = APIRouter(tags=["Dossiers"])
+
+
+@router.get("/news-sources/applicable", response_model=NewsSourcesApplicableResponse)
+def news_sources_applicable(
+    ctx: Annotated[OrgAuthContext, Depends(get_org_auth_context)],
+    kind: Annotated[Literal["corporate", "person"], Query()],
+    depth: Annotated[DossierDepth, Query()] = "standard",
+    db: Session = Depends(get_db_if_configured),
+) -> NewsSourcesApplicableResponse:
+    """UX-ADMIN-02: fuentes de prensa que usaría un dossier del plan y su extra máximo.
+
+    Solo nombre y extra: ni claves ni límites. Las personas siempre son de profundidad básica.
+    """
+    fuentes = fuentes_aplicables(
+        db, tipo=kind, profundidad="basic" if kind == "person" else depth, plan=ctx.org.plan
+    )
+    return NewsSourcesApplicableResponse(
+        sources=[
+            NewsSourceApplicableItem(key=f.proveedor.clave, name=f.proveedor.nombre, extra_credits=f.creditos_extra)
+            for f in fuentes
+        ],
+        extra_credits=creditos_extra_maximos(fuentes),
+    )
 logger = logging.getLogger(__name__)
 
 
@@ -260,6 +286,8 @@ def generar_dossier_corporativo(
     out_lang = effective_output_language(user, body.output_language)
 
     db.refresh(org)
+    # UX-ADMIN-02: fuentes de prensa que el admin dejó para este plan y profundidad.
+    fuentes_prensa = fuentes_aplicables(db, tipo="corporate", profundidad=body.depth, plan=org.plan, cobrar=charge)
 
     participantes, subject_display = build_corporate_generation_strings(body)
 
@@ -290,7 +318,8 @@ def generar_dossier_corporativo(
             _report_corporate_cache_hit(progress, hit)
 
     if not cache_hit:
-        assert_sufficient_credits(org, cost, charge=charge)
+        # Con el extra máximo de la prensa: si responden todas, el saldo tiene que alcanzar.
+        assert_sufficient_credits(org, cost + creditos_extra_maximos(fuentes_prensa), charge=charge)
 
     descripcion_neutral_parts: list[str] = []
     if body.subject_email:
@@ -317,6 +346,7 @@ def generar_dossier_corporativo(
                 output_language=out_lang,
                 empresa_objetivo=empresa_objetivo_de_solicitud(body),
                 progress=progress,
+                fuentes_prensa=fuentes_prensa,
             )
             progress.fields(origin="generated")
             md = generado.markdown
@@ -340,6 +370,8 @@ def generar_dossier_corporativo(
 
     will_charge = charge and cost > 0 and status == "complete" and not cache_hit
     columnas = columnas_telemetria(None if cache_hit else telemetria, es_error=is_err)
+    # UX-ADMIN-02: el trigger de cobro suma este extra (solo fuentes que respondieron).
+    extra_prensa = int((telemetria or {}).get("creditos_extra_prensa") or 0) if will_charge else 0
 
     dossier_id = uuid.uuid4()
     dossier_data_body: dict = {
@@ -355,6 +387,7 @@ def generar_dossier_corporativo(
             "pipeline_version": (os.getenv("DOSSIER_CACHE_PIPELINE_VERSION") or "1").strip(),
         },
         "output_language": out_lang,
+        "news_extra_credits": extra_prensa,
         **columnas["dossier_data"],
     }
     if body.resolution is not None:
@@ -372,7 +405,7 @@ def generar_dossier_corporativo(
         module_corporate=module_flags["module_corporate"],
         module_media=module_flags["module_media"],
         depth_level=body.depth,
-        credits_consumed=cost if will_charge else 0,
+        credits_consumed=cost + extra_prensa if will_charge else 0,
         status=status,
         status_message=(
             "Error en síntesis o en el pipeline." if is_err else CORPORATE_PARTIAL_MESSAGE if status == "partial" else None
