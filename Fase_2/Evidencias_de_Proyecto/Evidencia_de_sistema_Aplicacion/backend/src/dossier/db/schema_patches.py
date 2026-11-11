@@ -245,10 +245,26 @@ PLAN_SETTINGS_PATCHES = (
         updated_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL
     );
     """,
+    # Con la columna de UX-ADMIN-03 ya creada, la siembra debe traer los créditos: Postgres valida
+    # el NOT NULL antes de ver el conflicto, así que un INSERT sin ellos falla al rearrancar.
     """
-    INSERT INTO plan_settings (plan, max_concurrent_dossiers)
-    VALUES ('free', 1), ('pro', 3), ('enterprise', 10)
-    ON CONFLICT (plan) DO NOTHING;
+    DO $$
+    BEGIN
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = current_schema()
+              AND table_name = 'plan_settings'
+              AND column_name = 'monthly_credits'
+        ) THEN
+            INSERT INTO plan_settings (plan, max_concurrent_dossiers, monthly_credits)
+            VALUES ('free', 1, 10), ('pro', 3, 500), ('enterprise', 10, 50000)
+            ON CONFLICT (plan) DO NOTHING;
+        ELSE
+            INSERT INTO plan_settings (plan, max_concurrent_dossiers)
+            VALUES ('free', 1), ('pro', 3), ('enterprise', 10)
+            ON CONFLICT (plan) DO NOTHING;
+        END IF;
+    END $$;
     """,
 )
 
