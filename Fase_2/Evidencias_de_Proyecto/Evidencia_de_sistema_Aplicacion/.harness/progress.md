@@ -6,6 +6,27 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-11 · S5.5, S3.5, S3.6 y S3.7 · El dossier por módulos · FD (agente)
+
+**Hecho.** Rama `feat/S5.5-dossier-por-modulos`, desde `docmac`. Traspasadas de DG. Diseño
+aprobado por FD: secciones por módulo con «Ver informe en texto» y backend aditivo.
+Backend: el grafo corporativo guarda los registros europeos en `dossier_data.modulos`
+(sin `datos_brutos`); `GET /dossiers/{id}` añade `modules` (`services/dossier_modules.py`).
+Frontend: `components/dossier/modules/` (`DossierContent`, `DossierModules`,
+`CorporateRecordsSection`, `PressSection`) y `lib/dossier-modules.ts`; 49 claves
+`dossier_modules.*` en seis catálogos. Reporte en `specs/reports/S5.5-dossier-por-modulos.md`.
+
+**Lo que hay que saber.**
+- **Los catálogos `i18n/messages/*.ts` tienen finales de línea mixtos.** Reescribirlos con un
+  script hace que git vea el archivo entero como cambiado; hay que conservar sus bytes.
+- **Fixtures compartidos en `src/test/`**: importar un `*.test.ts` desde otra prueba duplica sus casos.
+- La caché de Redis del dossier corporativo guarda solo el Markdown: un dossier servido desde la
+  caché no trae `modulos` (sin registros europeos estructurados hasta la próxima generación).
+- `modules.press_mentions` sale del contrato o de `dossier_media_mentions` (más reciente
+  primero, tope 50). Las URL que no son `http(s)` se anulan en el backend y otra vez en el frontend.
+
+**Rama.** `feat/S5.5-dossier-por-modulos` · **Estado.** review
+
 ### 2026-11-10 · S5.2 y S5.3 · Notificaciones por el canal en vivo y reconexión · FD (agente)
 
 **Hecho.** Rama `feat/S5.2-S5.3-notificaciones-canal`, desde `docmac`. Traspasadas de DG.
