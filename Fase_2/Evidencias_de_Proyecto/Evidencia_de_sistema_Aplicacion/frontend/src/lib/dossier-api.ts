@@ -833,9 +833,13 @@ export async function patchAdminUserRoles(
 export type AdminPlanSetting = {
   plan: "free" | "pro" | "enterprise";
   max_concurrent_dossiers: number;
+  /** UX-ADMIN-03: créditos que recibe la organización al registrarse o al pasar a este plan. */
+  monthly_credits: number;
   updated_at: string | null;
   updated_by_email: string | null;
 };
+
+export type AdminPlanSettingPatch = Partial<Pick<AdminPlanSetting, "max_concurrent_dossiers" | "monthly_credits">>;
 
 export async function fetchAdminPlanSettings(): Promise<{ plans: AdminPlanSetting[] }> {
   return getJsonWithAuth<{ plans: AdminPlanSetting[] }>("/admin/plan-settings");
@@ -843,11 +847,16 @@ export async function fetchAdminPlanSettings(): Promise<{ plans: AdminPlanSettin
 
 export async function patchAdminPlanSetting(
   plan: AdminPlanSetting["plan"],
-  maxConcurrentDossiers: number,
+  body: AdminPlanSettingPatch,
 ): Promise<AdminPlanSetting> {
-  return patchJsonWithAuth<AdminPlanSetting>(`/admin/plan-settings/${encodeURIComponent(plan)}`, {
-    max_concurrent_dossiers: maxConcurrentDossiers,
-  });
+  return patchJsonWithAuth<AdminPlanSetting>(`/admin/plan-settings/${encodeURIComponent(plan)}`, body);
+}
+
+/** UX-ADMIN-03: créditos al mes de cada plan, para las tarjetas de Configuración. */
+export type BillingPlanCredits = { plan: AdminPlanSetting["plan"]; monthly_credits: number };
+
+export async function fetchBillingPlans(): Promise<{ plans: BillingPlanCredits[] }> {
+  return getJsonWithAuth<{ plans: BillingPlanCredits[] }>("/billing/plans");
 }
 
 /** UX-ADMIN-02: plan y profundidad que admite una fuente de noticias. */

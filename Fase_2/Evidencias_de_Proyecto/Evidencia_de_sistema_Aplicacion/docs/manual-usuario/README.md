@@ -289,11 +289,16 @@ directamente en la base de datos.
 
 ![Límites por plan](img/17-administracion-limites.png)
 
-Define cuántos dossiers puede tener **generándose a la vez** un mismo usuario, según el plan de su
-organización. Valores iniciales: **Free 1 · Pro 3 · Enterprise 10**.
+Define, para cada plan:
+
+- **Dossiers a la vez:** cuántos dossiers puede tener **generándose a la vez** un mismo usuario.
+  Valores iniciales: **Free 1 · Pro 3 · Enterprise 10**. Entre 1 y 100.
+- **Créditos al mes:** cuántos créditos recibe la organización **al registrarse** (plan Free) o
+  **al cambiar a ese plan**. Valores iniciales: **Free 10 · Pro 500 · Enterprise 50.000**. Entre 0
+  y 1.000.000. El saldo actual de las organizaciones no cambia.
 
 1. Abre **Límites por plan**.
-2. Cambia el número (entre 1 y 100) y pulsa **Guardar** en esa fila.
+2. Cambia uno o ambos valores y pulsa **Guardar** en esa fila.
 3. El cambio se aplica de inmediato y queda registrado en la auditoría, con quién lo hizo y cuándo.
 
 Los dossiers que genera la **automatización del calendario no cuentan** para este límite.

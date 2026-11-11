@@ -24,13 +24,21 @@ vi.mock("@/providers/PreferencesProvider", () => {
 const t = createTranslator("es");
 
 const PLANES: AdminPlanSetting[] = [
-  { plan: "free", max_concurrent_dossiers: 1, updated_at: null, updated_by_email: null },
-  { plan: "pro", max_concurrent_dossiers: 3, updated_at: "2026-11-11T12:00:00Z", updated_by_email: "ops@alloxentric.com" },
-  { plan: "enterprise", max_concurrent_dossiers: 10, updated_at: null, updated_by_email: null },
+  { plan: "free", max_concurrent_dossiers: 1, monthly_credits: 10, updated_at: null, updated_by_email: null },
+  {
+    plan: "pro",
+    max_concurrent_dossiers: 3,
+    monthly_credits: 500,
+    updated_at: "2026-11-11T12:00:00Z",
+    updated_by_email: "ops@alloxentric.com",
+  },
+  { plan: "enterprise", max_concurrent_dossiers: 10, monthly_credits: 50000, updated_at: null, updated_by_email: null },
 ];
 
 const fila = (plan: string) => screen.getByRole("row", { name: new RegExp(plan, "i") });
-const campo = (plan: string) => within(fila(plan)).getByRole("spinbutton");
+const campo = (plan: string) => within(fila(plan)).getByRole("spinbutton", { name: t("admin.plan_limits.col_max") });
+const creditos = (plan: string) =>
+  within(fila(plan)).getByRole("spinbutton", { name: t("admin.plan_limits.col_credits") });
 const guardar = (plan: string) => within(fila(plan)).getByRole("button", { name: t("admin.plan_limits.save") });
 
 beforeEach(() => {
@@ -58,7 +66,11 @@ describe("PlanLimitsPanel", () => {
   it("cambia el tope de un plan y lo confirma", async () => {
     const user = userEvent.setup();
     api.patchAdminPlanSetting.mockResolvedValue({
-      plan: "pro", max_concurrent_dossiers: 5, updated_at: "2026-11-11T13:00:00Z", updated_by_email: "yo@alloxentric.com",
+      plan: "pro",
+      max_concurrent_dossiers: 5,
+      monthly_credits: 500,
+      updated_at: "2026-11-11T13:00:00Z",
+      updated_by_email: "yo@alloxentric.com",
     });
     render(<PlanLimitsPanel />);
     await screen.findByRole("row", { name: /pro/i });
@@ -67,7 +79,7 @@ describe("PlanLimitsPanel", () => {
     await user.type(campo("pro"), "5");
     await user.click(guardar("pro"));
 
-    expect(api.patchAdminPlanSetting).toHaveBeenCalledWith("pro", 5);
+    expect(api.patchAdminPlanSetting).toHaveBeenCalledWith("pro", { max_concurrent_dossiers: 5 });
     expect(await screen.findByRole("status")).toHaveTextContent(t("admin.plan_limits.saved"));
     expect(within(fila("pro")).getByText(/yo@alloxentric\.com/)).toBeTruthy();
     expect((guardar("pro") as HTMLButtonElement).disabled).toBe(true);
@@ -94,6 +106,46 @@ describe("PlanLimitsPanel", () => {
     await user.click(guardar("enterprise"));
     expect(await screen.findByRole("alert")).toHaveTextContent(t("admin.plan_limits.save_error"));
     expect((campo("enterprise") as HTMLInputElement).value).toBe("20");
+  });
+
+  it("UX-ADMIN-03 · muestra y cambia los créditos al mes de un plan", async () => {
+    const user = userEvent.setup();
+    api.patchAdminPlanSetting.mockResolvedValue({ ...PLANES[1], monthly_credits: 800 });
+    render(<PlanLimitsPanel />);
+    await screen.findByRole("row", { name: /pro/i });
+    expect((creditos("free") as HTMLInputElement).value).toBe("10");
+    expect((creditos("enterprise") as HTMLInputElement).value).toBe("50000");
+    expect(screen.getByText(t("admin.plan_limits.credits_hint"))).toBeTruthy();
+
+    await user.clear(creditos("pro"));
+    await user.type(creditos("pro"), "800");
+    await user.click(guardar("pro"));
+
+    expect(api.patchAdminPlanSetting).toHaveBeenCalledWith("pro", { monthly_credits: 800 });
+    expect((creditos("pro") as HTMLInputElement).value).toBe("800");
+  });
+
+  it("UX-ADMIN-03 · cambia ambos valores en un solo guardado", async () => {
+    const user = userEvent.setup();
+    api.patchAdminPlanSetting.mockResolvedValue({ ...PLANES[0], max_concurrent_dossiers: 2, monthly_credits: 25 });
+    render(<PlanLimitsPanel />);
+    await screen.findByRole("row", { name: /free/i });
+    await user.clear(campo("free"));
+    await user.type(campo("free"), "2");
+    await user.clear(creditos("free"));
+    await user.type(creditos("free"), "25");
+    await user.click(guardar("free"));
+    expect(api.patchAdminPlanSetting).toHaveBeenCalledWith("free", { max_concurrent_dossiers: 2, monthly_credits: 25 });
+  });
+
+  it.each(["1000001", ""])("UX-ADMIN-03 · créditos fuera de 0–1000000 (%s) no se guardan", async (valor) => {
+    const user = userEvent.setup();
+    render(<PlanLimitsPanel />);
+    await screen.findByRole("row", { name: /pro/i });
+    await user.clear(creditos("pro"));
+    if (valor) await user.type(creditos("pro"), valor);
+    expect((guardar("pro") as HTMLButtonElement).disabled).toBe(true);
+    expect(within(fila("pro")).getByText(t("admin.plan_limits.invalid_credits"))).toBeTruthy();
   });
 
   it("si no puede leer los límites, lo dice", async () => {

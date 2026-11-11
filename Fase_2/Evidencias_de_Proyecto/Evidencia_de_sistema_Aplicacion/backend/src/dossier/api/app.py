@@ -33,6 +33,7 @@ from dossier.api.auth_routes import (
 from dossier.api.auth_routes import (
     router as auth_router,
 )
+from dossier.api.billing_routes import router as billing_router
 from dossier.api.cors_config import build_cors_settings
 from dossier.api.dashboard_routes import router as dashboard_router
 from dossier.api.dossier_access_routes import router as dossier_access_router
@@ -177,6 +178,7 @@ app.add_middleware(AuditMiddleware)
 
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(billing_router)
 app.include_router(dossiers_router)
 app.include_router(dossier_access_router)
 app.include_router(dossier_jobs_router)

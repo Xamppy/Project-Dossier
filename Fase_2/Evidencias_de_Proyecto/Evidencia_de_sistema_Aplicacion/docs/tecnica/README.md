@@ -43,7 +43,7 @@ recherche-entreprises (FR), OffeneRegister (DE), GDELT, NewsAPI, Google y Micros
 | Grafo corporativo | `backend/src/dossier/graphs/corporate_dossier_graph.py` | LangGraph: agentes de Reino Unido, EE. UU., Europa y prensa en paralelo, y luego la síntesis con IA |
 | Investigación de personas | `backend/src/dossier/services/person_research_*.py` | PDL (o web pública) más síntesis estructurada con IA |
 | Trabajos | `services/dossier_generation_job_service.py` y `services/dossier_generation_worker.py` | Cola en `dossier_generation_jobs`, procesada por un hilo con latido; recuperación de colgados |
-| Esquema | `backend/alembic/` y `src/dossier/db/schema_patches.py` | Migraciones Alembic (la cabeza es `d4f6a8c2e0b3`) y los mismos parches idempotentes al arrancar |
+| Esquema | `backend/alembic/` y `src/dossier/db/schema_patches.py` | Migraciones Alembic (la cabeza es `f1c3e5a7b9d2`) y los mismos parches idempotentes al arrancar |
 | Frontend | `frontend/src/` | Dashboard Next.js; siete idiomas en `src/i18n/messages/` |
 
 **Un solo proceso a propósito.** Los workers son hilos de la API y el bus de los canales en vivo
@@ -188,7 +188,7 @@ código (`os.getenv`) el 2026-11-11. «—» significa sin valor por omisión.
 | `DOSSIER_CONCURRENCY_WINDOW_MINUTES` | 30 | Antigüedad máxima de un trabajo activo para el tope de dossiers a la vez |
 | `GENERATION_RATE_LIMIT`, `AUTH_RATE_LIMIT`, `LOGIN_FAILURE_RATE_LIMIT`, `ACCESS_LINK_RATE_LIMIT` | `10/60`, `20/60`, `5/300`, `20/60` | Límites de tasa con el formato `pedidos/segundos` (generación por usuario; autenticación, fallos de inicio de sesión y canjes de enlaces por IP o correo) |
 | `DOSSIER_CHARGE_CREDITS` | `true` | `false` desactiva el cobro (solo para demos) |
-| `ORG_SIGNUP_CREDITS`, `ORG_SIGNUP_CREDITS_MONTHLY_LIMIT` | 10, igual al anterior | Saldo y tope mensual de una organización nueva |
+| `ORG_SIGNUP_CREDITS`, `ORG_SIGNUP_CREDITS_MONTHLY_LIMIT` | Créditos del plan Free en el panel, igual al anterior | Saldo y tope mensual de una organización nueva. Si se definen, mandan sobre el panel |
 | `DOSSIER_REDIS_ENABLED`, `REDIS_URL`, `DOSSIER_REDIS_TTL_SECONDS` | 1, —, 86400 (con tope en la retención) | Caché de informes |
 | `DOSSIER_CACHE_PIPELINE_VERSION`, `DOSSIER_PERSON_CACHE_VERSION` | — | Cambiarlas invalida la caché |
 | `DATABASE_AUTO_CREATE_TABLES` | 1 | Crear las tablas al arrancar. En producción, 0: lo hace Alembic |
@@ -316,6 +316,7 @@ Cada una tiene su especificación en `specs/proposals/` y su verificación en `s
 | Empresas por la cola | `POST /dossiers/corporate/generate` con `async_mode`: trabajo `corporate_manual` con avance por agente; la ruta síncrona se conserva | Informe beta |
 | Preferencias de notificación | `users.notify_email` (apaga el PDF automático) y `notify_browser` (aviso del sistema operativo); riesgo y resumen semanal «Próximamente» | Informe beta |
 | Cambio de plan sin pago | Intencional para pruebas rápidas: el admin de la organización cambia el plan desde Configuración | Decisión de FD |
+| Créditos por plan | `plan_settings.monthly_credits`, configurable en el panel; se aplican al registrarse y al cambiar de plan, sin tocar saldos existentes | UX-ADMIN-03 |
 | Fuentes de noticias | Adaptadores enchufables descubiertos al arrancar; ajustes por fuente en el panel; claves solo en el entorno; extra de créditos solo si la fuente responde (lo suma el trigger); límite diario atómico; prensa también en personas | UX-ADMIN-02 |
 
 ## 9. Problemas conocidos

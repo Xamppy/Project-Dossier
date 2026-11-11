@@ -17,8 +17,8 @@ const KEYS = (Object.keys(en) as TranslationKey[]).filter(
 const placeholders = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
 describe("i18n · textos de UX-ADMIN-01", () => {
-  it("el catálogo inglés trae las 15 claves", () => {
-    expect(KEYS).toHaveLength(15);
+  it("el catálogo inglés trae las 18 claves (15 de UX-ADMIN-01 y 3 de UX-ADMIN-03)", () => {
+    expect(KEYS).toHaveLength(18);
   });
 
   it.each(Object.keys(OWN))("%s traduce cada clave con los mismos marcadores", (locale) => {

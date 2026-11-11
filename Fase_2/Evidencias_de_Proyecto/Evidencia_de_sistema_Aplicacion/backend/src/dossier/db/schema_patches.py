@@ -338,6 +338,29 @@ NEWS_SOURCE_PATCHES = (
 )
 
 
+# UX-ADMIN-03: créditos al mes de cada plan (se entregan al registrarse y al cambiar de plan).
+PLAN_CREDITS_PATCHES = (
+    "ALTER TABLE plan_settings ADD COLUMN IF NOT EXISTS monthly_credits INTEGER;",
+    """
+    UPDATE plan_settings
+    SET monthly_credits = CASE plan WHEN 'free' THEN 10 WHEN 'pro' THEN 500 ELSE 50000 END
+    WHERE monthly_credits IS NULL;
+    """,
+    "ALTER TABLE plan_settings ALTER COLUMN monthly_credits SET NOT NULL;",
+    """
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'plan_settings_monthly_credits_rango'
+        ) THEN
+            ALTER TABLE plan_settings ADD CONSTRAINT plan_settings_monthly_credits_rango
+                CHECK (monthly_credits BETWEEN 0 AND 1000000);
+        END IF;
+    END $$;
+    """,
+)
+
+
 def apply_schema_patches(engine: Engine) -> None:
     with engine.begin() as conn:
         for sql in (
@@ -352,5 +375,6 @@ def apply_schema_patches(engine: Engine) -> None:
             + JOB_HEARTBEAT_PATCHES
             + USER_NOTIFY_PATCHES
             + NEWS_SOURCE_PATCHES
+            + PLAN_CREDITS_PATCHES
         ):
             conn.execute(text(sql))

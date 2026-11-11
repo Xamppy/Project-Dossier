@@ -1245,6 +1245,10 @@ const messages = {
   "generate.credits_with_press": "{total} (up to {extra} for press)",
   "progress.stage.person.press_search": "Search press mentions",
   "admin.news.status_no_key": "No key: not used",
+  "admin.plan_limits.col_credits": "Credits per month",
+  "admin.plan_limits.invalid_credits": "Use a number between 0 and 1000000.",
+  "admin.plan_limits.credits_hint": "Credits are granted on sign-up (Free plan) or when changing plan; organizations' current balance does not change.",
+  "billing.plan_credits_per_month": "{credits} credits/month",
 } as const;
 
 export default messages;

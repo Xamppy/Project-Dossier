@@ -37,15 +37,23 @@ def _entitlement(plan: PlanId) -> tuple[int, int, bool]:
     return 1_000_000, 50_000, True
 
 
-def apply_plan_to_organization(org: Organization, plan: str) -> PlanId:
+def apply_plan_to_organization(org: Organization, plan: str, *, credits: int | None = None) -> PlanId:
     """
     Ajusta `org` al plan indicado (mutación in-place; el caller hace commit).
+
+    ``credits`` (UX-ADMIN-03): créditos al mes configurados para el plan en ``plan_settings``.
+    Sin él se usan los valores iniciales del catálogo.
 
     Raises:
         ValueError: si el plan no es reconocido (no debería ocurrir con entrada validada).
     """
     pid = normalize_plan(plan)
     monthly, balance, wl = _entitlement(pid)
+    if credits is not None:
+        # Enterprise conserva su tope «ilimitado»: lo configurado es su saldo inicial.
+        balance = max(0, int(credits))
+        if pid != "enterprise":
+            monthly = balance
     org.plan = pid
     org.credits_monthly_limit = monthly
     org.credits_balance = balance

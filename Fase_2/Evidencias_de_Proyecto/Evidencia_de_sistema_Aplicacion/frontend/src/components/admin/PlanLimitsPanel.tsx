@@ -2,11 +2,17 @@
 
 import { useEffect, useState } from "react";
 import type { TranslationKey } from "@/i18n/types";
-import { fetchAdminPlanSettings, patchAdminPlanSetting, type AdminPlanSetting } from "@/lib/dossier-api";
+import {
+  fetchAdminPlanSettings,
+  patchAdminPlanSetting,
+  type AdminPlanSetting,
+  type AdminPlanSettingPatch,
+} from "@/lib/dossier-api";
 import { useTranslation } from "@/providers/PreferencesProvider";
 
 /**
  * UX-ADMIN-01: tope de dossiers generándose a la vez por usuario, según el plan.
+ * UX-ADMIN-03: créditos al mes de cada plan (se entregan al registrarse o al cambiar de plan).
  * Solo se monta en `/dashboard/admin`; el backend exige admin de plataforma.
  */
 
@@ -18,17 +24,41 @@ const PLAN_NAME: Record<AdminPlanSetting["plan"], TranslationKey> = {
 
 const MIN = 1;
 const MAX = 100;
+const MIN_CREDITS = 0;
+const MAX_CREDITS = 1_000_000;
 
-function parseLimit(raw: string): number | null {
+type Borrador = { max: string; credits: string };
+
+function parseEntero(raw: string, min: number, max: number): number | null {
   if (!/^\d+$/.test(raw.trim())) return null;
   const n = Number(raw);
-  return n >= MIN && n <= MAX ? n : null;
+  return n >= min && n <= max ? n : null;
 }
+
+const parseLimit = (raw: string) => parseEntero(raw, MIN, MAX);
+const parseCredits = (raw: string) => parseEntero(raw, MIN_CREDITS, MAX_CREDITS);
+
+function borradorDe(p: AdminPlanSetting): Borrador {
+  return { max: String(p.max_concurrent_dossiers), credits: String(p.monthly_credits) };
+}
+
+/** Solo lo que cambió y es válido. */
+function cambios(p: AdminPlanSetting, b: Borrador): AdminPlanSettingPatch {
+  const out: AdminPlanSettingPatch = {};
+  const max = parseLimit(b.max);
+  const credits = parseCredits(b.credits);
+  if (max !== null && max !== p.max_concurrent_dossiers) out.max_concurrent_dossiers = max;
+  if (credits !== null && credits !== p.monthly_credits) out.monthly_credits = credits;
+  return out;
+}
+
+const inputStyle = { borderColor: "var(--border-default)", backgroundColor: "var(--bg-surface)" } as const;
+const errorStyle = { color: "var(--accent-danger, #f87171)" } as const;
 
 export function PlanLimitsPanel() {
   const { t, locale } = useTranslation();
   const [plans, setPlans] = useState<AdminPlanSetting[] | null>(null);
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [drafts, setDrafts] = useState<Record<string, Borrador>>({});
   const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ kind: "ok" | "error"; plan: string } | null>(null);
@@ -39,7 +69,7 @@ export function PlanLimitsPanel() {
       .then(({ plans: rows }) => {
         if (cancelled) return;
         setPlans(rows);
-        setDrafts(Object.fromEntries(rows.map((p) => [p.plan, String(p.max_concurrent_dossiers)])));
+        setDrafts(Object.fromEntries(rows.map((p) => [p.plan, borradorDe(p)])));
       })
       .catch(() => {
         if (!cancelled) setLoadError(true);
@@ -49,18 +79,25 @@ export function PlanLimitsPanel() {
     };
   }, []);
 
-  async function save(plan: AdminPlanSetting["plan"]) {
-    const value = parseLimit(drafts[plan] ?? "");
-    if (value === null) return;
-    setSaving(plan);
+  function editar(plan: string, parcial: Partial<Borrador>) {
+    setDrafts((prev) => ({ ...prev, [plan]: { ...prev[plan], ...parcial } }));
+    setFeedback(null);
+  }
+
+  async function save(p: AdminPlanSetting) {
+    const b = drafts[p.plan];
+    if (!b || parseLimit(b.max) === null || parseCredits(b.credits) === null) return;
+    const body = cambios(p, b);
+    if (Object.keys(body).length === 0) return;
+    setSaving(p.plan);
     setFeedback(null);
     try {
-      const updated = await patchAdminPlanSetting(plan, value);
-      setPlans((prev) => (prev ?? []).map((p) => (p.plan === plan ? updated : p)));
-      setDrafts((prev) => ({ ...prev, [plan]: String(updated.max_concurrent_dossiers) }));
-      setFeedback({ kind: "ok", plan });
+      const updated = await patchAdminPlanSetting(p.plan, body);
+      setPlans((prev) => (prev ?? []).map((x) => (x.plan === p.plan ? updated : x)));
+      setDrafts((prev) => ({ ...prev, [p.plan]: borradorDe(updated) }));
+      setFeedback({ kind: "ok", plan: p.plan });
     } catch {
-      setFeedback({ kind: "error", plan });
+      setFeedback({ kind: "error", plan: p.plan });
     } finally {
       setSaving(null);
     }
@@ -79,7 +116,7 @@ export function PlanLimitsPanel() {
 
   if (loadError) {
     return (
-      <p role="alert" className="px-2 py-3 text-sm" style={{ color: "var(--accent-danger, #f87171)" }}>
+      <p role="alert" className="px-2 py-3 text-sm" style={errorStyle}>
         {t("admin.plan_limits.load_error")}
       </p>
     );
@@ -91,48 +128,70 @@ export function PlanLimitsPanel() {
       <p className="text-sm" style={{ color: "var(--text-muted)" }}>
         {t("admin.plan_limits.hint")}
       </p>
+      <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+        {t("admin.plan_limits.credits_hint")}
+      </p>
       <div className="overflow-x-auto rounded-lg border" style={{ borderColor: "var(--border-subtle)" }}>
         <table className="min-w-full text-left text-sm">
           <thead style={{ backgroundColor: "var(--bg-surface-strong)" }}>
             <tr>
               <th className="px-3 py-2 font-medium">{t("admin.plan_limits.col_plan")}</th>
               <th className="px-3 py-2 font-medium">{t("admin.plan_limits.col_max")}</th>
+              <th className="px-3 py-2 font-medium">{t("admin.plan_limits.col_credits")}</th>
               <th className="px-3 py-2 font-medium">{t("admin.plan_limits.col_updated")}</th>
               <th className="px-3 py-2" />
             </tr>
           </thead>
           <tbody>
             {plans.map((p) => {
-              const draft = drafts[p.plan] ?? "";
-              const value = parseLimit(draft);
-              const changed = value !== null && value !== p.max_concurrent_dossiers;
+              const b = drafts[p.plan] ?? borradorDe(p);
+              const max = parseLimit(b.max);
+              const credits = parseCredits(b.credits);
+              const valido = max !== null && credits !== null;
+              const changed = valido && Object.keys(cambios(p, b)).length > 0;
               const name = t(PLAN_NAME[p.plan]);
-              const inputId = `plan-limit-${p.plan}`;
               return (
                 <tr key={p.plan} aria-label={name} className="border-t" style={{ borderColor: "var(--border-subtle)" }}>
                   <td className="px-3 py-2 font-medium" style={{ color: "var(--text-primary)" }}>
-                    <label htmlFor={inputId}>{name}</label>
+                    {name}
                   </td>
                   <td className="px-3 py-2">
                     <input
-                      id={inputId}
                       type="number"
                       inputMode="numeric"
+                      aria-label={t("admin.plan_limits.col_max")}
                       min={MIN}
                       max={MAX}
                       step={1}
-                      value={draft}
-                      aria-invalid={value === null}
-                      onChange={(e) => {
-                        setDrafts((prev) => ({ ...prev, [p.plan]: e.target.value }));
-                        setFeedback(null);
-                      }}
+                      value={b.max}
+                      aria-invalid={max === null}
+                      onChange={(e) => editar(p.plan, { max: e.target.value })}
                       className="w-20 rounded-md border px-2 py-1 tabular-nums"
-                      style={{ borderColor: "var(--border-default)", backgroundColor: "var(--bg-surface)" }}
+                      style={inputStyle}
                     />
-                    {value === null ? (
-                      <p className="mt-1 text-xs" style={{ color: "var(--accent-danger, #f87171)" }}>
+                    {max === null ? (
+                      <p className="mt-1 text-xs" style={errorStyle}>
                         {t("admin.plan_limits.invalid")}
+                      </p>
+                    ) : null}
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      aria-label={t("admin.plan_limits.col_credits")}
+                      min={MIN_CREDITS}
+                      max={MAX_CREDITS}
+                      step={1}
+                      value={b.credits}
+                      aria-invalid={credits === null}
+                      onChange={(e) => editar(p.plan, { credits: e.target.value })}
+                      className="w-28 rounded-md border px-2 py-1 tabular-nums"
+                      style={inputStyle}
+                    />
+                    {credits === null ? (
+                      <p className="mt-1 text-xs" style={errorStyle}>
+                        {t("admin.plan_limits.invalid_credits")}
                       </p>
                     ) : null}
                   </td>
@@ -143,7 +202,7 @@ export function PlanLimitsPanel() {
                     <button
                       type="button"
                       disabled={!changed || saving !== null}
-                      onClick={() => void save(p.plan)}
+                      onClick={() => void save(p)}
                       className="rounded-lg border px-3 py-1.5 text-xs font-medium disabled:opacity-50"
                       style={{ borderColor: "var(--border-default)", color: "var(--text-primary)" }}
                     >
@@ -162,7 +221,7 @@ export function PlanLimitsPanel() {
         </p>
       ) : null}
       {feedback?.kind === "error" ? (
-        <p role="alert" className="text-sm" style={{ color: "var(--accent-danger, #f87171)" }}>
+        <p role="alert" className="text-sm" style={errorStyle}>
           {t("admin.plan_limits.save_error")}
         </p>
       ) : null}
