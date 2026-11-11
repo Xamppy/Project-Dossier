@@ -15,7 +15,7 @@ import { usePathname } from "next/navigation";
 import {
   DossierApiError,
   cancelDossierGenerationJob,
-  createCorporateDossier,
+  enqueueCorporateDossier,
   enqueuePersonResearch,
   fetchDossierGenerationJob,
   fetchDossierGenerationJobs,
@@ -173,11 +173,6 @@ function isActiveStatus(status: DossierGenerationJobStatus): boolean {
   return !TERMINAL.includes(status);
 }
 
-/** El corporativo manual usa un UUID local y una petición directa: no tiene stream. */
-function hasServerStream(job: TrackedJob): boolean {
-  return job.job_type !== "corporate_manual";
-}
-
 function statusRank(status: DossierGenerationJobStatus): number {
   if (status === "queued") return 0;
   if (status === "running") return 1;
@@ -267,12 +262,12 @@ function personJobWarning(job: TrackedJob): string | undefined {
 export function DossierJobsProvider({ children }: { children: ReactNode }) {
   const { preferences } = usePreferences();
   const [jobs, setJobs] = useState<TrackedJob[]>([]);
-  const jobsRef = useRef(jobs);
-  jobsRef.current = jobs;
-  const corporateAbortRef = useRef<Map<string, AbortController>>(new Map());
   const [connections, setConnections] = useState<Record<string, DossierJobConnection>>({});
+  // Copia para el evento `online`: se actualiza en un efecto, no durante el render.
   const connectionsRef = useRef(connections);
-  connectionsRef.current = connections;
+  useEffect(() => {
+    connectionsRef.current = connections;
+  }, [connections]);
   // S5.3: recuperación automática tras un corte de transporte, con retroceso progresivo.
   // Por job: intentos fallidos seguidos y la espera pendiente.
   const autoResyncRef = useRef<Map<string, { attempt: number; timer: number | null }>>(new Map());
@@ -393,7 +388,7 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
     function onSessionChange() {
       epochRef.current += 1;
       closeAllStreams();
-      setJobs((prev) => prev.filter((j) => !hasServerStream(j)));
+      setJobs([]);
       setConnections({});
       setSelectedPersonJobId(null);
       saveSelectedPersonJobId(null);
@@ -456,7 +451,7 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const wanted = new Set(
       jobs
-        .filter((j) => hasServerStream(j) && isActiveStatus(j.status) && !connections[j.id])
+        .filter((j) => isActiveStatus(j.status) && !connections[j.id])
         .map((j) => j.id),
     );
     for (const [jobId, stream] of streamsRef.current) {
@@ -628,79 +623,26 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
       label: string,
       creditsEstimated = 0,
     ): Promise<string> => {
-      const jobId = crypto.randomUUID();
-      const controller = new AbortController();
-      corporateAbortRef.current.set(jobId, controller);
-
+      // Informe beta: por la cola del servidor; el avance de cada agente llega por su stream.
+      const res = await enqueueCorporateDossier(payload);
       const job: TrackedJob = {
-        id: jobId,
-        status: "running",
+        id: res.job_id,
+        status: res.status,
         job_type: "corporate_manual",
         calendar_provider: null,
         external_event_id: null,
-        meeting_label: label,
-        credits_estimated: creditsEstimated,
+        meeting_label: res.meeting_label ?? label,
+        credits_estimated: res.credits_estimated ?? creditsEstimated,
         credits_consumed: 0,
       };
-
-      setJobs((prev) => [...prev.filter((j) => j.id !== job.id), job]);
-
-      void (async () => {
-        try {
-          const res = await createCorporateDossier(payload, controller.signal);
-          corporateAbortRef.current.delete(jobId);
-          setJobs((prev) =>
-            prev.map((j) =>
-              j.id === jobId
-                ? {
-                    ...j,
-                    status: "completed" as const,
-                    result: res,
-                    credits_consumed: res.credits_consumed,
-                  }
-                : j,
-            ),
-          );
-        } catch (err) {
-          corporateAbortRef.current.delete(jobId);
-          const cancelled = err instanceof Error && err.name === "AbortError";
-          setJobs((prev) =>
-            prev.map((j) =>
-              j.id === jobId
-                ? {
-                    ...j,
-                    status: cancelled ? ("cancelled" as const) : ("failed" as const),
-                    error_message:
-                      cancelled || !(err instanceof DossierApiError)
-                        ? null
-                        : err.message || null,
-                  }
-                : j,
-            ),
-          );
-        }
-      })();
-
-      return jobId;
+      setJobs((prev) => mergeSnapshot(prev, job));
+      return res.job_id;
     },
     [],
   );
 
   const cancelJob = useCallback(
     async (jobId: string) => {
-      const existing = jobsRef.current.find((j) => j.id === jobId);
-      if (
-        existing?.job_type === "corporate_manual" &&
-        (existing.status === "queued" || existing.status === "running")
-      ) {
-        corporateAbortRef.current.get(jobId)?.abort();
-        corporateAbortRef.current.delete(jobId);
-        setJobs((prev) =>
-          prev.map((j) => (j.id === jobId ? { ...j, status: "cancelled" as const } : j)),
-        );
-        return;
-      }
-
       // Cancela el trabajo en el servidor; el stream se cierra al llegar el estado terminal.
       const updated = await cancelDossierGenerationJob(jobId);
       setJobs((prev) => mergeSnapshot(prev, updated));

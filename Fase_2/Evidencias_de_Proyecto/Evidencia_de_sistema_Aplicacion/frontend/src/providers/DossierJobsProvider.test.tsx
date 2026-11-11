@@ -29,7 +29,7 @@ const h = vi.hoisted(() => ({
     enqueuePersonResearch: vi.fn(),
     fetchEnqueueGoogleCalendarDossier: vi.fn(),
     fetchEnqueueOutlookCalendarDossier: vi.fn(),
-    createCorporateDossier: vi.fn(),
+    enqueueCorporateDossier: vi.fn(),
   },
 }));
 
@@ -604,57 +604,72 @@ describe("DossierJobsProvider · estado general por SSE", () => {
     expect(screen.getByRole("button", { name: t("dossier_jobs.reconnect") })).toBeInTheDocument();
   });
 
-  it("CA11 · el corporativo manual local nunca abre stream y conserva generación, enlace y créditos", async () => {
-    let resolveCorp!: (v: unknown) => void;
-    h.api.createCorporateDossier.mockReturnValue(
-      new Promise((r) => {
-        resolveCorp = r;
-      }),
-    );
+  it("informe beta · Empresas se encola en el servidor y su avance llega por un único stream", async () => {
+    h.api.enqueueCorporateDossier.mockResolvedValue({
+      async: true,
+      job_id: "corp-job",
+      status: "queued",
+      meeting_label: "Acme",
+      credits_estimated: 3,
+    });
     renderProvider();
     await settle();
 
     let corpId = "";
     await act(async () => {
-      corpId = await ctx().enqueueCorporateDossierJob({ company_name: "Acme" } as never, "Acme", 3);
+      corpId = await ctx().enqueueCorporateDossierJob({ subject_query: "Acme" } as never, "Acme", 3);
     });
-    expect(statusOf(corpId)).toBe("running");
-    expect(subsFor(corpId)).toHaveLength(0);
+    await settle();
+    expect(corpId).toBe("corp-job");
+    expect(h.api.enqueueCorporateDossier).toHaveBeenCalledWith({ subject_query: "Acme" });
+    expect(openSubs("corp-job")).toHaveLength(1);
 
-    await act(async () => {
-      resolveCorp({ id: "corp-1", credits_consumed: 3 });
-      await new Promise((r) => setTimeout(r, 0));
-    });
-
-    expect(statusOf(corpId)).toBe("completed");
-    expect(ctx().jobs.find((j) => j.id === corpId)?.credits_consumed).toBe(3);
+    emit(job({ id: "corp-job", status: "running", job_type: "corporate_manual", calendar_provider: null }));
+    emit(
+      job({
+        id: "corp-job",
+        status: "completed",
+        job_type: "corporate_manual",
+        calendar_provider: null,
+        credits_consumed: 3,
+        result: { id: "corp-1", status: "complete", credits_consumed: 3 } as DossierGenerationJobApi["result"],
+      }),
+      "job_completed",
+      "2",
+    );
+    expect(statusOf("corp-job")).toBe("completed");
+    expect(ctx().jobs.find((j) => j.id === "corp-job")?.credits_consumed).toBe(3);
     expect(screen.getByRole("link", { name: t("dossier_jobs.view_dossier") })).toHaveAttribute(
       "href",
       "/dashboard/dossiers/corp-1",
     );
-    expect(h.subs).toHaveLength(0);
   });
 
-  it("CA11 · cancelar el corporativo local aborta su petición sin llamar a la API de jobs", async () => {
-    let signal: AbortSignal | undefined;
-    h.api.createCorporateDossier.mockImplementation((_p: unknown, s: AbortSignal) => {
-      signal = s;
-      return new Promise(() => {});
-    });
+  it("informe beta · cancelar Empresas usa la API de jobs, como los demás", async () => {
+    h.api.enqueueCorporateDossier.mockResolvedValue({ async: true, job_id: "corp-job", status: "queued" });
+    h.api.cancelDossierGenerationJob.mockResolvedValue(
+      job({ id: "corp-job", status: "cancelled", job_type: "corporate_manual", calendar_provider: null }),
+    );
     renderProvider();
     await settle();
-    let corpId = "";
     await act(async () => {
-      corpId = await ctx().enqueueCorporateDossierJob({ company_name: "Acme" } as never, "Acme");
+      await ctx().enqueueCorporateDossierJob({ subject_query: "Acme" } as never, "Acme");
     });
-
     await act(async () => {
-      await ctx().cancelJob(corpId);
+      await ctx().cancelJob("corp-job");
     });
+    expect(h.api.cancelDossierGenerationJob).toHaveBeenCalledWith("corp-job");
+    expect(statusOf("corp-job")).toBe("cancelled");
+  });
 
-    expect(signal?.aborted).toBe(true);
-    expect(statusOf(corpId)).toBe("cancelled");
-    expect(h.api.cancelDossierGenerationJob).not.toHaveBeenCalled();
+  it("informe beta · si el servidor rechaza el encargo, el error llega a la pantalla", async () => {
+    h.api.enqueueCorporateDossier.mockRejectedValue(new DossierApiError(402, "Créditos insuficientes"));
+    renderProvider();
+    await settle();
+    await expect(ctx().enqueueCorporateDossierJob({ subject_query: "Acme" } as never, "Acme")).rejects.toThrow(
+      "Créditos insuficientes",
+    );
+    expect(ctx().jobs).toHaveLength(0);
   });
 
   it("CA11 · cancelar un job remoto usa la API y cierra su stream", async () => {

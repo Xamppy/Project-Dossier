@@ -85,6 +85,10 @@ class CreateCorporateDossierRequest(BaseModel):
         max_length=16,
         description="Idioma del informe (es, en, pt, …). Desde Configuración del dashboard.",
     )
+    async_mode: bool = Field(
+        default=False,
+        description="Encola el trabajo y responde con job_id; el avance llega por su canal en vivo.",
+    )
 
     @field_validator("subject_query")
     @classmethod

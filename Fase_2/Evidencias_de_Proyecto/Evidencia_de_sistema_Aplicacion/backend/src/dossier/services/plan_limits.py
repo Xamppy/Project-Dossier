@@ -30,7 +30,7 @@ MAX_CONCURRENT: Final = 100
 PLAN_ORDER: Final = ("free", "pro", "enterprise")
 LIMIT_ERROR_CODE: Final = "CONCURRENT_DOSSIER_LIMIT"
 
-_JOBS_CONTADOS: Final = ("person_manual", "calendar_manual")
+_JOBS_CONTADOS: Final = ("person_manual", "calendar_manual", "corporate_manual")
 _ACTIVOS: Final = ("queued", "running")
 DEFAULT_WINDOW_MINUTES: Final = 30
 

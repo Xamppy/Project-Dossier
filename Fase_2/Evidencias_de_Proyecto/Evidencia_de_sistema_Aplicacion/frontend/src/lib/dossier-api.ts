@@ -1248,6 +1248,23 @@ export async function enqueuePersonResearch(
   return parsed as EnqueuePersonResearchResponse;
 }
 
+/**
+ * Encola un dossier de empresa (informe beta: avance real por agente en vez de una petición
+ * larga). El trabajo se sigue por su canal en vivo, como Personas y Calendario.
+ */
+export async function enqueueCorporateDossier(
+  payload: CreateCorporateDossierPayload,
+): Promise<EnqueuePersonResearchResponse> {
+  const parsed = await postJsonWithAuth<EnqueuePersonResearchResponse>("/dossiers/corporate/generate", {
+    ...payload,
+    async_mode: true,
+  });
+  if (!parsed || typeof parsed !== "object" || !parsed.async || typeof parsed.job_id !== "string") {
+    throw new DossierApiError(502, "La API no devolvió job_id para la generación asíncrona.", parsed);
+  }
+  return parsed;
+}
+
 export async function getPdlIntegrationHealth(): Promise<PdlHealthResponse> {
   const res = await authFetch(`${getApiBaseUrl()}/integrations/pdl/health`, { cache: "no-store" });
   const parsed = await res.json().catch(() => ({}));

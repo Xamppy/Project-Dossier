@@ -5,8 +5,9 @@ import logging
 import os
 import time
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -34,7 +35,7 @@ from dossier.cache.corporate_dossier_redis import (
     run_with_corporate_cache_lock,
     set_corporate_cached_markdown,
 )
-from dossier.db.models import Dossier, DossierMediaMention, Organization
+from dossier.db.models import Dossier, DossierMediaMention, Organization, User
 from dossier.graphs.corporate_dossier_graph import (
     JurisdictionScope,
     infer_jurisdiction_scope,
@@ -53,6 +54,7 @@ from dossier.security.rate_limit import limit_generation
 from dossier.security.rbac import normalize_org_role
 from dossier.services.calendar_event_dossiers import (
     CORPORATE_PARTIAL_MESSAGE,
+    _report_corporate_cache_hit,
     calendar_meeting_summary_from_dossier_data,
     es_informe_cacheable,
 )
@@ -76,9 +78,11 @@ from dossier.services.dossier_folder_utils import (
     serialize_folder,
 )
 from dossier.services.dossier_generation_job_service import (
+    enqueue_corporate_manual_job,
     enqueue_person_research_job,
     enviar_dossier_al_solicitante,
 )
+from dossier.services.dossier_job_progress import NULL_SCOPE
 from dossier.services.dossier_modules import MAX_MENCIONES, modulos_del_dossier
 from dossier.services.dossier_share_service import (
     dossier_permissions_payload,
@@ -220,9 +224,38 @@ def generate_corporate_dossier(
     (`DOSSIER_CHARGE_CREDITS=0`). Si el pipeline devuelve error, no se cobra.
     """
     user, org = ctx.user, ctx.org
-    charge = _corporate_credit_charging_enabled()
     assert_corporate_dossier_allowed(org)
     assert_depth_allowed(org, body.depth)
+    if body.async_mode:
+        # Informe beta: por la cola de trabajos, con avance real de cada agente en vivo.
+        job = enqueue_corporate_manual_job(db, user=user, org=org, body=body)
+        return {
+            "async": True,
+            "job_id": str(job.id),
+            "status": job.status,
+            "meeting_label": job.meeting_label,
+            "credits_estimated": job.credits_estimated,
+        }
+    return generar_dossier_corporativo(db, user=user, org=org, body=body)
+
+
+def generar_dossier_corporativo(
+    db: Session,
+    *,
+    user: User,
+    org: Organization,
+    body: CreateCorporateDossierRequest,
+    progress: Any = None,
+    antes_de_guardar: Callable[[], bool] | None = None,
+) -> dict[str, Any] | None:
+    """Genera y guarda el dossier corporativo. La usan la ruta síncrona y el worker de la cola.
+
+    ``progress`` es el scope corporativo del trabajo (avance por agente). ``antes_de_guardar``
+    deja al worker no guardar nada si el trabajo se canceló mientras corría el grafo: en ese
+    caso devuelve ``None``.
+    """
+    progress = progress if progress is not None else NULL_SCOPE
+    charge = _corporate_credit_charging_enabled()
     cost = DEPTH_CREDITS[body.depth] if charge else 0
     out_lang = effective_output_language(user, body.output_language)
 
@@ -254,6 +287,7 @@ def generate_corporate_dossier(
         if hit is not None:
             markdown_neutral = hit
             cache_hit = True
+            _report_corporate_cache_hit(progress, hit)
 
     if not cache_hit:
         assert_sufficient_credits(org, cost, charge=charge)
@@ -273,6 +307,7 @@ def generate_corporate_dossier(
             if hit2 is not None:
                 markdown_neutral = hit2
                 cache_hit = True
+                _report_corporate_cache_hit(progress, hit2)
                 return
             generado = run_corporate_dossier_langgraph_detailed(
                 tema_reunion=f"Dossier corporativo — {participantes[:200]}",
@@ -281,7 +316,9 @@ def generate_corporate_dossier(
                 jurisdiction_scope=explicit_scope,
                 output_language=out_lang,
                 empresa_objetivo=empresa_objetivo_de_solicitud(body),
+                progress=progress,
             )
+            progress.fields(origin="generated")
             md = generado.markdown
             telemetria = telemetria_de(generado)
             # S7.2: un informe parcial (sin síntesis) no se cachea.
@@ -352,6 +389,9 @@ def generate_corporate_dossier(
         trigger_source="manual",
     )
 
+    if antes_de_guardar is not None and not antes_de_guardar():
+        db.rollback()
+        return None
     db.add(dossier)
     if not cache_hit and telemetria is not None:
         escribir_menciones_prensa(
@@ -363,6 +403,7 @@ def generate_corporate_dossier(
     db.commit()
     db.refresh(dossier)
     db.refresh(org)
+    progress.fields(dossier={"id": str(dossier.id), "status": dossier.status})
 
     return {
         "id": str(dossier.id),
