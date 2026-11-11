@@ -6,6 +6,31 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-11 · Informe de pruebas beta (2026-10-06) · Mejoras · FD (agente)
+
+**Hecho.** Rama `fix/mejoras-informe-beta`. Defectos del informe beta que seguían vigentes:
+- La acción rápida «Libreta de direcciones» abre esa sección (`?section=`).
+- El tiempo estimado de Empresas pasa a 45–60 s (antes decía ~15 s y tardaba hasta 1 min).
+- Personas muestra los créditos disponibles; «País / región» aparece como opcional.
+- **Preferencias de notificación persistentes:** `users.notify_email` y `users.notify_browser`
+  (Alembic `a2c4e6f8b0d1`). Sin correo no se envía el PDF automático; con navegador hay aviso del
+  sistema operativo. Riesgo y resumen semanal quedan «Próximamente».
+- **Empresas por la cola de trabajos**, con avance real por agente (`async_mode`, trabajo
+  `corporate_manual`). Probado en vivo con los proveedores reales: el avance llega agente por agente
+  y, sin saldo en DeepSeek, queda un dossier parcial sin cobro.
+
+La libreta de direcciones y la importación de contactos **no se tocaron**, por decisión de FD.
+
+**Lo que hay que saber.**
+- `generar_dossier_corporativo` (en `api/dossier_routes.py`) la comparten la ruta síncrona y el
+  worker. El worker la importa de forma diferida porque la ruta importa el servicio de trabajos.
+- La prueba en vivo mostró que el **registro europeo falló** (`provider_error`) con «Tesco PLC»;
+  queda por revisar si las API de Francia o Alemania están caídas o cambiaron.
+- `jobsRef` del `DossierJobsProvider` ya no existe; `connectionsRef` se actualiza en un efecto
+  (regla `react-hooks/refs`).
+
+**Rama.** `fix/mejoras-informe-beta` · **Estado.** review
+
 ### 2026-11-11 · S7.6 · Documentación técnica · FD (agente)
 
 **Hecho.** Rama `feat/S7.6-documentacion-tecnica` (sale de la de S7.2). Documento de entrada en
