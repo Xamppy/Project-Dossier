@@ -6,6 +6,30 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-11 · S7.7 · Manual de usuario del dashboard · FD (agente)
+
+**Hecho.** Rama `feat/S7.7-manual-usuario`, desde `docmac`. Traspasada de DG. No había un manual
+previo en el repositorio: se escribió desde cero en `docs/manual-usuario/README.md`, con 14
+secciones y 17 capturas en `docs/manual-usuario/img/`: acceso, pantalla principal, calendario,
+generación, Mis Dossiers, lectura por secciones, compartir y correo, notificaciones,
+configuración, roles, administración, planes y mensajes frecuentes.
+
+**Lo que hay que saber.**
+- **Se adelantó al congelamiento (S7.0, pendiente).** Hay que revisarlo cuando se congelen
+  las funcionalidades.
+- **Capturas con Chrome sin ventana**, controlado por su protocolo de depuración desde Python
+  (`websockets`), con un perfil propio, contra `next dev` y la API local con `dossier_demo`. El
+  panel del navegador no sirve si está oculto (sale en blanco).
+- Para capturar páginas largas sin que se corra la barra lateral, se agranda la ventana virtual
+  al alto de la página (`Emulation.setDeviceMetricsOverride`). La captura con
+  `captureBeyondViewport` reacomoda el diseño. El indicador de desarrollo de Next.js se oculta
+  con CSS.
+- Los datos de las capturas son **ficticios** (Jane Doe, Acme Europe SA, registro 900123456).
+  Para las capturas, el usuario de prueba se pasó temporalmente a Pro y a admin de plataforma, y
+  después se revirtió.
+
+**Rama.** `feat/S7.7-manual-usuario` · **Estado.** review
+
 ### 2026-11-11 · UX-ADMIN-01 · Dossiers a la vez por usuario según el plan · FD (agente)
 
 **Hecho.** Rama `feat/UX-ADMIN-01-limites-por-plan`, desde `docmac`. Ampliación pedida por FD.

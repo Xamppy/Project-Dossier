@@ -1911,8 +1911,8 @@
       "id": "S7.7",
       "sprint": 7,
       "title": "Actualizar el manual de usuario del dashboard",
-      "status": "pending",
-      "owner": "DG",
+      "status": "review",
+      "owner": "FD",
       "area": "docs",
       "activity": "A10",
       "objective": "OE9",
@@ -1923,9 +1923,12 @@
       ],
       "blocks": [],
       "trello": "https://trello.com/c/EbSnTcxD",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S7.7-manual-usuario",
+      "evidence": [
+        "docs/manual-usuario/README.md: manual de usuario en 14 secciones con 17 capturas de la aplicación en ejecución (datos ficticios); textos citados verificados contra los catálogos en español"
+      ],
+      "notes": "Traspasada de DG a FD el 2026-11-11. No existía un manual previo en el repositorio: se escribe desde cero. Se adelanta al congelamiento (S7.0, pendiente): hay que revisarlo después de S7.0.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S7.8",
