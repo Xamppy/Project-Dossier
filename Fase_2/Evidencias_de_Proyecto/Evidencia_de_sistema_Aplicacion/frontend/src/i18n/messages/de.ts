@@ -1159,6 +1159,9 @@ const messages = {
   "admin.plan_limits.load_error": "Die Limits pro Tarif konnten nicht geladen werden.",
   "admin.plan_limits.invalid": "Verwenden Sie eine Zahl zwischen 1 und 100.",
   "backend.status_job_interrupted": "Die Erstellung wurde unterbrochen, weil der Server neu gestartet wurde. Bitte versuchen Sie es erneut.",
+  "dossiers.status_partial": "Teilweise",
+  "backend.status_partial_report": "Teilbericht: Die KI-Analyse konnte nicht erstellt werden; angezeigt werden die aus den Quellen gesammelten Daten.",
+  "backend.status_person_sources_unavailable": "Die Quellen zu dieser Person konnten nicht abgefragt werden. Bitte versuchen Sie es später erneut.",
 } as const;
 
 export default messages;

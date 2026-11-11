@@ -1798,7 +1798,7 @@
       "id": "S7.2",
       "sprint": 7,
       "title": "Pruebas de tolerancia a fallos con cada agente fallando por separado",
-      "status": "pending",
+      "status": "review",
       "owner": "FD",
       "area": "quality",
       "activity": "A9",
@@ -1812,9 +1812,12 @@
         "S7.4"
       ],
       "trello": "https://trello.com/c/pmo7alzp",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S7.2-tolerancia-fallos",
+      "evidence": [
+        "specs/reports/S7.2-tolerancia-fallos.md: 13 pruebas de punta a punta contra PostgreSQL 18 con cada agente cayendo por separado (UK, USA, Europa, prensa, síntesis, PDL, IA de persona) y la pantalla Empresas; 4 defectos corregidos (dossier de empresa perdido sin síntesis, informe parcial en caché, error de persona guardado como completo y cobrado, detalle técnico de excepciones visible)"
+      ],
+      "notes": "Tomada por FD el 2026-11-11.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S7.3",
@@ -1894,7 +1897,7 @@
       "id": "S7.6",
       "sprint": 7,
       "title": "Redactar la documentacion tecnica",
-      "status": "pending",
+      "status": "review",
       "owner": "FD",
       "area": "docs",
       "activity": "A10",
@@ -1906,9 +1909,12 @@
       ],
       "blocks": [],
       "trello": "https://trello.com/c/QVtcWIzA",
-      "branch": null,
-      "evidence": [],
-      "notes": ""
+      "branch": "feat/S7.6-documentacion-tecnica",
+      "evidence": [
+        "docs/tecnica/README.md: documento de entrada con arquitectura, requisitos, instalación local, despliegue, referencia completa de variables de entorno (obtenida del código, con valores por omisión verificados), operación, pruebas, registro de decisiones (9 ADR y 8 decisiones de la Fase 2) y problemas conocidos; esquema verificado en una base vacía (25 tablas, 2 vistas) y enlaces comprobados"
+      ],
+      "notes": "Tomada por FD el 2026-11-11. Se adelantó al congelamiento (S7.0, pendiente): hay que revisarla después de S7.0. Falta la prueba del criterio con un tercero que instale siguiendo solo el documento.",
+      "owner_session": "FD (agente)"
     },
     {
       "id": "S7.7",

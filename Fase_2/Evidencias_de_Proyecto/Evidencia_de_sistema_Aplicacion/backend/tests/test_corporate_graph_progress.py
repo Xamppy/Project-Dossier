@@ -217,7 +217,9 @@ def test_sintesis_fallida_no_publica_texto_de_error(progreso, agentes):
 
     assert _transiciones(progreso, "synthesize_llm") == [("running", None), ("failed", "provider_error")]
     assert "synthesis" not in _parciales(progreso)
-    assert resultado.markdown.startswith("# Error en síntesis")
+    # S7.2: informe parcial con lo que reunieron los agentes, sin el texto de la excepción.
+    assert "Informe parcial" in resultado.markdown
+    assert SECRETO not in resultado.markdown
 
 
 def test_ningun_evento_lleva_texto_de_excepciones(progreso, agentes):

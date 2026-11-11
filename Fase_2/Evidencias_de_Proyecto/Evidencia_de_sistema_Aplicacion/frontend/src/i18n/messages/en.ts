@@ -1194,6 +1194,9 @@ const messages = {
   "admin.plan_limits.load_error": "Plan limits could not be loaded.",
   "admin.plan_limits.invalid": "Use a number between 1 and 100.",
   "backend.status_job_interrupted": "Generation was interrupted because the server restarted. Please try again.",
+  "dossiers.status_partial": "Partial",
+  "backend.status_partial_report": "Partial report: the AI analysis could not be written; the data gathered from the sources is shown.",
+  "backend.status_person_sources_unavailable": "The sources for this person could not be consulted. Please try again later.",
 } as const;
 
 export default messages;

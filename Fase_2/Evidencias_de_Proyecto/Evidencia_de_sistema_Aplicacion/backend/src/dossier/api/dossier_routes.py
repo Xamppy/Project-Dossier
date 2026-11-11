@@ -51,7 +51,11 @@ from dossier.schemas.dossier_share import DossierShareCreate
 from dossier.schemas.person_research import PersonResearchRequest
 from dossier.security.rate_limit import limit_generation
 from dossier.security.rbac import normalize_org_role
-from dossier.services.calendar_event_dossiers import calendar_meeting_summary_from_dossier_data
+from dossier.services.calendar_event_dossiers import (
+    CORPORATE_PARTIAL_MESSAGE,
+    calendar_meeting_summary_from_dossier_data,
+    es_informe_cacheable,
+)
 from dossier.services.corporate_company_search import search_corporate_company_candidates
 from dossier.services.corporate_dossier_telemetry import columnas_telemetria, telemetria_de
 from dossier.services.dossier_access_links import url_de_acceso_o_nada
@@ -280,7 +284,8 @@ def generate_corporate_dossier(
             )
             md = generado.markdown
             telemetria = telemetria_de(generado)
-            if not md.lstrip().startswith("# Error"):
+            # S7.2: un informe parcial (sin síntesis) no se cachea.
+            if es_informe_cacheable(generado):
                 set_corporate_cached_markdown(key_hash, md)
             markdown_neutral = md
             cache_hit = False
@@ -292,9 +297,11 @@ def generate_corporate_dossier(
     now = datetime.now(UTC)
 
     is_err = markdown.lstrip().startswith("# Error")
-    status = "failed" if is_err else "complete"
+    # S7.2: sin síntesis con IA el informe trae solo los datos de los agentes: parcial, sin cobro.
+    sin_sintesis = bool(telemetria) and "synthesize_llm" in (telemetria or {}).get("agents_failed", [])
+    status = "failed" if is_err else ("partial" if sin_sintesis else "complete")
 
-    will_charge = charge and cost > 0 and not is_err and not cache_hit
+    will_charge = charge and cost > 0 and status == "complete" and not cache_hit
     columnas = columnas_telemetria(None if cache_hit else telemetria, es_error=is_err)
 
     dossier_id = uuid.uuid4()
@@ -330,7 +337,9 @@ def generate_corporate_dossier(
         depth_level=body.depth,
         credits_consumed=cost if will_charge else 0,
         status=status,
-        status_message="Error en síntesis o en el pipeline." if is_err else None,
+        status_message=(
+            "Error en síntesis o en el pipeline." if is_err else CORPORATE_PARTIAL_MESSAGE if status == "partial" else None
+        ),
         dossier_data=dossier_data_body,
         agents_activated=columnas["agents_activated"],
         agents_failed=columnas["agents_failed"],

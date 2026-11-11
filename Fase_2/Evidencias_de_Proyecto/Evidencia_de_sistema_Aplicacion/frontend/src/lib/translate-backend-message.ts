@@ -19,6 +19,11 @@ const EXACT_STATUS: Record<string, TranslationKey> = {
   "Error en síntesis o en el pipeline.": "backend.status_pipeline_error",
   "Error al generar el análisis de persona.": "backend.status_person_analysis_error",
   "Cancelado por el usuario": "backend.status_cancelled_by_user",
+  // S7.2: una fuente o la IA no respondieron (sin detalle técnico).
+  "Informe parcial: no se pudo redactar el análisis con IA; se muestran los datos reunidos de las fuentes.":
+    "backend.status_partial_report",
+  "No se pudieron consultar las fuentes de esta persona. Vuelve a intentarlo más tarde.":
+    "backend.status_person_sources_unavailable",
   // Recuperación de trabajos colgados tras una caída del servidor.
   "La generación se interrumpió porque el servidor se reinició. Vuelve a intentarlo.":
     "backend.status_job_interrupted",

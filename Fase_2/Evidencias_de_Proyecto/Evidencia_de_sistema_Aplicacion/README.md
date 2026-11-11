@@ -17,7 +17,7 @@ Backend **FastAPI**, consultas **Companies House** y **SEC EDGAR**, síntesis co
 | **`backend/src/dossier/sec_edgar/`** | CLI Estados Unidos |
 | **`backend/scripts/`** | Entradas `companies_house.py`, `sec_edgar.py` |
 | **`backend/data/`** | JSON y textos generados |
-| **`docs/`** | Guías (`estructura.md`, `postgresql.md`, `sec_edgar.md`) |
+| **`docs/`** | Guías. Entrada técnica: [`docs/tecnica/README.md`](docs/tecnica/README.md) (instalación, despliegue, variables, operación y decisiones). Manual de usuario: [`docs/manual-usuario/README.md`](docs/manual-usuario/README.md) |
 | **`frontend/`** | Dashboard Next.js (npm; ver su `README.md`) |
 
 Detalle: [docs/estructura.md](docs/estructura.md).

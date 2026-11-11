@@ -7,7 +7,7 @@ type Props = {
   size?: "sm" | "md";
 };
 
-function statusStyle(status: string): { bg: string; color: string; labelKey: "dossiers.status_complete" | "dossiers.status_failed" | "dossiers.status_pending" | null } {
+function statusStyle(status: string): { bg: string; color: string; labelKey: "dossiers.status_complete" | "dossiers.status_failed" | "dossiers.status_pending" | "dossiers.status_partial" | null } {
   if (status === "complete") {
     return {
       bg: "rgba(34, 197, 94, 0.12)",
@@ -20,6 +20,13 @@ function statusStyle(status: string): { bg: string; color: string; labelKey: "do
       bg: "rgba(248, 113, 113, 0.12)",
       color: "#f87171",
       labelKey: "dossiers.status_failed",
+    };
+  }
+  if (status === "partial") {
+    return {
+      bg: "rgba(251, 191, 36, 0.12)",
+      color: "var(--status-warning, #fbbf24)",
+      labelKey: "dossiers.status_partial",
     };
   }
   if (status === "pending") {
