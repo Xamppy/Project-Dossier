@@ -196,7 +196,7 @@ const messages = {
   "person_research.job_area_ph": "z. B. Softwareentwickler, CFO, Marketing…",
   "person_research.company": "Unternehmen (freiwillig)",
   "person_research.company_ph": "Aktueller oder wahrscheinlicher Arbeitgeber",
-  "person_research.country": "Land / Region",
+  "person_research.country": "Land / Region (freiwillig)",
   "person_research.country_ph": "Land auswählen",
   "person_research.city": "Stadt (freiwillig)",
   "person_research.city_ph": "z. B. Berlin",
@@ -1162,6 +1162,11 @@ const messages = {
   "dossiers.status_partial": "Teilweise",
   "backend.status_partial_report": "Teilbericht: Die KI-Analyse konnte nicht erstellt werden; angezeigt werden die aus den Quellen gesammelten Daten.",
   "backend.status_person_sources_unavailable": "Die Quellen zu dieser Person konnten nicht abgefragt werden. Bitte versuchen Sie es später erneut.",
+  "notif.coming_soon": "Demnächst",
+  "notif.load_error": "Ihre Benachrichtigungseinstellungen konnten nicht geladen werden.",
+  "notif.save_error": "Die Änderung konnte nicht gespeichert werden. Bitte erneut versuchen.",
+  "notif.browser_blocked": "Der Browser hat Benachrichtigungen blockiert. Erlauben Sie sie in den Website-Einstellungen und versuchen Sie es erneut.",
+  "notif.browser_unsupported": "Dieser Browser unterstützt keine Benachrichtigungen.",
 } as const;
 
 export default messages;

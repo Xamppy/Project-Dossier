@@ -314,3 +314,41 @@ describe("NotificationsProvider · reconexión con retroceso (S5.3)", () => {
     expect(h.fetchDossiersFromApi).toHaveBeenCalledWith(25);
   });
 });
+
+describe("NotificationsProvider · aviso del navegador (informe beta)", () => {
+  function navegador() {
+    const creados: string[] = [];
+    vi.stubGlobal(
+      "Notification",
+      Object.assign(
+        vi.fn(function (this: Record<string, unknown>, title: string) {
+          creados.push(title);
+        }),
+        { permission: "granted", requestPermission: vi.fn() },
+      ),
+    );
+    return creados;
+  }
+
+  it("avisa una sola vez por cada dossier nuevo, solo si está activado", () => {
+    const creados = navegador();
+    localStorage.setItem("dossier_notify_browser", "1");
+    montar();
+    recibir(lista({ id: "d1", name: "Antiguo", at: BASE }));
+    const nueva = lista({ id: "d2", name: "Acme", at: DESPUES }, { id: "d1", name: "Antiguo", at: BASE });
+    recibir(nueva);
+    recibir(nueva);
+    expect(creados).toEqual(["Acme"]);
+    vi.unstubAllGlobals();
+  });
+
+  it("con la preferencia apagada no avisa", () => {
+    const creados = navegador();
+    localStorage.setItem("dossier_notify_browser", "0");
+    montar();
+    recibir(lista({ id: "d1", name: "Antiguo", at: BASE }));
+    recibir(lista({ id: "d2", name: "Acme", at: DESPUES }, { id: "d1", name: "Antiguo", at: BASE }));
+    expect(creados).toEqual([]);
+    vi.unstubAllGlobals();
+  });
+});

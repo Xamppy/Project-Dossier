@@ -504,6 +504,9 @@ def _enviar_dossiers_de_la_reunion(
     """
     if not integration.auto_send_email or user is None or not (user.email or "").strip():
         return
+    # Informe beta: preferencia de la cuenta (Configuración → Notificaciones).
+    if not getattr(user, "notify_email", True):
+        return
     if not email_delivery_available():
         return
     ids = saved_dossier_ids(guardados)

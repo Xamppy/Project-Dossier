@@ -193,7 +193,7 @@ const messages = {
   "person_research.job_area_ph": "e.g. Software engineer, CFO, marketing…",
   "person_research.company": "Company (optional)",
   "person_research.company_ph": "Current or likely employer",
-  "person_research.country": "Country / region",
+  "person_research.country": "Country / region (optional)",
   "person_research.country_ph": "Select a country",
   "person_research.city": "City (optional)",
   "person_research.city_ph": "e.g. Madrid",
@@ -1197,6 +1197,11 @@ const messages = {
   "dossiers.status_partial": "Partial",
   "backend.status_partial_report": "Partial report: the AI analysis could not be written; the data gathered from the sources is shown.",
   "backend.status_person_sources_unavailable": "The sources for this person could not be consulted. Please try again later.",
+  "notif.coming_soon": "Coming soon",
+  "notif.load_error": "Your notification preferences could not be loaded.",
+  "notif.save_error": "The change could not be saved. Try again.",
+  "notif.browser_blocked": "The browser blocked notifications. Allow them in the site settings and try again.",
+  "notif.browser_unsupported": "This browser does not support notifications.",
 } as const;
 
 export default messages;

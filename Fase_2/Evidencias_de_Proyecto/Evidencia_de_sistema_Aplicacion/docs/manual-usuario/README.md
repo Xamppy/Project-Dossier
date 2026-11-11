@@ -249,7 +249,11 @@ Tu plan, el saldo y el tope mensual ([13](#13-planes-créditos-y-límites)).
 
 - **Libreta de direcciones:** grupos de contactos frecuentes; se pueden importar desde Google
   Contacts.
-- **Notificaciones:** preferencias de avisos.
+- **Notificaciones:** se guardan en tu cuenta. **Notificaciones por email** apaga el envío
+  automático del PDF al terminar un dossier (el botón «Enviar por correo» sigue funcionando).
+  **Notificaciones del navegador** muestra un aviso del sistema cuando llega un dossier nuevo;
+  la primera vez el navegador pide permiso. Las alertas de riesgo y el resumen semanal están
+  marcados «Próximamente».
 
 ## 11. Roles y permisos
 

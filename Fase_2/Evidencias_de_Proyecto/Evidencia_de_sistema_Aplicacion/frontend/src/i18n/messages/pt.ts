@@ -930,7 +930,7 @@ const messages = {
   "person_research.job_area_ph": "ex. Engenheira de software, CFO, marketing…",
   "person_research.company": "Empresa (opcional)",
   "person_research.company_ph": "Empregador atual ou provável",
-  "person_research.country": "País / região",
+  "person_research.country": "País / região (opcional)",
   "person_research.country_ph": "Selecione um país",
   "person_research.city": "Cidade (opcional)",
   "person_research.city_ph": "ex. Madrid",
@@ -1154,6 +1154,11 @@ const messages = {
   "dossiers.status_partial": "Parcial",
   "backend.status_partial_report": "Relatório parcial: não foi possível redigir a análise com IA; são mostrados os dados reunidos das fontes.",
   "backend.status_person_sources_unavailable": "Não foi possível consultar as fontes desta pessoa. Tente novamente mais tarde.",
+  "notif.coming_soon": "Em breve",
+  "notif.load_error": "Não foi possível carregar as suas preferências de notificação.",
+  "notif.save_error": "Não foi possível guardar a alteração. Tente novamente.",
+  "notif.browser_blocked": "O navegador bloqueou as notificações. Permita-as nas definições do site e tente novamente.",
+  "notif.browser_unsupported": "Este navegador não suporta notificações.",
 } as const;
 
 export default messages;

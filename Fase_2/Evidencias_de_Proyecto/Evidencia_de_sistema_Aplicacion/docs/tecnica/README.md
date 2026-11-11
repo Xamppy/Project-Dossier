@@ -43,7 +43,7 @@ recherche-entreprises (FR), OffeneRegister (DE), GDELT, NewsAPI, Google y Micros
 | Grafo corporativo | `backend/src/dossier/graphs/corporate_dossier_graph.py` | LangGraph: agentes de Reino Unido, EE. UU., Europa y prensa en paralelo, y luego la síntesis con IA |
 | Investigación de personas | `backend/src/dossier/services/person_research_*.py` | PDL (o web pública) más síntesis estructurada con IA |
 | Trabajos | `services/dossier_generation_job_service.py` y `services/dossier_generation_worker.py` | Cola en `dossier_generation_jobs`, procesada por un hilo con latido; recuperación de colgados |
-| Esquema | `backend/alembic/` y `src/dossier/db/schema_patches.py` | Migraciones Alembic (la cabeza es `e1b5c9d3a7f2`) y los mismos parches idempotentes al arrancar |
+| Esquema | `backend/alembic/` y `src/dossier/db/schema_patches.py` | Migraciones Alembic (la cabeza es `a2c4e6f8b0d1`) y los mismos parches idempotentes al arrancar |
 | Frontend | `frontend/src/` | Dashboard Next.js; siete idiomas en `src/i18n/messages/` |
 
 **Un solo proceso a propósito.** Los workers son hilos de la API y el bus de los canales en vivo
@@ -309,6 +309,9 @@ Cada una tiene su especificación en `specs/proposals/` y su verificación en `s
 | Dossiers a la vez | Tope por plan configurable por el admin de plataforma; 409, no 429 | UX-ADMIN-01 |
 | Trabajos colgados | Latido y barrido; pasan a `failed` | BUG-2026-11-11-01 |
 | Tolerancia a fallos | Sin síntesis: informe `partial`, sin cobro ni caché; el detalle técnico de los errores no sale del log | S7.2 |
+| Empresas por la cola | `POST /dossiers/corporate/generate` con `async_mode`: trabajo `corporate_manual` con avance por agente; la ruta síncrona se conserva | Informe beta |
+| Preferencias de notificación | `users.notify_email` (apaga el PDF automático) y `notify_browser` (aviso del sistema operativo); riesgo y resumen semanal «Próximamente» | Informe beta |
+| Cambio de plan sin pago | Intencional para pruebas rápidas: el admin de la organización cambia el plan desde Configuración | Decisión de FD |
 
 ## 9. Problemas conocidos
 
@@ -319,8 +322,6 @@ Cada una tiene su especificación en `specs/proposals/` y su verificación en `s
 - **Esquema en dos lugares:** Alembic y `schema_patches.py` al arrancar. Todo cambio de esquema va
   en los dos (las migraciones reutilizan las tuplas de los parches).
 - **Límites de tasa en memoria:** con más de un proceso, cada uno cuenta por separado.
-- **El plan se cambia sin pago:** el administrador de una organización puede pasarla a Pro o
-  Enterprise con `PATCH /organization/plan`, porque no hay pasarela de pago. Para operar con
-  clientes reales, esa ruta debería quedar solo para el administrador de plataforma o detrás del
-  pago.
+- **El plan se cambia sin pago, a propósito:** sirve para probar rápido cada plan. Para operar
+  con clientes reales, `PATCH /organization/plan` debería quedar detrás de una pasarela de pago.
 - Otros puntos de deuda: [`../evidencias/fase2/deuda-final/README.md`](../evidencias/fase2/deuda-final/README.md#deuda-que-queda).

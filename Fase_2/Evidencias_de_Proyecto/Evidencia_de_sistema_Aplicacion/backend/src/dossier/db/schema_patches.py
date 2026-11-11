@@ -259,6 +259,13 @@ JOB_HEARTBEAT_PATCHES = (
 )
 
 
+# Informe beta: preferencias de notificación de cada usuario (Configuración → Notificaciones).
+USER_NOTIFY_PATCHES = (
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_email BOOLEAN NOT NULL DEFAULT true;",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_browser BOOLEAN NOT NULL DEFAULT true;",
+)
+
+
 def apply_schema_patches(engine: Engine) -> None:
     with engine.begin() as conn:
         for sql in (
@@ -271,5 +278,6 @@ def apply_schema_patches(engine: Engine) -> None:
             + ACCESS_LINK_PATCHES
             + PLAN_SETTINGS_PATCHES
             + JOB_HEARTBEAT_PATCHES
+            + USER_NOTIFY_PATCHES
         ):
             conn.execute(text(sql))

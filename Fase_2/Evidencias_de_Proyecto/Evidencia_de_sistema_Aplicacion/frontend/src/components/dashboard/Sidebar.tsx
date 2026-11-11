@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { setBrowserNotifyPref } from "@/lib/browser-notifications";
 import { useEffect, useRef, useState } from "react";
 import BrandLogo from "@/components/BrandLogo";
 import {
@@ -186,6 +187,8 @@ export default function Sidebar({
           const me = await fetchAuthMe();
           if (cancelled) return;
           setIsPlatformAdmin(!!me.is_platform_admin);
+          // Informe beta: copia local de la preferencia para los avisos del navegador.
+          setBrowserNotifyPref(me.notify_browser !== false);
           writeDossierUserPreview(
             {
               email: me.email,

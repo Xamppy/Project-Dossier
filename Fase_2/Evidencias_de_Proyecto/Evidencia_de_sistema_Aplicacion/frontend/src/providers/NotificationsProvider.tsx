@@ -21,6 +21,7 @@ import {
   openDossierNotificationsStream,
   type DossierNotificationsStreamSubscription,
 } from "@/lib/dossier-notifications-stream";
+import { showDossierNotification } from "@/lib/browser-notifications";
 import { reconnectDelay } from "@/lib/reconnect-backoff";
 
 const STORAGE_KEY = "dossier_notifications_v1";
@@ -149,6 +150,8 @@ function maxCreatedAt(list: DossierNotification[]): string {
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<DossierNotification[]>(() => loadStored());
   const baselineRef = useRef<string | null>(loadBaseline());
+  // Ids ya avisados: un mismo dossier no dispara dos avisos del navegador.
+  const avisadosRef = useRef<Set<string>>(new Set(notifications.map((n) => n.id)));
 
   // Aplica una lista de dossiers (del canal o de `refresh`) a las notificaciones.
   const applyEntries = useCallback((entries: DossierListEntry[]) => {
@@ -164,6 +167,13 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     }
 
     const baseline = baselineRef.current;
+    // Informe beta: aviso del sistema operativo por cada dossier nuevo (si está activado).
+    for (const n of fresh) {
+      if (n.createdAt > baseline && !avisadosRef.current.has(n.id)) {
+        avisadosRef.current.add(n.id);
+        showDossierNotification(n.title, n.status, n.href);
+      }
+    }
     setNotifications((prev) => {
       const freshById = new Map(fresh.map((n) => [n.id, n]));
       const known = new Set(prev.map((n) => n.id));

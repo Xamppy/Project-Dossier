@@ -49,6 +49,9 @@ export type AuthUser = {
   dossier_retention_hours?: number;
   /** S6.1: la instancia tiene SMTP configurado y puede enviar dossiers por correo. */
   email_delivery_available?: boolean;
+  /** Informe beta: correo automático del dossier y aviso del navegador (activados por omisión). */
+  notify_email?: boolean;
+  notify_browser?: boolean;
 };
 
 /** Fila devuelta por `GET /dossiers` (tabla `dossiers` en PostgreSQL). */
@@ -491,6 +494,8 @@ export type AuthUserPreferencesPatch = {
   locale?: string;
   timezone?: string;
   dossier_output_language?: string;
+  notify_email?: boolean;
+  notify_browser?: boolean;
 };
 
 /** Sincroniza idioma de interfaz / zona horaria / idioma de dossiers con PostgreSQL. */
@@ -1241,6 +1246,23 @@ export async function enqueuePersonResearch(
     throw new DossierApiError(502, "La API no devolvió job_id para la generación asíncrona.", parsed);
   }
   return parsed as EnqueuePersonResearchResponse;
+}
+
+/**
+ * Encola un dossier de empresa (informe beta: avance real por agente en vez de una petición
+ * larga). El trabajo se sigue por su canal en vivo, como Personas y Calendario.
+ */
+export async function enqueueCorporateDossier(
+  payload: CreateCorporateDossierPayload,
+): Promise<EnqueuePersonResearchResponse> {
+  const parsed = await postJsonWithAuth<EnqueuePersonResearchResponse>("/dossiers/corporate/generate", {
+    ...payload,
+    async_mode: true,
+  });
+  if (!parsed || typeof parsed !== "object" || !parsed.async || typeof parsed.job_id !== "string") {
+    throw new DossierApiError(502, "La API no devolvió job_id para la generación asíncrona.", parsed);
+  }
+  return parsed;
 }
 
 export async function getPdlIntegrationHealth(): Promise<PdlHealthResponse> {

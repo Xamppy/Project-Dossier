@@ -193,7 +193,7 @@ const messages = {
   "person_research.job_area_ph": "es. Ingegnere software, CFO, marketing…",
   "person_research.company": "Azienda (facoltativa)",
   "person_research.company_ph": "Datore di lavoro attuale o probabile",
-  "person_research.country": "Paese / regione",
+  "person_research.country": "Paese / regione (facoltativo)",
   "person_research.country_ph": "Seleziona un paese",
   "person_research.city": "Città (facoltativa)",
   "person_research.city_ph": "es. Roma",
@@ -1155,6 +1155,11 @@ const messages = {
   "dossiers.status_partial": "Parziale",
   "backend.status_partial_report": "Report parziale: non è stato possibile redigere l'analisi con l'IA; sono mostrati i dati raccolti dalle fonti.",
   "backend.status_person_sources_unavailable": "Non è stato possibile consultare le fonti di questa persona. Riprova più tardi.",
+  "notif.coming_soon": "Prossimamente",
+  "notif.load_error": "Impossibile caricare le preferenze di notifica.",
+  "notif.save_error": "Impossibile salvare la modifica. Riprova.",
+  "notif.browser_blocked": "Il browser ha bloccato le notifiche. Consentile nelle impostazioni del sito e riprova.",
+  "notif.browser_unsupported": "Questo browser non supporta le notifiche.",
 } as const;
 
 export default messages;
