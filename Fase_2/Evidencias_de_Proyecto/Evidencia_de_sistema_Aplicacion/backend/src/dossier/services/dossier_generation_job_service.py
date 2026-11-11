@@ -2,13 +2,15 @@
 from __future__ import annotations
 
 import logging
+import os
+import threading
 import time
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import Engine, func, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from dossier.billing.credit_policy import (
@@ -372,6 +374,53 @@ def _final_payload(result: dict[str, Any] | None, job: DossierGenerationJob) -> 
     return merge_result_payload(result if result is not None else previo, job.result_payload, job.status)
 
 
+def _intervalo_latido() -> float:
+    try:
+        return max(0.2, float((os.getenv("DOSSIER_JOB_HEARTBEAT_SECONDS") or "").strip() or 30))
+    except ValueError:
+        return 30.0
+
+
+class _Latido:
+    """Actualiza ``heartbeat_at`` en otro hilo mientras el trabajo se genera.
+
+    Con su propia conexión: la sesión del worker está ocupada con la generación. Si la sesión no
+    está ligada a un ``Engine`` (pruebas con una conexión compartida), no hace nada.
+    """
+
+    def __init__(self, db: Session, job_id: UUID) -> None:
+        bind = db.get_bind()
+        self._engine = bind if isinstance(bind, Engine) else None
+        self._job_id = job_id
+        self._stop = threading.Event()
+        self._hilo: threading.Thread | None = None
+
+    def __enter__(self) -> _Latido:
+        if self._engine is not None:
+            self._hilo = threading.Thread(target=self._correr, name=f"latido-{self._job_id}", daemon=True)
+            self._hilo.start()
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self._stop.set()
+        if self._hilo is not None:
+            self._hilo.join(timeout=5)
+
+    def _correr(self) -> None:
+        assert self._engine is not None
+        intervalo = _intervalo_latido()
+        while not self._stop.wait(intervalo):
+            try:
+                with self._engine.begin() as conn:
+                    conn.execute(
+                        update(DossierGenerationJob)
+                        .where(DossierGenerationJob.id == self._job_id, DossierGenerationJob.status == "running")
+                        .values(heartbeat_at=func.now())
+                    )
+            except Exception:  # un latido perdido no corta la generación
+                logger.warning("No se pudo registrar el latido del job %s", self._job_id, exc_info=True)
+
+
 def process_dossier_generation_job(db: Session, job_id: UUID) -> None:
     job = db.get(DossierGenerationJob, job_id)
     if job is None or job.status not in ("queued", "running"):
@@ -381,19 +430,22 @@ def process_dossier_generation_job(db: Session, job_id: UUID) -> None:
         now = datetime.now(UTC)
         job.status = "running"
         job.started_at = now
+        job.heartbeat_at = now
         db.commit()
         _publicar_estado(job)
 
     try:
-        if job.job_type == "person_manual":
-            _process_person_manual_job(db, job)
-        else:
-            _process_calendar_manual_job(db, job)
+        with _Latido(db, job_id):
+            if job.job_type == "person_manual":
+                _process_person_manual_job(db, job)
+            else:
+                _process_calendar_manual_job(db, job)
     except Exception as exc:
         logger.exception("Job dossier %s falló", job_id)
         db.rollback()
         job = db.get(DossierGenerationJob, job_id, with_for_update=True, populate_existing=True)
-        if job is not None and job.status != "cancelled":
+        # Cancelado por el usuario o recuperado como colgado: no se pisa su estado.
+        if job is not None and job.status == "running":
             job.status = "failed"
             job.error_message = str(exc)[:2000]
             job.completed_at = datetime.now(UTC)
@@ -462,9 +514,10 @@ def _process_person_manual_job(db: Session, job: DossierGenerationJob) -> None:
         raise
 
     db.refresh(job, with_for_update=True)
-    if job.status == "cancelled":
+    if job.status != "running":
+        # Cancelado por el usuario, o marcado como colgado por la recuperación.
         db.rollback()
-        logger.info("Job persona %s cancelado; no se actualiza el resultado", job.id)
+        logger.info("Job persona %s ya está %s; no se actualiza el resultado", job.id, job.status)
         return
 
     saved = result.get("saved_dossier")
@@ -540,8 +593,8 @@ def _process_calendar_manual_job(db: Session, job: DossierGenerationJob) -> None
     elapsed_ms = int((time.perf_counter() - t0) * 1000)
 
     db.refresh(job)
-    if job.status == "cancelled":
-        logger.info("Job calendario %s cancelado; se omite persistencia", job.id)
+    if job.status != "running":
+        logger.info("Job calendario %s ya está %s; se omite persistencia", job.id, job.status)
         return
 
     item = persist_calendar_dossiers(
@@ -558,6 +611,10 @@ def _process_calendar_manual_job(db: Session, job: DossierGenerationJob) -> None
     )
 
     db.refresh(job, with_for_update=True)  # trae el progreso al día y bloquea el cierre
+    if job.status != "running":
+        db.rollback()
+        logger.info("Job calendario %s ya está %s; no se actualiza el resultado", job.id, job.status)
+        return
     saved = item.get("saved_dossiers") or {}
     job.credits_consumed = _credits_consumed_from_saved(
         saved, depth=depth, charge=charge, result=item
@@ -596,6 +653,7 @@ def claim_next_queued_job(db: Session) -> DossierGenerationJob | None:
     now = datetime.now(UTC)
     job.status = "running"
     job.started_at = now
+    job.heartbeat_at = now
     db.commit()
     db.refresh(job)
     _publicar_estado(job)

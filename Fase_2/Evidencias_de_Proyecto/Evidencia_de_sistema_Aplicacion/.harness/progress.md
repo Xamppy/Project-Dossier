@@ -6,6 +6,28 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-11 · BUG-2026-11-11-01 · Trabajos de generación colgados tras una caída · FD (agente)
+
+**Hecho.** Rama `fix/trabajos-colgados`, desde `docmac`. Columna `dossier_generation_jobs.heartbeat_at`
+(Alembic `e1b5c9d3a7f2`). Mientras genera, un hilo actualiza el latido cada 30 s
+(`_Latido` en `dossier_generation_job_service.py`). `services/dossier_job_recovery.py` marca
+como `failed` los trabajos `running` sin latido en 180 s, con un mensaje claro. El worker lo
+revisa al arrancar y cada 60 s. El cierre del trabajo ya no pisa un estado que no sea `running`.
+El mensaje se traduce en siete idiomas.
+
+**Lo que hay que saber.**
+- **Créditos:** no hay nada que devolver; el débito ocurre al insertar el dossier y un trabajo
+  cortado no llegó a insertarlo. Caso límite: si el servidor cae justo entre guardar el dossier y
+  cerrar el trabajo, el dossier existe pero el trabajo queda como fallido.
+- **Los trabajos `queued` no se tocan:** con el worker vivo se toman en segundos y una cola larga
+  es legítima.
+- **`translateDossierStatusMessage`** ahora traduce primero los estados conocidos. Antes, si la
+  traducción al español coincidía con el texto del servidor, mostraba el mensaje genérico.
+- Variables: `DOSSIER_JOB_STALE_SECONDS` (180, mínimo 60), `DOSSIER_JOB_HEARTBEAT_SECONDS` (30),
+  `DOSSIER_JOB_RECOVERY_SECONDS` (60, mínimo 10).
+
+**Rama.** `fix/trabajos-colgados` · **Estado.** review
+
 ### 2026-11-11 · S7.7 · Manual de usuario del dashboard · FD (agente)
 
 **Hecho.** Rama `feat/S7.7-manual-usuario`, desde `docmac`. Traspasada de DG. No había un manual

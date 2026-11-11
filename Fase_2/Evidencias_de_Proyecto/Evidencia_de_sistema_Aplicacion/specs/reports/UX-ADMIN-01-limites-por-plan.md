@@ -56,7 +56,7 @@ API en `127.0.0.1:8000`, `next dev` en `localhost:3000`, base `dossier_demo`:
 
 - **No hay recuperación de trabajos colgados.** Si el proceso cae a mitad de una generación,
   el trabajo queda `running` para siempre. Aquí se evita que bloquee al usuario con la ventana de
-  30 minutos. La recuperación en sí (marcarlos `failed` al arrancar) queda como deuda.
+  30 minutos. La recuperación en sí se resolvió después en BUG-2026-11-11-01 (latido y barrido).
 - **El frontend traduce cualquier 429 como «espera N segundos»**: por eso el tope usa 409 con
   código propio.
 - **La ficha de reunión del calendario mostraba `e.message` crudo**: con errores con código se

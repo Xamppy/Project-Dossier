@@ -1151,6 +1151,7 @@ const messages = {
   "admin.plan_limits.save_error": "Impossibile salvare il limite. Riprova.",
   "admin.plan_limits.load_error": "Impossibile caricare i limiti per piano.",
   "admin.plan_limits.invalid": "Usa un numero tra 1 e 100.",
+  "backend.status_job_interrupted": "La generazione si è interrotta perché il server è stato riavviato. Riprova.",
 } as const;
 
 export default messages;
