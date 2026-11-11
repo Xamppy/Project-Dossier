@@ -25,6 +25,10 @@ El mensaje se traduce en siete idiomas.
   traducción al español coincidía con el texto del servidor, mostraba el mensaje genérico.
 - Variables: `DOSSIER_JOB_STALE_SECONDS` (180, mínimo 60), `DOSSIER_JOB_HEARTBEAT_SECONDS` (30),
   `DOSSIER_JOB_RECOVERY_SECONDS` (60, mínimo 10).
+- **Las pruebas de migración bajan a una revisión fija**, no a «-1». Al agregar esta migración,
+  la prueba de UX-ADMIN-01 con «-1» quitaba la columna nueva y fallaba.
+- La prueba de estrés de S5.2 dependía de la velocidad de la máquina y falló una vez con la suite
+  completa. Se corrigió (cada stream vive 2 s). Suite completa: 1775 en verde, 2 omitidas.
 
 **Rama.** `fix/trabajos-colgados` · **Estado.** review
 
