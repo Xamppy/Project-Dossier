@@ -1244,6 +1244,24 @@ CREATE INDEX IF NOT EXISTS idx_dossier_access_links_dossier ON dossier_access_li
 
 
 -- =============================================================================
+-- MIGRACIÓN INCREMENTAL: ajustes por plan (UX-ADMIN-01, Alembic c7e2a9d4f1b6)
+-- Máximo de dossiers generándose a la vez por usuario según el plan. Lo cambia
+-- el admin de plataforma en /dashboard/admin. DDL en
+-- schema_patches.PLAN_SETTINGS_PATCHES.
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS plan_settings (
+    plan                     VARCHAR(20)  PRIMARY KEY CHECK (plan IN ('free', 'pro', 'enterprise')),
+    max_concurrent_dossiers  INTEGER      NOT NULL CHECK (max_concurrent_dossiers BETWEEN 1 AND 100),
+    updated_at               TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_by_user_id       UUID         REFERENCES users(id) ON DELETE SET NULL
+);
+INSERT INTO plan_settings (plan, max_concurrent_dossiers)
+VALUES ('free', 1), ('pro', 3), ('enterprise', 10)
+ON CONFLICT (plan) DO NOTHING;
+
+
+-- =============================================================================
 -- FIN DEL SCHEMA
 -- Total de tablas: 16 principales + 2 vistas
 -- Extensiones: uuid-ossp, pgcrypto

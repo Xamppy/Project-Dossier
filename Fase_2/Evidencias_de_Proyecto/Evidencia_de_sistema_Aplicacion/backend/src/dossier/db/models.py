@@ -527,6 +527,22 @@ class DossierAccessLink(Base):
     )
 
 
+class PlanSetting(Base):
+    """Ajustes por plan que el admin de plataforma cambia en el panel (UX-ADMIN-01).
+
+    DDL y valores iniciales en ``schema_patches.PLAN_SETTINGS_PATCHES``.
+    """
+
+    __tablename__ = "plan_settings"
+
+    plan: Mapped[str] = mapped_column(String(20), primary_key=True)
+    max_concurrent_dossiers: Mapped[int] = mapped_column(Integer)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+
 class DossierEmailRetry(Base):
     """Envío automático de correo en espera de reintento (S6.4). DDL en ``schema_patches``.
 

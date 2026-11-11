@@ -91,6 +91,7 @@ from dossier.services.dossier_email_retry import start_dossier_email_retry_worke
 from dossier.services.dossier_generation_job_service import (
     enqueue_calendar_dossier_job,
     estimate_reunion_credits,
+    find_active_job_for_event,
 )
 from dossier.services.dossier_generation_worker import start_dossier_generation_worker
 from dossier.services.dossier_retention_worker import start_dossier_retention_worker
@@ -108,6 +109,7 @@ from dossier.services.graph_calendar import (
 )
 from dossier.services.microsoft_calendar_token import get_microsoft_graph_access_token_for_user
 from dossier.services.output_language import effective_output_language
+from dossier.services.plan_limits import assert_can_start_dossiers
 
 load_env()
 
@@ -1050,6 +1052,16 @@ def _enqueue_calendar_dossier_jobs(
     depth: DossierDepth,
     output_language: str | None = None,
 ) -> dict:
+    # UX-ADMIN-01: todo o nada. Si las reuniones nuevas superan el tope, no se encola ninguna.
+    nuevas = {
+        (r.get("id") or "").strip() or f"sin-id-{i}"
+        for i, r in enumerate(reuniones)
+        if not (
+            (r.get("id") or "").strip()
+            and find_active_job_for_event(db, user_id=user.id, external_event_id=(r.get("id") or "").strip())
+        )
+    }
+    assert_can_start_dossiers(db, user=user, org=org, nuevos=len(nuevas))
     jobs = []
     for reunion in reuniones:
         snap = _reunion_snapshot_with_output_language(

@@ -6,6 +6,7 @@ Requieren `users.is_platform_admin = TRUE`. Otorgar con SQL tras la migración
 """
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -14,7 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from dossier.api.auth_routes import get_current_user, get_db_if_configured, load_primary_membership
-from dossier.db.models import Dossier, Organization, OrgMembership, User
+from dossier.db.models import Dossier, Organization, OrgMembership, PlanSetting, User
 from dossier.org_workspace import read_workspace_kind
 from dossier.schemas.admin import (
     AdminDossierListItem,
@@ -22,11 +23,16 @@ from dossier.schemas.admin import (
     AdminOrganizationListItem,
     AdminOrganizationListResponse,
     AdminOverviewResponse,
+    AdminPlanSettingItem,
+    AdminPlanSettingPatch,
+    AdminPlanSettingsResponse,
     AdminUserListItem,
     AdminUserListResponse,
     AdminUserRolesPatch,
 )
 from dossier.services.account_service import admin_delete_user_account
+from dossier.services.audit_log import AuditEvent, record
+from dossier.services.plan_limits import DEFAULT_MAX_CONCURRENT, PLAN_ORDER, is_known_plan
 
 router = APIRouter(prefix="/admin", tags=["Administración plataforma"])
 
@@ -236,3 +242,63 @@ def admin_list_dossiers(
         for d, org, user_email in rows
     ]
     return AdminDossierListResponse(total=int(total or 0), items=items)
+
+
+# --- UX-ADMIN-01: ajustes por plan ---------------------------------------------
+
+
+def _plan_item(db: Session, plan: str, fila: PlanSetting | None) -> AdminPlanSettingItem:
+    email = None
+    if fila is not None and fila.updated_by_user_id is not None:
+        email = db.scalar(select(User.email).where(User.id == fila.updated_by_user_id))
+    return AdminPlanSettingItem(
+        plan=plan,
+        max_concurrent_dossiers=fila.max_concurrent_dossiers if fila else DEFAULT_MAX_CONCURRENT[plan],
+        updated_at=fila.updated_at if fila else None,
+        updated_by_email=email,
+    )
+
+
+@router.get("/plan-settings", response_model=AdminPlanSettingsResponse)
+def admin_list_plan_settings(
+    _admin: AdminUserDep,
+    db: Session = Depends(get_db_if_configured),
+) -> AdminPlanSettingsResponse:
+    """Ajustes de cada plan; un plan sin fila muestra su valor inicial."""
+    filas = {f.plan: f for f in db.scalars(select(PlanSetting)).all()}
+    return AdminPlanSettingsResponse(plans=[_plan_item(db, p, filas.get(p)) for p in PLAN_ORDER])
+
+
+@router.patch("/plan-settings/{plan}", response_model=AdminPlanSettingItem)
+def admin_patch_plan_setting(
+    plan: str,
+    body: AdminPlanSettingPatch,
+    admin: AdminUserDep,
+    db: Session = Depends(get_db_if_configured),
+) -> AdminPlanSettingItem:
+    """Cambia el tope de dossiers a la vez de un plan. Queda en ``audit_logs``."""
+    if not is_known_plan(plan):
+        raise HTTPException(status_code=404, detail="Plan no encontrado.")
+    fila = db.get(PlanSetting, plan, with_for_update=True)
+    antes = fila.max_concurrent_dossiers if fila else DEFAULT_MAX_CONCURRENT[plan]
+    if fila is None:
+        fila = PlanSetting(plan=plan, max_concurrent_dossiers=body.max_concurrent_dossiers)
+        db.add(fila)
+    fila.max_concurrent_dossiers = body.max_concurrent_dossiers
+    fila.updated_at = datetime.now(UTC)
+    fila.updated_by_user_id = admin.id
+    record(
+        db,
+        AuditEvent(
+            action="ADMIN plan_settings",
+            resource_type="plan_settings",
+            user_id=admin.id,
+            request_data={
+                "plan": plan,
+                "max_concurrent_dossiers": {"antes": antes, "despues": body.max_concurrent_dossiers},
+            },
+        ),
+    )
+    db.commit()
+    db.refresh(fila)
+    return _plan_item(db, plan, fila)

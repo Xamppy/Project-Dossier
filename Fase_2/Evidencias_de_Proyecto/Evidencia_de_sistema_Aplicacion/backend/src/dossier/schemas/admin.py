@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 
 class AdminOverviewResponse(BaseModel):
@@ -77,3 +77,24 @@ class AdminDossierListItem(BaseModel):
 class AdminDossierListResponse(BaseModel):
     total: int
     items: list[AdminDossierListItem]
+
+
+class AdminPlanSettingItem(BaseModel):
+    """Ajustes de un plan (UX-ADMIN-01)."""
+
+    plan: Literal["free", "pro", "enterprise"]
+    max_concurrent_dossiers: int
+    updated_at: datetime | None = None
+    updated_by_email: str | None = None
+
+
+class AdminPlanSettingsResponse(BaseModel):
+    plans: list[AdminPlanSettingItem]
+
+
+class AdminPlanSettingPatch(BaseModel):
+    """Entero estricto entre 1 y 100: ``2.5`` o ``"3"`` no se aceptan."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    max_concurrent_dossiers: StrictInt = Field(ge=1, le=100)

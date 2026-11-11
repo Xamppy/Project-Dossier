@@ -236,6 +236,23 @@ ACCESS_LINK_PATCHES = (
 )
 
 
+PLAN_SETTINGS_PATCHES = (
+    """
+    CREATE TABLE IF NOT EXISTS plan_settings (
+        plan VARCHAR(20) PRIMARY KEY CHECK (plan IN ('free', 'pro', 'enterprise')),
+        max_concurrent_dossiers INTEGER NOT NULL CHECK (max_concurrent_dossiers BETWEEN 1 AND 100),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL
+    );
+    """,
+    """
+    INSERT INTO plan_settings (plan, max_concurrent_dossiers)
+    VALUES ('free', 1), ('pro', 3), ('enterprise', 10)
+    ON CONFLICT (plan) DO NOTHING;
+    """,
+)
+
+
 def apply_schema_patches(engine: Engine) -> None:
     with engine.begin() as conn:
         for sql in (
@@ -246,5 +263,6 @@ def apply_schema_patches(engine: Engine) -> None:
             + AUDIT_LOG_PATCHES
             + EMAIL_RETRY_PATCHES
             + ACCESS_LINK_PATCHES
+            + PLAN_SETTINGS_PATCHES
         ):
             conn.execute(text(sql))
