@@ -3,6 +3,8 @@
 Continuidad de Project Dossier: cierre de brechas para alcanzar el MVP de preparación automatizada de
 reuniones. Equipo: Felipe Andrés Docmac Bravo, Darío García Avendaño y Felipe Orellana Álvarez.
 
+**Sistema desplegado:** <https://frontend.158.69.0.151.nip.io/login>
+
 El repositorio se organiza por fases de la asignatura:
 
 | Carpeta | Contenido |
