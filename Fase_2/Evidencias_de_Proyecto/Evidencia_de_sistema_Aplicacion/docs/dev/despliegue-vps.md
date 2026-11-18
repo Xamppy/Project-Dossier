@@ -208,17 +208,29 @@ El frontend se compila con `NEXT_PUBLIC_API_URL=/api` (ruta relativa): como comp
 con la API, **la misma imagen sirve para cualquier dominio**. Cambiar `DOMAIN` no exige
 recompilar.
 
-### 7.1 Una sola vez en el VPS: acceso a las imágenes
+### 7.1 Acceso a las imágenes: públicas, sin `docker login`
 
-El repositorio es privado, así que sus imágenes en ghcr.io también lo son. Crea en GitHub un
-token *classic* con solo el permiso `read:packages` (Settings → Developer settings → Personal
-access tokens) y, en el VPS:
+Desde el 17-11-2026 el repositorio y sus dos paquetes en ghcr.io son **públicos** (en GitHub:
+perfil del dueño → Packages → cada paquete → Package settings → Change visibility). El VPS los
+descarga sin credencial, así que **no hace falta `docker login` ni token**.
+
+El compose las pide como `ghcr.io:443/xamppy/...` y no como `ghcr.io/xamppy/...`. Docker busca
+la credencial guardada por el nombre exacto del registro: hasta noviembre de 2026 el VPS tenía
+un `docker login ghcr.io` con un token de la cuenta Xamppy, y cuando ese token dejó de valer el
+deploy fallaba con `error from registry: denied` aunque la imagen ya fuera pública (ghcr.io
+rechaza una credencial inválida en vez de ignorarla). `ghcr.io:443` es el mismo servidor por el
+puerto HTTPS, pero no coincide con la credencial guardada y la descarga es anónima.
+
+Si algún día las imágenes vuelven a ser privadas, crea un token *classic* con solo
+`read:packages` y haz el login con el mismo nombre que usa el compose:
 
 ```bash
-echo "TOKEN_READ_PACKAGES" | docker login ghcr.io -u Xamppy --password-stdin
+echo "TOKEN_READ_PACKAGES" | docker login ghcr.io:443 -u USUARIO --password-stdin
 ```
 
-Docker guarda la credencial, y Dokploy la usa al hacer `pull`.
+Dokploy lanza los deploys desde su propio contenedor (`dokploy.1.…`), que tiene su propia
+configuración de Docker. Un `docker logout` o `docker login` hecho solo en el servidor puede no
+llegarle.
 
 ### 7.2 Crear la aplicación en Dokploy
 
@@ -282,4 +294,6 @@ curl -I https://DOMAIN/login     # 200
 En **Logs** del servicio `backend` deben verse las migraciones aplicadas y
 `Application startup complete`.
 
-Si el *pull* falla con `denied` o `unauthorized`, falta el `docker login` del §7.1.
+Si el *pull* falla con `denied` o `unauthorized`, revisa el §7.1: que los paquetes sigan
+públicos y que el compose use `ghcr.io:443`, o, si son privados, que el `docker login` esté
+vigente y hecho con ese mismo nombre.

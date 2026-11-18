@@ -5,10 +5,16 @@
 # Dominios a crear en la pestaña Domains de Dokploy (guía: docs/dev/despliegue-vps.md §7):
 #   DOMAIN  path "/"     -> servicio frontend, puerto 3000
 #   DOMAIN  path "/api"  -> servicio backend,  puerto 8000, con Strip Path activado
+#
+# Las imágenes son públicas y se piden como «ghcr.io:443» a propósito. Docker busca la
+# credencial guardada por el nombre exacto del registro: con «ghcr.io» enviaba un token
+# vencido de un docker login antiguo y el registro respondía «denied» aunque la imagen sea
+# pública. Con «ghcr.io:443» (el mismo servidor, puerto HTTPS) no envía credencial y la
+# descarga es anónima. Guía: docs/dev/despliegue-vps.md §7.1.
 
 services:
   frontend:
-    image: ghcr.io/xamppy/project-dossier-frontend:${IMAGE_TAG:-latest}
+    image: ghcr.io:443/xamppy/project-dossier-frontend:${IMAGE_TAG:-latest}
     pull_policy: always
     restart: unless-stopped
     expose:
@@ -20,7 +26,7 @@ services:
       - dokploy-network
 
   backend:
-    image: ghcr.io/xamppy/project-dossier-backend:${IMAGE_TAG:-latest}
+    image: ghcr.io:443/xamppy/project-dossier-backend:${IMAGE_TAG:-latest}
     pull_policy: always
     restart: unless-stopped
     env_file: .env
