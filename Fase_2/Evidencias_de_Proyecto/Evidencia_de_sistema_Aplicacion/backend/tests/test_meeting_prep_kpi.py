@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from dossier.services.meeting_prep_kpi import (
+    ROL_UNA_PERSONA,
     CalendarEntry,
     Meeting,
     collect_meetings,
@@ -25,6 +26,14 @@ AS_OF = datetime(2026, 10, 3, 15, 0, tzinfo=UTC)
 OWNER = "mi-empresa.test"
 
 
+def _asistentes(*correos: str) -> list[dict]:
+    """Como los entrega la lectura por intervalo: el usuario marcado y los demás."""
+    return [
+        {"nombre": None, "correo": "yo@mi-empresa.test", "yo": True},
+        *({"nombre": None, "correo": c, "yo": False} for c in correos),
+    ]
+
+
 def _reunion(i: int, inicio: datetime, **extra) -> dict:
     base = {
         "id": f"ev{i}",
@@ -32,6 +41,7 @@ def _reunion(i: int, inicio: datetime, **extra) -> dict:
         "descripcion": "Empresa: Tesla\nContacto: Ana Pérez",
         "participantes": "yo@mi-empresa.test (organizador), ana@tesla.test",
         "correos": ["yo@mi-empresa.test", "ana@tesla.test"],
+        "asistentes": _asistentes("ana@tesla.test"),
         "inicio": inicio.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "fin": (inicio + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "ubicacion": "",
@@ -86,9 +96,31 @@ def test_parse_start_solo_acepta_instantes_con_offset(valor, esperado):
 # ── conjunto esperado (CA7) ──────────────────────────────────────────────────
 
 
-def test_el_conjunto_esperado_es_empresa_mas_cada_contacto():
-    r = _reunion(1, AS_OF, descripcion="Empresa: Tesla\nContacto 1: Ana Pérez\nContacto 2: Luis Gómez")
-    assert expected_roles(r, "pro") == {"corporate", "person:1", "person:2"}
+def test_el_conjunto_esperado_es_empresa_mas_el_contacto():
+    assert expected_roles(_reunion(1, AS_OF), "pro") == {"corporate", "person:1"}
+
+
+@pytest.mark.parametrize("plan", ["free", "pro", "enterprise"])
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"descripcion": "Empresa: Tesla\nContacto 1: Ana Pérez\nContacto 2: Luis Gómez"},
+        {"descripcion": "Empresa: Tesla", "asistentes": _asistentes("ana@tesla.test", "max@tesla.test")},
+        {"tema": "Avance del proyecto", "descripcion": "", "asistentes": _asistentes("a@x.test", "b@x.test")},
+    ],
+    ids=["contactos", "asistentes_y_empresa", "asunto_que_parece_empresa"],
+)
+def test_con_varias_personas_se_espera_un_dossier_de_persona_y_ninguno_de_empresa(extra, plan):
+    """UX-CAL-03: desde el calendario se genera solo el de la persona elegida."""
+    assert expected_roles(_reunion(1, AS_OF, **extra), plan) == {ROL_UNA_PERSONA}
+
+
+def test_los_correos_propios_no_hacen_que_una_reunion_tenga_varias_personas():
+    """Graph no marca al usuario: se reconoce por el correo de su cuenta o de su calendario."""
+    asistentes = [{"nombre": None, "correo": c, "yo": False} for c in ("yo@mi-empresa.test", "ana@tesla.test")]
+    r = _reunion(1, AS_OF, asistentes=asistentes)
+    assert expected_roles(r, "pro", {"yo@mi-empresa.test"}) == {"corporate", "person:1"}
+    assert expected_roles(r, "pro") == {ROL_UNA_PERSONA}
 
 
 def test_en_plan_free_el_corporativo_no_se_exige():
@@ -101,6 +133,14 @@ def test_sin_contacto_y_sin_corporativo_incluido_el_conjunto_esperado_es_vacio()
     """Plan Free sin «Contacto:»: nada que preparar, así que nunca se da por preparada."""
     r = _reunion(1, AS_OF, tema="Sync", descripcion="")
     assert expected_roles(r, "free") == frozenset()
+
+
+def test_la_recoleccion_usa_los_correos_propios_de_cada_calendario():
+    asistentes = [{"nombre": None, "correo": c, "yo": False} for c in ("yo@mi-empresa.test", "ana@tesla.test")]
+    r = _reunion(1, AS_OF, asistentes=asistentes)
+    con = CalendarEntry("microsoft", "primary", OWNER, r, frozenset({"yo@mi-empresa.test"}))
+    (m,) = collect_meetings([con], plan="pro").meetings
+    assert m.expected == {"corporate", "person:1"}
 
 
 # ── elegibilidad y recolección ───────────────────────────────────────────────
@@ -232,6 +272,28 @@ def test_los_limites_se_miden_en_instantes_utc_aunque_la_zona_cambie_por_dst():
           Meeting(keys=("k2",), starts_at=segunda, expected=frozenset({"corporate"}))]
     # la primera ya empezó (00:30Z < 00:45Z); la segunda es futura
     assert summarize_upcoming(ms, {}, as_of=as_of).eligible == 1
+
+
+def _varias():
+    return _meeting(0, AS_OF + timedelta(days=1), expected=(ROL_UNA_PERSONA,))
+
+
+@pytest.mark.parametrize("rol", ["person:1", "person:2"])
+def test_varias_personas_con_un_dossier_de_cualquiera_esta_preparada(rol):
+    ms = [_varias()]
+    disponible = {ms[0].keys[0]: frozenset({rol})}
+    assert summarize_upcoming(ms, disponible, as_of=AS_OF).prepared == 1
+    r = summarize_preparation_cost(ms, disponible, as_of=AS_OF, role_cost=preparation_role_cost("pro"))
+    assert (r.meetings_to_generate, r.estimated_credits) == (0, 0)
+
+
+@pytest.mark.parametrize("disponible", [frozenset(), frozenset({"corporate"})], ids=["nada", "solo_empresa"])
+def test_varias_personas_sin_dossier_de_persona_cuesta_uno(disponible):
+    ms = [_varias()]
+    d = {ms[0].keys[0]: disponible}
+    assert summarize_upcoming(ms, d, as_of=AS_OF).pending == 1
+    r = summarize_preparation_cost(ms, d, as_of=AS_OF, role_cost=preparation_role_cost("pro"))
+    assert (r.meetings_to_generate, r.estimated_credits) == (1, 1)
 
 
 # ── créditos para preparar (CA2, CA3, CA4, CA7) ──────────────────────────────

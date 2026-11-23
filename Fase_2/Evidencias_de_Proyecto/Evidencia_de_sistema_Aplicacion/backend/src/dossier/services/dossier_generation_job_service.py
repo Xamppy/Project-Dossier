@@ -34,6 +34,7 @@ from dossier.schemas.dossier_generation import (
 from dossier.schemas.person_research import PersonResearchRequest
 from dossier.services.audit_log import AuditEvent, dossier_ids_from_result, record
 from dossier.services.calendar_event_dossiers import (
+    PERSONA_ELEGIDA,
     build_calendar_meeting_label,
     generate_dossiers_from_calendar_event,
     parse_calendar_event_for_dossiers,
@@ -102,7 +103,8 @@ def estimate_reunion_credits(
 ) -> int:
     parsed = parse_calendar_event_for_dossiers(reunion)
     has_corporate = bool(parsed.get("company_corporate") or parsed.get("participantes"))
-    if not plan_allows_calendar_corporate_dossier(plan):
+    # UX-CAL-03: con una persona elegida solo se genera su dossier, aunque haya «Empresa:».
+    if not plan_allows_calendar_corporate_dossier(plan) or reunion.get(PERSONA_ELEGIDA):
         has_corporate = False
     persons = parsed.get("persons") or []
     person_count = len(persons)

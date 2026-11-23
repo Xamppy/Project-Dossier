@@ -316,8 +316,12 @@ describe("DossierJobsProvider · estado general por SSE", () => {
     expect(h.subs.length).toBe(created);
 
     await act(async () => {
-      await ctx().enqueueCalendarJob("google", { eventId: "evt-n" });
+      await ctx().enqueueCalendarJob("google", { eventId: "evt-n", personaId: "max@acme.test" });
     });
+    // UX-CAL-03: la persona elegida llega a la API.
+    expect(h.api.fetchEnqueueGoogleCalendarDossier).toHaveBeenCalledWith(
+      expect.objectContaining({ eventId: "evt-n", personaId: "max@acme.test" }),
+    );
     expect(openSubs("nuevo")).toHaveLength(1);
     expect(h.subs.length).toBe(created + 1);
     for (let i = 0; i < MODES.length; i++) expect(openSubs(`j${i}`)).toHaveLength(1);

@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import CalendarDossierPreview from "@/components/dashboard/CalendarDossierPreview";
+import ChoosePersonDialog from "@/components/dashboard/ChoosePersonDialog";
 import DossierJobProgressDetails from "@/components/dossier/DossierJobProgressDetails";
 import JobOutcomeNotice, { ProgressLiveRegion, progressMilestone } from "@/components/dossier/JobOutcomeNotice";
+import { useModalDialog } from "@/hooks/useModalDialog";
 import { calendarUiLabels } from "@/i18n/calendar-ui-labels";
 import type { CalendarEventModel } from "@/lib/calendar-events";
 import { descriptionHasPersonHint } from "@/lib/calendar-meeting-format";
 import {
   DossierApiError,
   type CalendarGenerarDossierItem,
+  type CalendarPerson,
   type CalendarProvider,
   type CalendarSavedDossierRef,
 } from "@/lib/dossier-api";
@@ -27,9 +30,6 @@ type Props = {
   /** Dónde dejar el foco si el elemento anterior ya no está en el documento. */
   fallbackFocus?: () => HTMLElement | null;
 };
-
-const FOCUSABLE =
-  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
 
 const PROVIDER_COLOR: Record<CalendarProvider, string> = {
   google: "var(--dossier-google, #0f9d58)",
@@ -59,55 +59,17 @@ export default function CalendarEventDetails({ event, onClose, returnFocusTo, fa
 
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
+  const generateRef = useRef<HTMLButtonElement>(null);
   const submitting = useRef(false);
   const [genErr, setGenErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Personas entre las que elegir (UX-CAL-03); `null` = diálogo cerrado. */
+  const [choice, setChoice] = useState<{ people: CalendarPerson[]; notice: string | null } | null>(null);
 
-  const closeRef = useRef(onClose);
-  useEffect(() => {
-    closeRef.current = onClose;
+  useModalDialog(dialogRef, onClose, {
+    paused: choice !== null,
+    restoreFocus: () => (returnFocusTo?.isConnected ? returnFocusTo : (fallbackFocus?.() ?? null)),
   });
-
-  // Foco al abrir, Escape y trampa de Tab; al cerrar, el foco vuelve a quien abrió el detalle.
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    dialog?.focus();
-
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        closeRef.current();
-        return;
-      }
-      if (e.key !== "Tab" || !dialog) return;
-      const items = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE));
-      if (items.length === 0) {
-        e.preventDefault();
-        dialog.focus();
-        return;
-      }
-      const first = items[0];
-      const last = items[items.length - 1];
-      const active = document.activeElement;
-      if (!dialog.contains(active) || active === dialog) {
-        e.preventDefault();
-        (e.shiftKey ? last : first).focus();
-      } else if (e.shiftKey && active === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && active === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    }
-
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      const target = returnFocusTo?.isConnected ? returnFocusTo : (fallbackFocus?.() ?? null);
-      target?.focus();
-    };
-  }, [returnFocusTo, fallbackFocus]);
 
   const provider = event.provider;
   const eventId = event.eventId;
@@ -161,14 +123,30 @@ export default function CalendarEventDetails({ event, onClose, returnFocusTo, fa
     return coded ? translateApiErrorMessage(e, t) : e.message;
   }
 
-  async function generate() {
+  const candidates = event.raw.personas ?? [];
+  const severalPeople = candidates.length > 1;
+
+  /** El servidor pide elegir persona (o la elegida ya no está): `true` si quedó explicado aquí. */
+  function handlePersonError(e: unknown): boolean {
+    const body = e instanceof DossierApiError ? (e.body as { detail?: unknown } | null) : null;
+    const detail = body?.detail as { code?: string; personas?: CalendarPerson[] } | undefined;
+    const gone = detail?.code === "CALENDAR_PERSON_NOT_FOUND";
+    if (!gone && detail?.code !== "CALENDAR_PERSON_REQUIRED") return false;
+    const options = Array.isArray(detail?.personas) ? detail.personas : [];
+    if (options.length > 0) setChoice({ people: options, notice: gone ? ui.choosePersonGone : null });
+    else setGenErr(ui.choosePersonGone);
+    return true;
+  }
+
+  async function generate(personaId?: string) {
     if (!eventId || submitting.current) return;
     submitting.current = true;
     setBusy(true);
     setGenErr(null);
     try {
-      await enqueueCalendarJob(provider, { eventId, reunion: event.raw });
+      await enqueueCalendarJob(provider, { eventId, reunion: event.raw, ...(personaId ? { personaId } : {}) });
     } catch (e) {
+      if (handlePersonError(e)) return;
       setGenErr(
         e instanceof DossierApiError
           ? apiErrorText(e)
@@ -193,6 +171,7 @@ export default function CalendarEventDetails({ event, onClose, returnFocusTo, fa
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        aria-hidden={choice ? true : undefined}
         tabIndex={-1}
         className="relative flex max-h-[92vh] w-full flex-col overflow-y-auto rounded-t-2xl border p-5 shadow-2xl outline-none md:max-h-none md:w-[28rem] md:rounded-none md:rounded-l-2xl"
         style={{ backgroundColor: "var(--bg-page)", borderColor: "var(--border-default)" }}
@@ -256,20 +235,26 @@ export default function CalendarEventDetails({ event, onClose, returnFocusTo, fa
               >
                 {event.description}
               </pre>
-              {!descriptionHasPersonHint(event.description) ? (
+              {!severalPeople && !descriptionHasPersonHint(event.description) ? (
                 <p className="ui-text-warning mt-1 text-xs">{t("overview.calendar_description_no_contact")}</p>
               ) : null}
             </>
+          ) : severalPeople ? (
+            <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>—</p>
           ) : (
             <p className="ui-alert ui-alert-warning mt-1 px-2.5 py-2 text-xs">{t("overview.calendar_description_empty")}</p>
           )}
         </div>
 
         <div className="mt-5 flex flex-col gap-2">
+          {severalPeople ? (
+            <p className="ui-alert ui-alert-warning px-2.5 py-2 text-xs">{ui.severalPeopleHint}</p>
+          ) : null}
           <button
+            ref={generateRef}
             type="button"
             disabled={!eventId || generating}
-            onClick={() => void generate()}
+            onClick={() => (severalPeople ? setChoice({ people: candidates, notice: null }) : void generate())}
             className="self-start rounded-lg px-3.5 py-2 text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
             style={{ backgroundImage: "linear-gradient(135deg, var(--accent-from) 0%, var(--accent-to) 100%)" }}
           >
@@ -321,6 +306,20 @@ export default function CalendarEventDetails({ event, onClose, returnFocusTo, fa
           />
         ) : null}
       </div>
+
+      {choice ? (
+        <ChoosePersonDialog
+          people={choice.people}
+          notice={choice.notice}
+          labels={ui}
+          onCancel={() => setChoice(null)}
+          onConfirm={(id) => {
+            setChoice(null);
+            void generate(id);
+          }}
+          restoreFocus={() => generateRef.current}
+        />
+      ) : null}
     </div>
   );
 }

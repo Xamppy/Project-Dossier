@@ -6,6 +6,41 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-23 · UX-CAL-03 · Reuniones con varias personas: se elige de quién es el dossier · DG (agente)
+
+**Hecho.** Una reunión con varias personas ya no se genera sola (queda `skipped` con el motivo, sin
+error y sin reprogramarse cada minuto). Al pulsar «Generar dossier» se abre un diálogo con una
+casilla por persona y solo se puede marcar una. El servidor lo exige: `persona_id` en el POST y 422
+`CALENDAR_PERSON_REQUIRED` / `CALENDAR_PERSON_NOT_FOUND`. Spec: `specs/proposals/UX-CAL-03-…`.
+
+**Pruebas.** Primero en rojo: `test_meeting_people.py`, `integration/test_reunion_varias_personas.py`
+(Postgres), `security/test_reunion_persona_elegida_seguridad.py`, `stress/…_estres.py`,
+`CalendarEventDetails.test.tsx` y `dossier-api.persona-reunion.test.ts`. Visto además en el navegador
+con Google y la IA simulados.
+
+**Lo que hay que saber.**
+- Causa del error original: sin «Empresa:», `extract_company_from_subject` toma el asunto entero por
+  una empresa («Avance del proyecto»), y los correos de los asistentes no cuentan como personas.
+  **Con una sola persona eso no se tocó.**
+- Con persona elegida nunca hay dossier de empresa (lo decidió DG después): la de «Empresa:» o la del
+  dominio va solo en `company_person`, para identificar a la persona. Cuesta 1 crédito, no 4 en Pro.
+- Los normalizadores de Google y Graph suman `asistentes` (nombre, correo, `yo`). `participantes` en
+  Outlook trae nombres sin correo: no sirve para identificar personas.
+- La elección viaja en `reunion_snapshot["_persona_elegida"]`. Solo la pone el servidor;
+  `coerce_reunion_payload` la descarta y `merge_reunion_payload` la conserva al releer el evento.
+- Un evento en `failed` se vuelve a programar en cada sincronización (cada minuto) hasta que empieza
+  la reunión. Es anterior a este cambio y no se tocó.
+- Resumen (UX-KPI-01) también aplica la regla: con varias personas espera `ROL_UNA_PERSONA` (el
+  dossier de cualquiera) y ninguno de empresa. `CalendarEntry.propios` lleva los correos del usuario
+  porque Graph no lo marca entre los asistentes. En `test_meeting_prep_kpi.py` cambió el requisito de
+  dos contactos, y los datos de prueba de Resumen ahora traen `asistentes`, como la lectura real.
+
+**Sin terminar.** Falta probarlo con calendarios reales de Google y Outlook. En la copia de trabajo de
+DG quedan sin commit cambios de otra tarea (respuesta no JSON, `errors.server_unavailable` y los seis
+`i18n/messages/*.ts`, que pasaron de CRLF a LF).
+
+**Estado.** review
+
 ### 2026-11-22 · Token de Google muerto ya no se reintenta cada minuto · DG (agente)
 
 **Hecho.** En producción el sync de calendario registraba «Google token refresh error … Bad

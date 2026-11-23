@@ -248,10 +248,34 @@ def merge_reunion_payload(client: dict | None, fresh: dict | None) -> dict | Non
         "ubicacion": fresh.get("ubicacion") or client.get("ubicacion") or "",
         "todo_el_dia": bool(fresh.get("todo_el_dia") if "todo_el_dia" in fresh else client.get("todo_el_dia")),
     }
-    snap_lang = client.get("_output_language")
-    if snap_lang:
-        merged["_output_language"] = snap_lang
+    asistentes = fresh.get("asistentes") or client.get("asistentes")
+    if asistentes:
+        merged["asistentes"] = asistentes
+    # Lo que fijó el servidor al encolar sobrevive a la relectura del evento.
+    for clave in ("_output_language", "_persona_elegida"):
+        if client.get(clave):
+            merged[clave] = client[clave]
     return merged
+
+
+_MAX_ASISTENTES = 500
+
+
+def _asistentes_del_cliente(crudo: object) -> list[dict]:
+    """Lista de asistentes enviada por el cliente, acotada y con la forma esperada."""
+    out: list[dict] = []
+    for a in crudo[:_MAX_ASISTENTES] if isinstance(crudo, list) else []:
+        if not isinstance(a, dict):
+            continue
+        nombre, correo = a.get("nombre"), a.get("correo")
+        limpio = {
+            "nombre": nombre.strip()[:255] if isinstance(nombre, str) else None,
+            "correo": correo.strip().lower()[:255] if isinstance(correo, str) and "@" in correo else None,
+            "yo": a.get("yo") is True,
+        }
+        if limpio["nombre"] or limpio["correo"]:
+            out.append(limpio)
+    return out
 
 
 def coerce_reunion_payload(data: dict | None) -> dict | None:
@@ -263,7 +287,7 @@ def coerce_reunion_payload(data: dict | None) -> dict | None:
     if not event_id and not tema:
         return None
     desc_raw = str(data.get("descripcion") or data.get("description") or "")
-    return {
+    out = {
         "id": event_id,
         "tema": tema or "Sin asunto",
         "descripcion": strip_html_to_text(desc_raw)[:_MAX_DESCRIPCION],
@@ -273,6 +297,9 @@ def coerce_reunion_payload(data: dict | None) -> dict | None:
         "ubicacion": data.get("ubicacion") or "",
         "todo_el_dia": bool(data.get("todo_el_dia")),
     }
+    if "asistentes" in data:
+        out["asistentes"] = _asistentes_del_cliente(data["asistentes"])
+    return out
 
 
 def _normalize_graph_event_id(event_id: str) -> str:
@@ -326,6 +353,28 @@ def _formatear_participantes(evento: dict) -> str:
     return ", ".join(nombres) if nombres else "No especificados"
 
 
+def _asistentes_graph(evento: dict) -> list[dict]:
+    """Organizador y asistentes como ``{nombre, correo, yo}``, sin salas (UX-CAL-03).
+
+    Graph no marca al propio usuario: se reconoce después por su correo.
+    """
+    out: list[dict] = []
+    for a in [evento.get("organizer"), *(evento.get("attendees") or [])]:
+        if not isinstance(a, dict) or str(a.get("type") or "").lower() == "resource":
+            continue
+        datos = a.get("emailAddress") or {}
+        correo = datos.get("address")
+        correo = correo.strip().lower() if isinstance(correo, str) and "@" in correo else None
+        nombre = datos.get("name")
+        nombre = nombre.strip() if isinstance(nombre, str) and nombre.strip() else None
+        # Sin nombre en la libreta, Graph repite el correo.
+        if nombre and "@" in nombre:
+            nombre = None
+        if correo or nombre:
+            out.append({"nombre": nombre, "correo": correo, "yo": False})
+    return out
+
+
 def normalizar_evento(evento: dict) -> dict:
     """Reduce un evento de Graph a los campos que usa el dossier."""
     inicio_raw = (evento.get("start") or {}).get("dateTime", "")
@@ -336,6 +385,7 @@ def normalizar_evento(evento: dict) -> dict:
         "tema": strip_html_to_plain_line(evento.get("subject")) or "Sin asunto",
         "descripcion": _extract_descripcion(evento),
         "participantes": _formatear_participantes(evento),
+        "asistentes": _asistentes_graph(evento),
         "inicio": _graph_datetime_to_utc_iso(inicio_raw),
         "fin": _graph_datetime_to_utc_iso(fin_raw),
         "ubicacion": (evento.get("location") or {}).get("displayName") or "",

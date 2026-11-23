@@ -10,6 +10,8 @@ const REQUIRED: (keyof CalendarUiLabels)[] = [
   "providerError", "retry", "incompleteLimit", "incompleteTimeout", "incompleteError",
   "discarded", "noEventId", "detailsTitle", "close", "when", "calendarName",
   "participants", "description", "calendarRegion", "rulesToggleSummary",
+  "severalPeopleHint", "choosePersonTitle", "choosePersonHelp", "choosePersonConfirm",
+  "choosePersonCancel", "choosePersonGone",
 ];
 
 describe("etiquetas del calendario visual", () => {

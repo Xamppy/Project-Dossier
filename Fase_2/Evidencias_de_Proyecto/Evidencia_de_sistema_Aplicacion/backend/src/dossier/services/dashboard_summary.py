@@ -30,6 +30,7 @@ from dossier.services.google_calendar_api import listar_reuniones_google_rango
 from dossier.services.google_calendar_token import get_google_calendar_access_token_for_user
 from dossier.services.graph_calendar import listar_reuniones_rango
 from dossier.services.meeting_identity import meeting_key, role_for_person
+from dossier.services.meeting_people import correos_propios
 from dossier.services.meeting_prep_kpi import (
     PERIODO_FUTURO,
     CalendarEntry,
@@ -141,8 +142,9 @@ def _leer_calendarios(db: Session, user: User, rango: RangoConsulta) -> _Lectura
                 fallos.append(R_INCOMPLETO)
                 continue
             dominio = owner_email_domain(integ, user)
+            propios = frozenset(correos_propios(user, integ))
             entradas.extend(
-                CalendarEntry(integ.provider, "primary", dominio, r) for r in resultado.reuniones
+                CalendarEntry(integ.provider, "primary", dominio, r, propios) for r in resultado.reuniones
             )
     finally:
         pool.shutdown(wait=False, cancel_futures=True)

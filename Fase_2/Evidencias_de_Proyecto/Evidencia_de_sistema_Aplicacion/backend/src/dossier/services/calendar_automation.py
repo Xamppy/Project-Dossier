@@ -36,6 +36,12 @@ from dossier.services.graph_calendar import (
     listar_reuniones,
     obtener_reunion_por_id,
 )
+from dossier.services.meeting_people import (
+    MOTIVO_VARIAS_PERSONAS,
+    correos_propios,
+    personas_de_la_reunion,
+    requiere_elegir_persona,
+)
 from dossier.services.microsoft_calendar_token import get_microsoft_graph_access_token_for_user
 from dossier.services.news_sources import fuentes_aplicables
 from dossier.services.org_membership_service import active_organization_id_for_user
@@ -249,6 +255,13 @@ def _skipped_by_calendar_filter(skip_reason: str | None) -> bool:
     return any(marker in skip_reason for marker in _FILTER_SKIP_MARKERS)
 
 
+def _hay_que_elegir_persona(
+    reunion: dict[str, Any], integration: CalendarIntegration, user: User | None
+) -> bool:
+    """UX-CAL-03: con varias personas no se genera solo; el usuario elige una en el calendario."""
+    return requiere_elegir_persona(personas_de_la_reunion(reunion, correos_propios(user, integration)))
+
+
 def _resolve_calendar_org_id(
     db: Session,
     user_id: UUID,
@@ -379,9 +392,10 @@ def sync_calendar_events_for_integration(db: Session, integration: CalendarInteg
         row.meeting_url = (reunion.get("ubicacion") or None)
         row.external_attendees = _attendees_from_participantes(reunion.get("participantes") or "")
         row.event_snapshot = _event_snapshot_with_output_language(reunion, user)
-        row.dossier_scheduled_at = scheduled_at
-        row.processing_status = "scheduled"
-        row.skip_reason = None
+        elegir = _hay_que_elegir_persona(reunion, integration, user)
+        row.dossier_scheduled_at = None if elegir else scheduled_at
+        row.processing_status = "skipped" if elegir else "scheduled"
+        row.skip_reason = MOTIVO_VARIAS_PERSONAS if elegir else None
         touched += 1
 
     db.commit()
@@ -578,6 +592,15 @@ def process_due_calendar_events(db: Session) -> dict[str, int]:
         if not passes:
             event.processing_status = "skipped"
             event.skip_reason = filter_reason
+            stats["skipped"] += 1
+            db.commit()
+            continue
+
+        # El evento pudo sumar gente desde que se programó.
+        if _hay_que_elegir_persona(reunion, integration, user):
+            event.processing_status = "skipped"
+            event.skip_reason = MOTIVO_VARIAS_PERSONAS
+            event.dossier_scheduled_at = None
             stats["skipped"] += 1
             db.commit()
             continue

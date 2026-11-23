@@ -2,6 +2,7 @@ import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTranslator } from "@/i18n";
+import { calendarUiLabels } from "@/i18n/calendar-ui-labels";
 import { adaptMeetings } from "@/lib/calendar-events";
 import { findJobForEvent, isEventJobActive } from "@/lib/calendar-jobs";
 import { DossierApiError } from "@/lib/dossier-api";
@@ -365,5 +366,158 @@ describe("CalendarEventDetails · S5.4 avance real y resultados parciales", () =
     setup();
     expect(screen.queryByRole("region", { name: t("progress.panel_title") })).toBeNull();
     expect(screen.getByText(/Informe corporativo de Acme/)).toBeInTheDocument();
+  });
+});
+
+describe("CalendarEventDetails · UX-CAL-03 reunión con varias personas", () => {
+  const ui = calendarUiLabels("es");
+  const CARLA = { id: "carla@acme.test", nombre: "Carla Díaz", correo: "carla@acme.test", cargo: null, pais: null };
+  const MAX = { id: "max@acme.test", nombre: "Max", correo: "max@acme.test", cargo: "CTO", pais: null };
+  const varias = () => evento({ personas: [CARLA, MAX] });
+
+  const abrir = async (e = varias()) => {
+    const user = userEvent.setup();
+    const utils = setup(e);
+    await user.click(screen.getByRole("button", { name: /generar dossier/i }));
+    return { user, e, ...utils };
+  };
+  const dialogo = () => screen.getByRole("dialog", { name: ui.choosePersonTitle });
+  const casilla = (name: RegExp) => within(dialogo()).getByRole("checkbox", { name });
+  const confirmar = () => within(dialogo()).getByRole("button", { name: ui.choosePersonConfirm });
+
+  it("avisa en el detalle de que no se genera sola", () => {
+    setup(varias());
+    expect(screen.getByText(ui.severalPeopleHint)).toBeInTheDocument();
+  });
+
+  it("con una sola persona no hay aviso ni diálogo", async () => {
+    const { e } = await abrir(evento({ personas: [CARLA] }));
+    expect(screen.queryByText(ui.severalPeopleHint)).toBeNull();
+    expect(screen.queryByRole("dialog", { name: ui.choosePersonTitle })).toBeNull();
+    expect(enqueueCalendarJob).toHaveBeenCalledWith("google", { eventId: "ev1", reunion: e.raw });
+  });
+
+  it("CA4 · generar abre el diálogo con una casilla por persona y no genera todavía", async () => {
+    await abrir();
+    expect(within(dialogo()).getAllByRole("checkbox")).toHaveLength(2);
+    expect(casilla(/Max.*CTO.*max@acme\.test/)).not.toBeChecked();
+    expect(confirmar()).toBeDisabled();
+    expect(enqueueCalendarJob).not.toHaveBeenCalled();
+  });
+
+  it("se monta fuera del detalle: los avisos flotantes no tapan sus botones", async () => {
+    const { container } = await abrir();
+    expect(container.contains(dialogo())).toBe(false);
+  });
+
+  it("CA4 · marcar una persona desmarca la anterior", async () => {
+    const { user } = await abrir();
+    await user.click(casilla(/Carla Díaz/));
+    expect(casilla(/Carla Díaz/)).toBeChecked();
+    await user.click(casilla(/Max/));
+    expect(casilla(/Max/)).toBeChecked();
+    expect(casilla(/Carla Díaz/)).not.toBeChecked();
+  });
+
+  it("CA4 · desmarcar deja la selección vacía y vuelve a bloquear la generación", async () => {
+    const { user } = await abrir();
+    await user.click(casilla(/Max/));
+    expect(confirmar()).toBeEnabled();
+    await user.click(casilla(/Max/));
+    expect(confirmar()).toBeDisabled();
+  });
+
+  it("CA5 · confirmar encola solo a la persona elegida y cierra el diálogo", async () => {
+    const { user, e } = await abrir();
+    await user.click(casilla(/Max/));
+    await user.click(confirmar());
+    expect(enqueueCalendarJob).toHaveBeenCalledTimes(1);
+    expect(enqueueCalendarJob).toHaveBeenCalledWith("google", { eventId: "ev1", reunion: e.raw, personaId: MAX.id });
+    expect(screen.queryByRole("dialog", { name: ui.choosePersonTitle })).toBeNull();
+  });
+
+  it("cancelar cierra sin generar y, al reabrir, no recuerda la selección", async () => {
+    const { user } = await abrir();
+    await user.click(casilla(/Max/));
+    await user.click(within(dialogo()).getByRole("button", { name: ui.choosePersonCancel }));
+    expect(enqueueCalendarJob).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: /generar dossier/i }));
+    expect(casilla(/Max/)).not.toBeChecked();
+  });
+
+  it("CA8 · Escape cierra solo el diálogo y devuelve el foco al botón de generar", async () => {
+    const { user, onClose } = await abrir();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: ui.choosePersonTitle })).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /generar dossier/i })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("CA8 · el foco entra al diálogo y Tab no sale de él", async () => {
+    const { user } = await abrir();
+    expect(dialogo().contains(document.activeElement)).toBe(true);
+    for (let i = 0; i < 6; i++) {
+      await user.tab();
+      expect(dialogo().contains(document.activeElement)).toBe(true);
+    }
+    for (let i = 0; i < 6; i++) {
+      await user.tab({ shift: true });
+      expect(dialogo().contains(document.activeElement)).toBe(true);
+    }
+  });
+
+  it("al cerrar el detalle después de elegir, el foco vuelve a quien lo abrió", async () => {
+    const trigger = document.createElement("button");
+    document.body.appendChild(trigger);
+    const user = userEvent.setup();
+    const { unmount } = setup(varias(), trigger);
+    await user.click(screen.getByRole("button", { name: /generar dossier/i }));
+    await user.keyboard("{Escape}");
+    unmount();
+    expect(trigger).toHaveFocus();
+    trigger.remove();
+  });
+
+  it("si el servidor exige elegir (lista sin actualizar), abre el diálogo con sus personas", async () => {
+    enqueueCalendarJob.mockRejectedValueOnce(
+      new DossierApiError(422, "x", { detail: { code: "CALENDAR_PERSON_REQUIRED", personas: [CARLA, MAX] } }),
+    );
+    const { user } = await abrir(evento());
+    await user.click(await screen.findByRole("checkbox", { name: /Max/ }));
+    expect(screen.queryByRole("alert")).toBeNull();
+    await user.click(confirmar());
+    expect(enqueueCalendarJob).toHaveBeenLastCalledWith("google", expect.objectContaining({ personaId: MAX.id }));
+  });
+
+  it("si la persona ya no está en la reunión, lo dice y ofrece la lista nueva", async () => {
+    enqueueCalendarJob.mockRejectedValueOnce(
+      new DossierApiError(422, "x", { detail: { code: "CALENDAR_PERSON_NOT_FOUND", personas: [CARLA] } }),
+    );
+    const { user } = await abrir();
+    await user.click(casilla(/Max/));
+    await user.click(confirmar());
+    expect(await within(dialogo()).findByRole("alert")).toHaveTextContent(ui.choosePersonGone);
+    expect(within(dialogo()).getAllByRole("checkbox")).toHaveLength(1);
+  });
+
+  it("sin nadie más en la reunión, la persona que falta se explica como error normal", async () => {
+    enqueueCalendarJob.mockRejectedValueOnce(
+      new DossierApiError(422, "x", { detail: { code: "CALENDAR_PERSON_NOT_FOUND", personas: [] } }),
+    );
+    const { user } = await abrir();
+    await user.click(casilla(/Max/));
+    await user.click(confirmar());
+    expect(await screen.findByRole("alert")).toHaveTextContent(ui.choosePersonGone);
+    expect(screen.queryByRole("dialog", { name: ui.choosePersonTitle })).toBeNull();
+  });
+
+  it("los errores de créditos tras elegir se ven en el detalle", async () => {
+    enqueueCalendarJob.mockRejectedValueOnce(new DossierApiError(402, "Créditos insuficientes para generar"));
+    const { user } = await abrir();
+    await user.click(casilla(/Max/));
+    await user.click(confirmar());
+    expect(await screen.findByRole("alert")).toHaveTextContent("Créditos insuficientes para generar");
   });
 });

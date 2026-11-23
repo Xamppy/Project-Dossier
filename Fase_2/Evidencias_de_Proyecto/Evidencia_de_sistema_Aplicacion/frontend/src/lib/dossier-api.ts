@@ -1981,6 +1981,15 @@ export async function fetchCalendarDiagnostico(
   return parsed as CalendarDiagnosticoResponse;
 }
 
+/** Persona de una reunión de la que se puede pedir un dossier (UX-CAL-03). */
+export type CalendarPerson = {
+  id: string;
+  nombre: string;
+  correo: string | null;
+  cargo: string | null;
+  pais: string | null;
+};
+
 /** Fila normalizada de ``GET /calendario/eventos`` (Graph). */
 export type OutlookReunionApi = {
   id?: string | null;
@@ -1991,6 +2000,8 @@ export type OutlookReunionApi = {
   fin?: string;
   ubicacion?: string;
   todo_el_dia?: boolean;
+  /** Personas de la reunión, sin el usuario. Con dos o más hay que elegir una al generar. */
+  personas?: CalendarPerson[];
 };
 
 export type CalendarEventosApiResponse = {
@@ -2613,6 +2624,8 @@ async function postCalendarGenerarDossiers(
 export async function fetchEnqueueOutlookCalendarDossier(options?: {
   eventId?: string;
   reunion?: OutlookReunionApi;
+  /** Obligatorio si la reunión tiene varias personas (UX-CAL-03). */
+  personaId?: string;
   top?: number;
   depth?: "basic" | "standard" | "deep";
   output_language?: string;
@@ -2620,6 +2633,7 @@ export async function fetchEnqueueOutlookCalendarDossier(options?: {
   return postCalendarGenerarDossiers(`${getApiBaseUrl()}/calendario/generar-dossiers-outlook`, {
     event_id: options?.eventId ?? null,
     reunion: options?.reunion ?? null,
+    persona_id: options?.personaId ?? null,
     top: options?.top ?? null,
     async_mode: true,
     depth: options?.depth ?? "standard",
@@ -2630,6 +2644,8 @@ export async function fetchEnqueueOutlookCalendarDossier(options?: {
 export async function fetchEnqueueGoogleCalendarDossier(options?: {
   eventId?: string;
   reunion?: OutlookReunionApi;
+  /** Obligatorio si la reunión tiene varias personas (UX-CAL-03). */
+  personaId?: string;
   top?: number;
   depth?: "basic" | "standard" | "deep";
   output_language?: string;
@@ -2637,6 +2653,7 @@ export async function fetchEnqueueGoogleCalendarDossier(options?: {
   return postCalendarGenerarDossiers(`${getApiBaseUrl()}/calendario/generar-dossiers-google`, {
     event_id: options?.eventId ?? null,
     reunion: options?.reunion ?? null,
+    persona_id: options?.personaId ?? null,
     top: options?.top ?? null,
     async_mode: true,
     depth: options?.depth ?? "standard",

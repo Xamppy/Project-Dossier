@@ -79,7 +79,7 @@ type DossierJobsContextValue = {
   jobs: TrackedJob[];
   enqueueCalendarJob: (
     provider: CalendarProvider,
-    options: { eventId: string; reunion?: OutlookReunionApi },
+    options: { eventId: string; reunion?: OutlookReunionApi; personaId?: string },
   ) => Promise<string>;
   enqueuePersonResearchJob: (payload: PersonResearchPayload) => Promise<string>;
   enqueueCorporateDossierJob: (
@@ -561,7 +561,7 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
   const enqueueCalendarJob = useCallback(
     async (
       provider: CalendarProvider,
-      options: { eventId: string; reunion?: OutlookReunionApi },
+      options: { eventId: string; reunion?: OutlookReunionApi; personaId?: string },
     ): Promise<string> => {
       const enqueue =
         provider === "google"
@@ -570,6 +570,7 @@ export function DossierJobsProvider({ children }: { children: ReactNode }) {
       const res = await enqueue({
         eventId: options.eventId,
         reunion: options.reunion,
+        personaId: options.personaId,
         output_language: resolveDossierOutputLanguage(preferences),
       });
       if (!res.job_id) {

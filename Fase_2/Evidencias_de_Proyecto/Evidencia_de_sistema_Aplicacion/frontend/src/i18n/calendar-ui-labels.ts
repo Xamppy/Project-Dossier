@@ -48,6 +48,13 @@ export type CalendarUiLabels = {
   description: string;
   calendarRegion: string;
   rulesToggleSummary: string;
+  /** Aviso del detalle: la reunión tiene varias personas y no se genera sola (UX-CAL-03). */
+  severalPeopleHint: string;
+  choosePersonTitle: string;
+  choosePersonHelp: string;
+  choosePersonConfirm: string;
+  choosePersonCancel: string;
+  choosePersonGone: string;
 };
 
 const EN: CalendarUiLabels = {
@@ -91,6 +98,12 @@ const EN: CalendarUiLabels = {
   description: "Description",
   calendarRegion: "Meetings calendar",
   rulesToggleSummary: "Automation rules",
+  severalPeopleHint: "This meeting has several people, so its dossier is not generated automatically. Generate it and choose who it is for.",
+  choosePersonTitle: "Who is the dossier for?",
+  choosePersonHelp: "Choose one person. Dossiers are generated one at a time.",
+  choosePersonConfirm: "Generate dossier",
+  choosePersonCancel: "Cancel",
+  choosePersonGone: "That person is no longer in the meeting. Choose again.",
 };
 
 const LABELS: Record<Locale, CalendarUiLabels> = {
@@ -137,6 +150,12 @@ const LABELS: Record<Locale, CalendarUiLabels> = {
     description: "Descripción",
     calendarRegion: "Calendario de reuniones",
     rulesToggleSummary: "Reglas de automatización",
+    severalPeopleHint: "Esta reunión tiene varias personas, así que su dossier no se genera solo. Genéralo y elige de quién es.",
+    choosePersonTitle: "¿De quién es el dossier?",
+    choosePersonHelp: "Elige una sola persona. Los dossiers se generan de uno en uno.",
+    choosePersonConfirm: "Generar este dossier",
+    choosePersonCancel: "Cancelar",
+    choosePersonGone: "Esa persona ya no está en la reunión. Elige de nuevo.",
   },
   de: {
     filterAll: "Alle",
@@ -180,6 +199,12 @@ const LABELS: Record<Locale, CalendarUiLabels> = {
     description: "Beschreibung",
     calendarRegion: "Meeting-Kalender",
     rulesToggleSummary: "Automatisierungsregeln",
+    severalPeopleHint: "Dieses Meeting hat mehrere Personen, daher wird das Dossier nicht automatisch erstellt. Erstelle es und wähle die Person aus.",
+    choosePersonTitle: "Für wen ist das Dossier?",
+    choosePersonHelp: "Wähle eine einzige Person. Dossiers werden einzeln erstellt.",
+    choosePersonConfirm: "Dossier erstellen",
+    choosePersonCancel: "Abbrechen",
+    choosePersonGone: "Diese Person nimmt nicht mehr am Meeting teil. Wähle erneut.",
   },
   fr: {
     filterAll: "Toutes",
@@ -223,6 +248,12 @@ const LABELS: Record<Locale, CalendarUiLabels> = {
     description: "Description",
     calendarRegion: "Calendrier des réunions",
     rulesToggleSummary: "Règles d’automatisation",
+    severalPeopleHint: "Cette réunion compte plusieurs personnes : son dossier n’est pas généré automatiquement. Générez-le et choisissez la personne.",
+    choosePersonTitle: "Pour qui est le dossier ?",
+    choosePersonHelp: "Choisissez une seule personne. Les dossiers sont générés un par un.",
+    choosePersonConfirm: "Générer le dossier",
+    choosePersonCancel: "Annuler",
+    choosePersonGone: "Cette personne ne participe plus à la réunion. Choisissez à nouveau.",
   },
   it: {
     filterAll: "Tutte",
@@ -266,6 +297,12 @@ const LABELS: Record<Locale, CalendarUiLabels> = {
     description: "Descrizione",
     calendarRegion: "Calendario delle riunioni",
     rulesToggleSummary: "Regole di automazione",
+    severalPeopleHint: "Questa riunione ha più persone, quindi il dossier non viene generato automaticamente. Generalo e scegli la persona.",
+    choosePersonTitle: "Per chi è il dossier?",
+    choosePersonHelp: "Scegli una sola persona. I dossier vengono generati uno alla volta.",
+    choosePersonConfirm: "Genera dossier",
+    choosePersonCancel: "Annulla",
+    choosePersonGone: "Questa persona non è più nella riunione. Scegli di nuovo.",
   },
   pt: {
     filterAll: "Todas",
@@ -309,6 +346,12 @@ const LABELS: Record<Locale, CalendarUiLabels> = {
     description: "Descrição",
     calendarRegion: "Calendário de reuniões",
     rulesToggleSummary: "Regras de automatização",
+    severalPeopleHint: "Esta reunião tem várias pessoas, por isso o dossier não é gerado automaticamente. Gere-o e escolha a pessoa.",
+    choosePersonTitle: "De quem é o dossier?",
+    choosePersonHelp: "Escolha uma única pessoa. Os dossiers são gerados um de cada vez.",
+    choosePersonConfirm: "Gerar dossier",
+    choosePersonCancel: "Cancelar",
+    choosePersonGone: "Essa pessoa já não está na reunião. Escolha novamente.",
   },
 };
 

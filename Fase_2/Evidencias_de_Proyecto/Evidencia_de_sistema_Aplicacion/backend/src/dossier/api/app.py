@@ -60,7 +60,7 @@ from dossier.cache.corporate_dossier_redis import (
 from dossier.config import PROJECT_ROOT, load_env
 from dossier.db import is_database_configured
 from dossier.db.connection import get_engine
-from dossier.db.models import Organization, User
+from dossier.db.models import CalendarIntegration, Organization, User
 from dossier.org_dossier_context import format_dossier_context_for_prompt
 from dossier.schemas.calendar_dossier import CalendarGenerarDossiersBody
 from dossier.schemas.dossier_generation import DossierDepth
@@ -107,6 +107,15 @@ from dossier.services.graph_calendar import (
     coerce_reunion_payload,
     diagnostico_microsoft_calendar,
     listar_reuniones_rango,
+)
+from dossier.services.meeting_people import (
+    PERSONA_NO_ENCONTRADA,
+    PERSONA_REQUERIDA,
+    correos_propios,
+    elegir_persona,
+    personas_de_la_reunion,
+    personas_publicas,
+    requiere_elegir_persona,
 )
 from dossier.services.microsoft_calendar_token import get_microsoft_graph_access_token_for_user
 from dossier.services.news_sources import fuentes_aplicables
@@ -354,6 +363,54 @@ def _google_token_for_calendar_route(
     return get_google_calendar_access_token_for_user(db, user.id)
 
 
+def _integracion_de_calendario(db: Session, user_id: UUID, provider: str) -> CalendarIntegration | None:
+    return db.execute(
+        select(CalendarIntegration).where(
+            CalendarIntegration.user_id == user_id,
+            CalendarIntegration.provider == provider,
+            CalendarIntegration.revoked_at.is_(None),
+        )
+    ).scalar_one_or_none()
+
+
+def _exigir_una_persona(
+    db: Session,
+    *,
+    user: User,
+    calendar_provider: str,
+    reuniones: list,
+    persona_id: str | None = None,
+    una_reunion: bool,
+) -> list:
+    """
+    UX-CAL-03: de una reunión con varias personas solo se genera la que eligió el usuario.
+
+    ``una_reunion``: se pidió una reunión concreta; sin una persona válida responde 422. En un
+    lote, las reuniones con varias personas se omiten y solo hay 422 si no queda ninguna.
+    """
+    propias = correos_propios(user, _integracion_de_calendario(db, user.id, calendar_provider))
+    out: list = []
+    omitidas: list = []
+    for reunion in reuniones:
+        personas = personas_de_la_reunion(reunion, propias)
+        if una_reunion and persona_id:
+            try:
+                out.append(elegir_persona(reunion, persona_id, personas))
+            except LookupError as e:
+                raise HTTPException(
+                    status_code=422,
+                    detail={"code": PERSONA_NO_ENCONTRADA, "personas": personas_publicas(personas)},
+                ) from e
+        elif requiere_elegir_persona(personas):
+            omitidas.extend(personas_publicas(personas) if una_reunion else [])
+            continue
+        else:
+            out.append(reunion)
+    if reuniones and not out:
+        raise HTTPException(status_code=422, detail={"code": PERSONA_REQUERIDA, "personas": omitidas})
+    return out
+
+
 def _filter_reuniones_for_app_user(
     db: Session,
     authorization: str | None,
@@ -367,17 +424,13 @@ def _filter_reuniones_for_app_user(
     """Aplica filtros de reunión de trabajo / externos cuando la ruta usa JWT de la app."""
     if access_token:
         return reuniones
-    from dossier.db.models import CalendarIntegration
     from dossier.services.calendar_event_filters import filter_calendar_reuniones
 
     _, user = auth_payload_and_user(db, authorization)
-    integration = db.execute(
-        select(CalendarIntegration).where(
-            CalendarIntegration.user_id == user.id,
-            CalendarIntegration.provider == provider,
-            CalendarIntegration.revoked_at.is_(None),
-        )
-    ).scalar_one_or_none()
+    integration = _integracion_de_calendario(db, user.id, provider)
+    propias = correos_propios(user, integration)
+    for r in reuniones:
+        r["personas"] = personas_publicas(personas_de_la_reunion(r, propias))
     return filter_calendar_reuniones(
         reuniones,
         integration=integration,
@@ -1192,6 +1245,9 @@ def api_generar_dossiers_desde_calendario(
             "dossiers": [],
         }
 
+    reuniones = _exigir_una_persona(
+        db, user=user, calendar_provider="microsoft", reuniones=reuniones, una_reunion=bool(event_id)
+    )
     depth = default_depth_for_plan(org.plan)
     _assert_calendar_batch_credits(org, reuniones, depth)
 
@@ -1249,6 +1305,14 @@ def api_generar_dossiers_desde_calendario_post(
             "dossiers": [],
         }
 
+    reuniones = _exigir_una_persona(
+        db,
+        user=user,
+        calendar_provider="microsoft",
+        reuniones=reuniones,
+        persona_id=body.persona_id,
+        una_reunion=bool(body.event_id or body.reunion),
+    )
     depth = _normalize_calendar_depth(org, body.depth)
     if body.async_mode:
         _assert_calendar_batch_credits(org, reuniones, depth)
@@ -1313,6 +1377,9 @@ def api_generar_dossiers_desde_google_calendar(
             "dossiers": [],
         }
 
+    reuniones = _exigir_una_persona(
+        db, user=user, calendar_provider="google", reuniones=reuniones, una_reunion=bool(event_id)
+    )
     depth = default_depth_for_plan(org.plan)
     _assert_calendar_batch_credits(org, reuniones, depth)
 
@@ -1361,6 +1428,14 @@ def api_generar_dossiers_desde_google_calendar_post(
             "dossiers": [],
         }
 
+    reuniones = _exigir_una_persona(
+        db,
+        user=user,
+        calendar_provider="google",
+        reuniones=reuniones,
+        persona_id=body.persona_id,
+        una_reunion=bool(body.event_id or body.reunion),
+    )
     depth = _normalize_calendar_depth(org, body.depth)
     if body.async_mode:
         _assert_calendar_batch_credits(org, reuniones, depth)

@@ -13,6 +13,11 @@
 > puntualidad miraba hacia atrás, con otro periodo y otro ámbito. Con la enmienda desaparece la
 > evidencia histórica (tabla de hechos, migración y relleno), que solo existía para ese indicador.
 
+> **Enmienda 2026-11-23 (decisión del usuario, [UX-CAL-03](UX-CAL-03-reunion-varias-personas.md)).**
+> En una reunión con varias personas el conjunto esperado es **un dossier de persona, de cualquiera
+> de ellas, y ninguno de empresa**: es lo único que se puede generar desde el calendario. Cuesta los
+> créditos de una persona en todos los planes. Las reuniones con una sola persona no cambian.
+
 ## Problema y evidencia
 
 La pantalla `frontend/src/app/dashboard/page.tsx` solicitaba `fetchDossiersFromApi(80)` y calculaba
@@ -139,6 +144,8 @@ programa trabajos y no consume créditos.
       sobrescribe datos de otra sesión u organización. Leer el resumen no crea jobs.
 - [x] **CA14** — Las cuatro tarjetas funcionan en escritorio y móvil, temas e idiomas configurados;
       no introducen acciones ni vistas de detalle. Actividad y calendario siguen operativos.
+- [x] **CA15** — Con varias personas, un dossier de persona la prepara; sin él se estima 1 crédito, y
+      el de empresa ni se exige ni se suma. El propio usuario no cuenta como persona.
 
 ## Pruebas y entrega
 

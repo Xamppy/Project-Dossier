@@ -8,10 +8,18 @@ from datetime import UTC, datetime
 from typing import Any
 
 ROL_CORPORATIVO = "corporate"
+_PREFIJO_PERSONA = "person:"
+# Reunión con varias personas (UX-CAL-03): basta el dossier de cualquiera de ellas.
+ROL_UNA_PERSONA = f"{_PREFIJO_PERSONA}any"
 
 
 def role_for_person(index: int | None) -> str:
-    return f"person:{index if index else 1}"
+    return f"{_PREFIJO_PERSONA}{index if index else 1}"
+
+
+def with_any_person(roles: set[str]) -> set[str]:
+    """Suma ``ROL_UNA_PERSONA`` si hay un dossier de alguna persona."""
+    return roles | {ROL_UNA_PERSONA} if any(r.startswith(_PREFIJO_PERSONA) for r in roles) else roles
 
 
 def meeting_key(provider: str, external_event_id: str, calendar_key: str = "primary") -> str:

@@ -13,6 +13,11 @@ class CalendarGenerarDossiersBody(BaseModel):
         description="Evento ya normalizado (desde listado); evita re-fetch por id en Outlook",
     )
     top: int | None = Field(None, ge=1, le=10, description="Máximo de eventos si no hay event_id")
+    persona_id: str | None = Field(
+        None,
+        max_length=320,
+        description="Persona elegida (``personas[].id``); obligatoria si la reunión tiene varias",
+    )
     async_mode: bool = Field(
         True,
         description="Si true, encola la generación y responde de inmediato con job_id",

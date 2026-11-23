@@ -83,6 +83,10 @@ class Mundo:
             "descripcion": "Empresa: Tesla\nContacto: Ana Pérez",
             "participantes": "yo@mi-empresa.test, ana@tesla.test",
             "correos": ["yo@mi-empresa.test", "ana@tesla.test"],
+            "asistentes": [
+                {"nombre": None, "correo": "yo@mi-empresa.test", "yo": True},
+                {"nombre": None, "correo": "ana@tesla.test", "yo": False},
+            ],
             "inicio": inicio.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "fin": (inicio + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "ubicacion": "", "todo_el_dia": False,
@@ -305,6 +309,35 @@ def test_ca8_borrar_un_dossier_antes_de_la_reunion_vuelve_a_sumar_su_costo(clien
     mundo.s.commit()
     ds.SUMMARY_CACHE.clear()
     assert _pedir(client, mundo)["preparation_cost"]["estimated_credits"] == 3
+
+
+# ── UX-CAL-03: reuniones con varias personas ────────────────────────────────
+
+
+def _asistentes(*correos):
+    return [{"nombre": None, "correo": c, "yo": False} for c in correos]
+
+
+def test_varias_personas_se_prepara_con_un_dossier_y_no_cuenta_la_empresa(client, mundo):
+    mundo.integracion(mundo.user, mundo.org)
+    mundo.calendario("google", [mundo.reunion(
+        0, AHORA + timedelta(days=1), descripcion="Empresa: Tesla",
+        asistentes=_asistentes("ana@tesla.test", "max@tesla.test"))])
+    r = _pedir(client, mundo)
+    assert (r["upcoming"]["pending_meetings"], r["preparation_cost"]["estimated_credits"]) == (1, 1)
+    mundo.dossier_vivo(mundo.user, mundo.org, "ev0", "person", indice=1)
+    ds.SUMMARY_CACHE.clear()
+    r = _pedir(client, mundo)
+    assert (r["upcoming"]["prepared_meetings"], r["upcoming"]["coverage_percent"]) == (1, 100.0)
+    assert (r["preparation_cost"]["estimated_credits"], r["preparation_cost"]["meetings_to_generate"]) == (0, 0)
+
+
+def test_en_outlook_el_propio_usuario_no_cuenta_como_otra_persona(client, mundo):
+    """Graph no marca al usuario entre los asistentes: se reconoce por su correo."""
+    mundo.integracion(mundo.user, mundo.org, provider="microsoft")
+    mundo.calendario("microsoft", [mundo.reunion(
+        0, AHORA + timedelta(days=1), asistentes=_asistentes(mundo.user.email, "ana@tesla.test"))])
+    assert _pedir(client, mundo)["preparation_cost"]["estimated_credits"] == 3 + 1
 
 
 # ── CA5: volumen y paginación ────────────────────────────────────────────────

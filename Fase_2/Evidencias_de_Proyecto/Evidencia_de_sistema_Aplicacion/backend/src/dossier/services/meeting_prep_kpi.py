@@ -13,11 +13,13 @@ Reglas (spec UX-KPI-01):
   integración no excluyen una reunión que se puede preparar a mano.
 - Conjunto esperado: el que deduce el parser de generación (empresa si el plan la incluye,
   más un dossier por contacto). Vacío significa «no preparable»: nunca cuenta como preparada.
+- Con varias personas (UX-CAL-03) se espera el dossier de una cualquiera y ninguno de empresa:
+  es lo único que se puede generar desde el calendario.
 - Todos los instantes son UTC; los periodos son [inicio, fin).
 """
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Set
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
@@ -29,14 +31,18 @@ from dossier.services.calendar_event_dossiers import parse_calendar_event_for_do
 from dossier.services.calendar_event_filters import has_external_attendee, is_work_meeting
 from dossier.services.meeting_identity import (
     ROL_CORPORATIVO,
+    ROL_UNA_PERSONA,
     expected_roles_from_parsed,
     meeting_key,
     parse_start,
     role_for_person,
+    with_any_person,
 )
+from dossier.services.meeting_people import personas_de_la_reunion, requiere_elegir_persona
 
 __all__ = [
     "ROL_CORPORATIVO",
+    "ROL_UNA_PERSONA",
     "CalendarEntry",
     "CalendarSnapshot",
     "Meeting",
@@ -54,8 +60,15 @@ __all__ = [
 
 PERIODO_FUTURO = timedelta(days=7)
 
-def expected_roles(reunion: dict[str, Any], plan: str | None) -> frozenset[str]:
-    """Dossiers que la solicitud de la reunión produce con el parser actual y el plan dado."""
+def expected_roles(
+    reunion: dict[str, Any], plan: str | None, propios: Set[str] = frozenset()
+) -> frozenset[str]:
+    """Dossiers que la solicitud de la reunión produce con el parser actual y el plan dado.
+
+    ``propios``: correos del usuario, que no cuentan como una persona más de la reunión.
+    """
+    if requiere_elegir_persona(personas_de_la_reunion(reunion, propios)):
+        return frozenset({ROL_UNA_PERSONA})
     return expected_roles_from_parsed(
         parse_calendar_event_for_dossiers(reunion),
         include_corporate=plan_allows_calendar_corporate_dossier(plan),
@@ -70,6 +83,7 @@ class CalendarEntry:
     calendar_key: str
     owner_domain: str | None
     reunion: dict[str, Any]
+    propios: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -123,7 +137,7 @@ def collect_meetings(entries: list[CalendarEntry], *, plan: str | None) -> Calen
                 )
             continue
         snap.meetings.append(
-            Meeting(keys=(clave,), starts_at=inicio, expected=expected_roles(e.reunion, plan))
+            Meeting(keys=(clave,), starts_at=inicio, expected=expected_roles(e.reunion, plan, e.propios))
         )
         if uid:
             grupos[(uid, inicio)] = len(snap.meetings) - 1
@@ -132,6 +146,14 @@ def collect_meetings(entries: list[CalendarEntry], *, plan: str | None) -> Calen
 
 def _percent(parte: int, total: int) -> float | None:
     return 100 * parte / total if total > 0 else None
+
+
+def _disponibles(m: Meeting, available: Mapping[str, frozenset[str]]) -> set[str]:
+    """Roles ya generados para la reunión en cualquiera de sus alias."""
+    roles: set[str] = set()
+    for k in m.keys:
+        roles |= available.get(k, frozenset())
+    return with_any_person(roles)
 
 
 @dataclass(frozen=True)
@@ -153,10 +175,7 @@ def summarize_upcoming(
     elegibles = [m for m in meetings if as_of <= m.starts_at < fin]
     preparadas = 0
     for m in elegibles:
-        disponible: set[str] = set()
-        for k in m.keys:
-            disponible |= available.get(k, frozenset())
-        if m.expected and m.expected <= disponible:
+        if m.expected and m.expected <= _disponibles(m, available):
             preparadas += 1
     total = len(elegibles)
     return UpcomingResult(total, preparadas, total - preparadas, _percent(preparadas, total))
@@ -201,10 +220,7 @@ def summarize_preparation_cost(
     for m in meetings:
         if not (as_of <= m.starts_at < fin):
             continue
-        disponible: set[str] = set()
-        for k in m.keys:
-            disponible |= available.get(k, frozenset())
-        faltan = m.expected - disponible
+        faltan = m.expected - _disponibles(m, available)
         if faltan:
             reuniones += 1
             total += sum(role_cost(r) for r in faltan)

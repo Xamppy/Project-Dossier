@@ -63,6 +63,28 @@ def _formatear_participantes(evento: dict) -> str:
     return ", ".join(emails) if emails else "No especificados"
 
 
+# «Correos» de Google que no son personas: calendarios compartidos y salas.
+_CALENDARIOS_SIN_PERSONA = ("@group.calendar.google.com", "@resource.calendar.google.com")
+
+
+def _asistentes_google(evento: dict) -> list[dict]:
+    """Organizador y asistentes como ``{nombre, correo, yo}``, sin salas ni calendarios (UX-CAL-03)."""
+    out: list[dict] = []
+    for a in [evento.get("organizer"), *(evento.get("attendees") or [])]:
+        if not isinstance(a, dict) or a.get("resource") is True:
+            continue
+        correo = a.get("email")
+        if not isinstance(correo, str) or "@" not in correo or correo.lower().endswith(_CALENDARIOS_SIN_PERSONA):
+            continue
+        nombre = a.get("displayName")
+        out.append({
+            "nombre": nombre.strip() if isinstance(nombre, str) and nombre.strip() else None,
+            "correo": correo.strip().lower(),
+            "yo": a.get("self") is True,
+        })
+    return out
+
+
 def normalizar_evento_google(evento: dict) -> dict:
     start = evento.get("start") or {}
     end = evento.get("end") or {}
@@ -78,6 +100,7 @@ def normalizar_evento_google(evento: dict) -> dict:
         "tema": strip_html_to_plain_line(evento.get("summary")) or "Sin asunto",
         "descripcion": desc,
         "participantes": _formatear_participantes(evento),
+        "asistentes": _asistentes_google(evento),
         "inicio": inicio,
         "fin": fin,
         "ubicacion": loc,

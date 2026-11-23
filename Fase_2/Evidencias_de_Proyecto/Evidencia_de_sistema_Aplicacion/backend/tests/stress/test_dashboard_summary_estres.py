@@ -29,6 +29,8 @@ def _reunion(i, inicio):
     return {
         "id": f"ev{i}", "tema": "Reunión — Tesla", "descripcion": "Empresa: Tesla\nContacto: Ana Pérez",
         "participantes": "a@mi-empresa.test, ana@tesla.test", "correos": ["a@mi-empresa.test", "ana@tesla.test"],
+        "asistentes": [{"nombre": None, "correo": "a@mi-empresa.test", "yo": True},
+                       {"nombre": None, "correo": "ana@tesla.test", "yo": False}],
         "inicio": inicio.strftime("%Y-%m-%dT%H:%M:%SZ"), "todo_el_dia": False,
     }
 
@@ -62,6 +64,21 @@ def test_volumen_mas_de_ochenta_reuniones_futuras_no_se_truncan():
     disponible = {m.keys[0]: frozenset({"corporate", "person:1"}) for m in ms[:150]}
     r = summarize_upcoming(ms, disponible, as_of=AS_OF)
     assert (r.eligible, r.prepared, r.pending, r.percent) == (200, 150, 50, 75.0)
+
+
+def test_volumen_reuniones_con_cientos_de_asistentes_no_frenan_el_resumen():
+    """UX-CAL-03: contar las personas de cada reunión no puede volverse lo lento del resumen."""
+    asistentes = [{"nombre": None, "correo": f"p{j}@tesla.test", "yo": False} for j in range(300)]
+    entradas = [
+        CalendarEntry("google", "primary", "mi-empresa.test",
+                      {**_reunion(i, AS_OF + timedelta(minutes=30 * (i + 1))), "asistentes": asistentes})
+        for i in range(300)
+    ]
+    t0 = time.perf_counter()
+    ms = collect_meetings(entradas, plan="pro").meetings
+    costo = summarize_preparation_cost(ms, {}, as_of=AS_OF, role_cost=preparation_role_cost("pro"))
+    assert time.perf_counter() - t0 < 5
+    assert (costo.meetings_to_generate, costo.estimated_credits) == (300, 300)
 
 
 # ── degradación: proveedor lento o caído ─────────────────────────────────────

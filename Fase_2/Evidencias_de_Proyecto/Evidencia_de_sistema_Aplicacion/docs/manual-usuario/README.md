@@ -66,8 +66,9 @@ La **barra lateral** lleva a cada sección:
 | **Administración** | Solo para el equipo que opera la plataforma ([12](#12-administración-de-la-plataforma)) |
 
 Los indicadores del Resumen («Reuniones por preparar», «Cobertura de próximas reuniones»,
-«Créditos para preparar») se llenan al conectar un calendario. «Créditos disponibles» muestra el
-saldo de tu organización.
+«Créditos para preparar») se llenan al conectar un calendario. Una reunión con varias personas
+cuenta como preparada con el dossier de una de ellas. «Créditos disponibles» muestra el saldo de tu
+organización.
 
 La **campana** de arriba a la derecha avisa de cada dossier nuevo ([9](#9-notificaciones)).
 
@@ -80,13 +81,17 @@ La **campana** de arriba a la derecha avisa de cada dossier nuevo ([9](#9-notifi
 2. Tus reuniones aparecen en vista **Día**, **Semana** o **Mes**, en tu zona horaria (se ve sobre
    la grilla y se cambia en [Idioma y región](#104-idioma-y-región)).
 3. Al abrir una reunión ves participantes, lugar y descripción. **Generar dossier** prepara el
-   dossier de la empresa y de los asistentes de esa reunión.
+   dossier de la empresa y del contacto de esa reunión.
+4. Si la reunión tiene **varias personas**, se abre un cuadro para marcar **una sola** y se genera
+   solo el dossier de esa persona. Para otra persona, repite el proceso cuando termine el anterior.
+   El de la empresa se pide en **Empresas**.
 
 **Consejo:** el dossier sale mejor si la descripción de la reunión dice la empresa y el contacto,
 por ejemplo `Empresa: Acme` y `Contacto: Ana Pérez`. Si falta, la ficha lo avisa.
 
 **Automatización** (planes Pro y Enterprise): en **Reglas de automatización** se activa la
 generación sola antes de cada reunión. Esos dossiers llegan por correo y aparecen en la campana.
+Las reuniones con varias personas no se generan solas: hay que abrirlas y elegir a quién.
 Si dice «Automatización desactivada en el servidor», la tiene que activar quien opera la plataforma.
 
 ## 5. Generar un dossier

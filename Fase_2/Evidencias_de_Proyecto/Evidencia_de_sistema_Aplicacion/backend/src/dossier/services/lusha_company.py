@@ -46,6 +46,22 @@ def email_to_company_domain(email: str | None) -> str | None:
     return domain
 
 
+# Segundos niveles genéricos: en «acme.co.uk» o «acme.com.ar» el nombre es la etiqueta anterior.
+_SEGUNDO_NIVEL_GENERICO = frozenset({"co", "com", "org", "net", "edu", "ac", "gob", "gov"})
+
+
+def company_name_from_email(email: str | None) -> str | None:
+    """Nombre de empresa según el dominio corporativo (ana@otra-empresa.cl → «Otra Empresa»)."""
+    dominio = email_to_company_domain(email)
+    etiquetas = [e for e in (dominio or "").split(".") if e]
+    if len(etiquetas) < 2:
+        return None
+    nombre = etiquetas[-2]
+    if nombre in _SEGUNDO_NIVEL_GENERICO and len(etiquetas) >= 3:
+        nombre = etiquetas[-3]
+    return " ".join(p[:1].upper() + p[1:] for p in nombre.split("-") if p) or None
+
+
 def company_search_variants(company: str | None) -> list[str]:
     """
     Genera alias de empresa para búsquedas PDL.

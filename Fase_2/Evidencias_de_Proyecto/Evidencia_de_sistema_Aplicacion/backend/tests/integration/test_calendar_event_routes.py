@@ -251,3 +251,36 @@ def test_integracion_ausente_sigue_siendo_404(client, monkeypatch):
     monkeypatch.setattr(app_module, "get_google_calendar_access_token_for_user", sin_integracion)
     r = client.get("/calendario/eventos-google", params=RANGO, headers=AUTH)
     assert r.status_code == 404
+
+
+# ── UX-CAL-03 · personas de cada reunión ─────────────────────────────────────
+
+
+def test_cada_reunion_trae_sus_personas_sin_el_usuario(client, monkeypatch):
+    evento = _ev_google(1) | {
+        "organizer": {"email": "carla.diaz@acme.test"},
+        "attendees": [{"email": USER.email}, {"email": "carla.diaz@acme.test"}, {"email": "max@acme.test"}],
+    }
+    _proveedor(monkeypatch, google_pages=[[evento]])
+    (reunion,) = client.get("/calendario/eventos-google", params=RANGO, headers=AUTH).json()["reuniones"]
+    assert reunion["personas"] == [
+        {"id": "carla.diaz@acme.test", "nombre": "Carla Diaz", "correo": "carla.diaz@acme.test", "cargo": None, "pais": None},
+        {"id": "max@acme.test", "nombre": "Max", "correo": "max@acme.test", "cargo": None, "pais": None},
+    ]
+
+
+def test_outlook_tambien_trae_las_personas(client, monkeypatch):
+    def quien(nombre, correo):
+        return {"emailAddress": {"name": nombre, "address": correo}}
+
+    evento = _ev_graph(
+        1,
+        organizer=quien("Yo", USER.email),
+        attendees=[quien("Carla Díaz", "carla@acme.test"), quien("Max Soto", "max@acme.test")],
+    )
+    _proveedor(monkeypatch, graph_pages=[[evento]])
+    (reunion,) = client.get("/calendario/eventos-outlook", params=RANGO, headers=AUTH).json()["reuniones"]
+    assert [(p["nombre"], p["correo"]) for p in reunion["personas"]] == [
+        ("Carla Díaz", "carla@acme.test"),
+        ("Max Soto", "max@acme.test"),
+    ]

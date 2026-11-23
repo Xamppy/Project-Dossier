@@ -92,6 +92,11 @@ from dossier.utils.html_text import strip_html_to_plain_line, strip_html_to_text
 
 logger = logging.getLogger(__name__)
 
+# Clave del evento con la persona que eligió el usuario en una reunión con varias (UX-CAL-03).
+# La pone el servidor (``meeting_people.elegir_persona``); ``coerce_reunion_payload`` la descarta
+# si viene del cliente.
+PERSONA_ELEGIDA = "_persona_elegida"
+
 
 _SUBJECT_PREFIX = re.compile(
     r"^(?:reunión|reunion|demo|llamada|call|meeting|segunda\s+reunión|primera\s+llamada)\s*"
@@ -572,11 +577,48 @@ def _sanitize_reunion_text_fields(reunion: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def _parse_persona_elegida(
+    elegida: dict[str, Any], tema: str, descripcion: str, participantes: str
+) -> dict[str, Any]:
+    """
+    Reunión con varias personas donde el usuario eligió una (UX-CAL-03): solo cuenta ella.
+
+    No hay dossier de empresa: se generan de uno en uno y se repetiría con cada persona elegida.
+    La empresa declarada («Empresa: …») o la del dominio del correo solo identifica a la persona;
+    el asunto no se usa porque suele ser un título y se tomaría entero por una empresa.
+    """
+    from dossier.services.lusha_company import company_name_from_email
+
+    m = _EMPRESA_DESC.search(descripcion)
+    empresa = m.group(1).strip().rstrip(".") if m else ""
+    if len(empresa) < 2:
+        empresa = ""
+    persona = dict(elegida)
+    return {
+        "company": "",
+        "company_subject": "",
+        "company_corporate": "",
+        "company_corporate_source": "",
+        "company_person": empresa or company_name_from_email(persona.get("email")) or "",
+        "persons": [persona],
+        "person_name": persona.get("full_name") or "",
+        "person_job": persona.get("job_area"),
+        "person_country": persona.get("country"),
+        "person_email": persona.get("email"),
+        "tema": tema,
+        "descripcion": descripcion,
+        "participantes": participantes,
+    }
+
+
 def parse_calendar_event_for_dossiers(reunion: dict[str, Any]) -> dict[str, Any]:
     reunion = _sanitize_reunion_text_fields(reunion)
     tema = (reunion.get("tema") or "").strip()
     descripcion = (reunion.get("descripcion") or "").strip()
     participantes = (reunion.get("participantes") or "").strip()
+    elegida = reunion.get(PERSONA_ELEGIDA)
+    if isinstance(elegida, dict):
+        return _parse_persona_elegida(elegida, tema, descripcion, participantes)
     company_subject = extract_company_from_subject(tema)
     company_corporate, company_corporate_source = resolve_corporate_company(tema, descripcion)
     company_person = (
