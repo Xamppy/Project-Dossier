@@ -32,6 +32,23 @@ def _client_creds() -> tuple[str, str]:
     return cid, secret
 
 
+def _marcar_para_reconectar(db: Session, row: CalendarIntegration) -> None:
+    """
+    Google rechazó el ``refresh_token`` (``invalid_grant``): vencido, revocado o de otro
+    cliente OAuth. Reintentar no sirve, así que la integración queda revocada y el sync
+    deja de llamar a Google. Reconectar (``upsert_google_calendar_tokens``) la reactiva.
+    """
+    row.revoked_at = datetime.now(UTC)
+    row.is_enabled = False
+    row.access_token_encrypted = None
+    row.refresh_token_encrypted = None
+    db.commit()
+    logger.warning(
+        "Integración Google de user_id=%s marcada para reconectar: refresh_token rechazado.",
+        row.user_id,
+    )
+
+
 def get_google_calendar_access_token_for_user(db: Session, user_id: UUID) -> str:
     """
     Devuelve un ``access_token`` válido para Google Calendar API para ``user_id``.
@@ -99,8 +116,13 @@ def get_google_calendar_access_token_for_user(db: Session, user_id: UUID) -> str
         body = {}
 
     if r.status_code != 200 or "access_token" not in body:
+        codigo = body.get("error") or f"http_{r.status_code}"
         err = body.get("error_description") or body.get("error") or r.text[:300]
-        logger.warning("Google token refresh error for user_id=%s: %s", user_id, err)
+        logger.warning(
+            "Google token refresh error for user_id=%s: %s (%s)", user_id, err, codigo
+        )
+        if codigo == "invalid_grant":
+            _marcar_para_reconectar(db, row)
         raise HTTPException(
             status_code=401,
             detail=f"No se pudo renovar el token de Google: {err}. Vuelve a conectar.",

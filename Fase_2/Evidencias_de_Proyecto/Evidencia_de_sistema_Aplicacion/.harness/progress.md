@@ -6,6 +6,26 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-22 · Token de Google muerto ya no se reintenta cada minuto · DG (agente)
+
+**Hecho.** En producción el sync de calendario registraba «Google token refresh error … Bad
+Request» cada minuto por cada usuario con el `refresh_token` rechazado. Ahora, ante
+`invalid_grant`, `google_calendar_token._marcar_para_reconectar` revoca la integración
+(`revoked_at`, `is_enabled = False`, tokens borrados) y el sync deja de llamar a Google.
+El log incluye el código de error de Google entre paréntesis.
+
+**Pruebas.** `tests/test_google_calendar_token.py` (nuevo), primero en rojo.
+
+**Lo que hay que saber.**
+- Solo `invalid_grant` desconecta. Un 5xx o `invalid_client` (credenciales mal puestas en el
+  servidor) siguen reintentando: no son culpa del token del usuario.
+- Reconectar reactiva la integración: el flujo pide `prompt=consent` y Google entrega un
+  `refresh_token` nuevo.
+- Si los tokens mueren cada ~7 días, la app OAuth de Google Cloud está en modo «Testing».
+- `microsoft_calendar_token.py` tiene el mismo patrón de reintento infinito; no se tocó.
+
+**Rama.** `main` · **Estado.** review
+
 ### 2026-11-11 · Correcciones vistas al rehacer las capturas del informe final 2.6 · FD (agente)
 
 **Hecho.** Rama `fix/detalles-informe-final`. Tres defectos:
