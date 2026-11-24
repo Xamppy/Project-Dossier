@@ -25,6 +25,7 @@ from dossier.db.connection import is_database_configured
 from dossier.db.models import CalendarEvent, Dossier, DossierGenerationJob
 from dossier.db.session import _factory
 from dossier.services.audit_log import AuditEvent, record
+from dossier.services.calendar_automation import MOTIVO_DOSSIER_VENCIDO
 from dossier.services.dossier_deletion_service import (
     delete_dossier_record,
     finalize_dossier_deletions,
@@ -195,7 +196,7 @@ def purge_expired_dossiers(db: Session, *, now: datetime | None = None) -> Resul
         calendar_event_ids.add(delete_dossier_record(db, dossier))
     if vencidos:
         db.flush()
-        finalize_dossier_deletions(db, calendar_event_ids)
+        finalize_dossier_deletions(db, calendar_event_ids, motivo=MOTIVO_DOSSIER_VENCIDO)
 
     jobs = db.execute(
         delete(DossierGenerationJob)

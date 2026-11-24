@@ -6,6 +6,40 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-23 · sin ID · La sincronización ya no regenera lo fallido ni lo borrado · DG (agente)
+
+**Hecho.** `sync_calendar_events_for_integration` ya no reprograma cada minuto un evento `failed` ni uno
+omitido por «Dossier eliminado por el usuario». Un evento fallido se reintenta una vez por cada cambio
+de la reunión (asunto, descripción, asistentes, inicio o fin), comparado con `event_snapshot`. Un
+dossier borrado por el usuario no se regenera nunca solo. Si la generación no guardó ningún dossier, el
+evento queda `failed` y no `completed`. Sin cambio de esquema.
+
+**Pruebas.** Primero en rojo (17 y después 2, de 27): `integration/test_calendario_sin_reintentos.py`
+(Postgres). Suite completa contra Postgres: 2.043 en verde y 2 omitidas; ruff (`src` y la prueba nueva) y mypy sin
+hallazgos. `ruff check .` da 24 hallazgos en otras pruebas, anteriores a este cambio.
+
+**Lo que hay que saber.**
+- `persist_calendar_dossiers` devuelve siempre `{"persons": []}`, que no es vacío: con la empresa fallida
+  y sin persona, el evento quedaba `completed` sin dossiers y `_requeue_completed_without_dossiers` lo
+  repetía cada dos ciclos. Ahora mandan los ids (`saved_dossier_ids`). Una prueba que simule el guardado
+  con `{}` no ve este defecto: las cinco últimas usan la generación y el guardado reales.
+- Cada llamada a la IA ya se reintenta hasta 4 veces por errores pasajeros (`llm/client.py`). La reunión
+  completa no: DG decidió que, si falla el dossier de empresa, quede fallido sin más intentos.
+- El dossier de persona que falla se guarda como `failed` con el evento `completed`, y no se repite. Era
+  así y no se tocó.
+- Otra sala, otro orden de asistentes o el mismo horario en otra zona no cuentan como cambio.
+- La retención marcaba sus borrados como «eliminado por el usuario». Ahora usa
+  `MOTIVO_DOSSIER_VENCIDO`: una reunión pasada que se mueve a una fecha futura se genera otra vez.
+  Las filas que la retención marcó antes de este cambio conservan el texto anterior y no se
+  regeneran solas: no hay cómo distinguirlas.
+- La protección va antes de la rama del plan Free: si no, Free → Pro borraba el motivo y regeneraba.
+- Una fila `failed` antigua con varias personas pasa a `skipped` (UX-CAL-03).
+
+**Pendiente.** Commit y revisión del segundo integrante. Dos defectos anteriores, confirmados con una
+prueba desechable y sin tocar: (1) un evento `completed` cuya organización pasa a Free y vuelve a Pro
+se genera otra vez; (2) si la relectura del evento lanza una excepción en `process_due_calendar_events`,
+el evento queda en `processing` para siempre y se corta la vuelta.
+
 ### 2026-11-23 · sin ID · Aviso corto de reunión sin descripción · DG (agente)
 
 **Hecho.** En el panel de la reunión, el aviso de descripción vacía queda en «Sin descripción en el

@@ -9,7 +9,10 @@ from sqlalchemy.orm import Session
 
 from dossier.cache.corporate_dossier_redis import delete_dossier_redis_cache
 from dossier.db.models import Dossier
-from dossier.services.calendar_automation import suppress_calendar_event_if_no_dossiers_remain
+from dossier.services.calendar_automation import (
+    MOTIVO_DOSSIER_ELIMINADO,
+    suppress_calendar_event_if_no_dossiers_remain,
+)
 from dossier.services.summary_cache import SUMMARY_CACHE
 
 logger = logging.getLogger(__name__)
@@ -42,10 +45,12 @@ def delete_dossier_record(db: Session, dossier: Dossier) -> UUID | None:
 def finalize_dossier_deletions(
     db: Session,
     calendar_event_ids: set[UUID | None],
+    *,
+    motivo: str = MOTIVO_DOSSIER_ELIMINADO,
 ) -> None:
     """Tras ``flush``/``delete``, evita regeneración automática en eventos vacíos."""
     for event_id in calendar_event_ids:
-        suppress_calendar_event_if_no_dossiers_remain(db, event_id)
+        suppress_calendar_event_if_no_dossiers_remain(db, event_id, motivo=motivo)
 
 
 def delete_dossiers_in_folder(

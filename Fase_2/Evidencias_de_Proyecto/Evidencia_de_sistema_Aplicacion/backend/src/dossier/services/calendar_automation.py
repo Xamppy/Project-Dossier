@@ -38,6 +38,7 @@ from dossier.services.graph_calendar import (
 )
 from dossier.services.meeting_people import (
     MOTIVO_VARIAS_PERSONAS,
+    claves_asistentes,
     correos_propios,
     personas_de_la_reunion,
     requiere_elegir_persona,
@@ -255,6 +256,68 @@ def _skipped_by_calendar_filter(skip_reason: str | None) -> bool:
     return any(marker in skip_reason for marker in _FILTER_SKIP_MARKERS)
 
 
+# El prefijo reconoce también las filas guardadas cuando el texto tenía «?» en vez de tildes.
+_PREFIJO_ELIMINADO = "Dossier eliminado por el usuario"
+MOTIVO_DOSSIER_ELIMINADO = f"{_PREFIJO_ELIMINADO}; no se regenerará automáticamente."
+MOTIVO_DOSSIER_VENCIDO = "Dossier borrado al vencer su plazo de retención."
+
+
+def _eliminado_por_el_usuario(row: CalendarEvent) -> bool:
+    return row.processing_status == "skipped" and (row.skip_reason or "").startswith(_PREFIJO_ELIMINADO)
+
+
+def _huella_reunion(reunion: dict[str, Any], propios: set[str]) -> tuple[Any, ...]:
+    """Lo que, al cambiar, justifica volver a intentar un dossier fallido."""
+    return (
+        (reunion.get("tema") or "").strip(),
+        (reunion.get("descripcion") or "").strip(),
+        claves_asistentes(reunion, propios),
+        parse_event_datetime(reunion.get("inicio")),
+        parse_event_datetime(reunion.get("fin")),
+    )
+
+
+def _cambio_desde_la_ultima_lectura(
+    row: CalendarEvent, reunion: dict[str, Any], integration: CalendarIntegration, user: User | None
+) -> bool:
+    previa = row.event_snapshot if isinstance(row.event_snapshot, dict) else {}
+    propios = correos_propios(user, integration)
+    return _huella_reunion(previa, propios) != _huella_reunion(reunion, propios)
+
+
+def _no_se_vuelve_a_generar(
+    row: CalendarEvent, reunion: dict[str, Any], integration: CalendarIntegration, user: User | None
+) -> bool:
+    """Evita que cada sincronización reprograme lo que ya falló o lo que el usuario borró.
+
+    Un evento fallido se reintenta si cambió la reunión. Con varias personas se deja pasar: no se
+    genera, queda omitido (UX-CAL-03). Lo que borró el usuario no se regenera nunca.
+    """
+    if _eliminado_por_el_usuario(row):
+        return True
+    return (
+        row.processing_status == "failed"
+        and not _cambio_desde_la_ultima_lectura(row, reunion, integration, user)
+        and not _hay_que_elegir_persona(reunion, integration, user)
+    )
+
+
+def _copiar_datos_de_la_reunion(
+    row: CalendarEvent,
+    reunion: dict[str, Any],
+    user: User | None,
+    *,
+    starts: datetime,
+    ends: datetime | None,
+) -> None:
+    row.title = (reunion.get("tema") or "")[:500]
+    row.starts_at = starts
+    row.ends_at = ends
+    row.meeting_url = (reunion.get("ubicacion") or None)
+    row.external_attendees = _attendees_from_participantes(reunion.get("participantes") or "")
+    row.event_snapshot = _event_snapshot_with_output_language(reunion, user)
+
+
 def _hay_que_elegir_persona(
     reunion: dict[str, Any], integration: CalendarIntegration, user: User | None
 ) -> bool:
@@ -337,6 +400,11 @@ def sync_calendar_events_for_integration(db: Session, integration: CalendarInteg
                 touched += 1
             continue
 
+        if row is not None and _no_se_vuelve_a_generar(row, reunion, integration, user):
+            _copiar_datos_de_la_reunion(row, reunion, user, starts=starts, ends=ends)
+            touched += 1
+            continue
+
         if not automation_ok:
             if row is None:
                 row = CalendarEvent(
@@ -386,12 +454,7 @@ def sync_calendar_events_for_integration(db: Session, integration: CalendarInteg
             db.add(row)
 
         row.organization_id = org_id
-        row.title = (reunion.get("tema") or "")[:500]
-        row.starts_at = starts
-        row.ends_at = ends
-        row.meeting_url = (reunion.get("ubicacion") or None)
-        row.external_attendees = _attendees_from_participantes(reunion.get("participantes") or "")
-        row.event_snapshot = _event_snapshot_with_output_language(reunion, user)
+        _copiar_datos_de_la_reunion(row, reunion, user, starts=starts, ends=ends)
         elegir = _hay_que_elegir_persona(reunion, integration, user)
         row.dossier_scheduled_at = None if elegir else scheduled_at
         row.processing_status = "skipped" if elegir else "scheduled"
@@ -477,6 +540,8 @@ def _requeue_completed_without_dossiers(db: Session) -> int:
 def suppress_calendar_event_if_no_dossiers_remain(
     db: Session,
     calendar_event_id: UUID | None,
+    *,
+    motivo: str = MOTIVO_DOSSIER_ELIMINADO,
 ) -> None:
     """
     Tras borrar dossiers de calendario: evita que la automatizaci?n los regenere.
@@ -497,10 +562,11 @@ def suppress_calendar_event_if_no_dossiers_remain(
     if event is None:
         return
     event.processing_status = "skipped"
-    event.skip_reason = "Dossier eliminado por el usuario; no se regenerar? autom?ticamente."
+    event.skip_reason = motivo
     logger.info(
-        "Calendario: evento %s marcado skipped tras borrado manual de dossiers",
+        "Calendario: evento %s marcado skipped tras borrar sus dossiers (%s)",
         calendar_event_id,
+        motivo,
     )
 
 
@@ -635,7 +701,9 @@ def process_due_calendar_events(db: Session) -> dict[str, int]:
             )
             saved = result.get("saved_dossiers") or {}
             guardados = saved
-            if saved:
+            # ``saved`` trae «persons» aunque no se haya guardado nada: mandan los ids. Si quedara
+            # ``completed`` sin dossiers, se reprogramaría hasta que empiece la reunión.
+            if saved_dossier_ids(saved):
                 event.processing_status = "completed"
                 event.skip_reason = None
                 stats["processed"] += 1

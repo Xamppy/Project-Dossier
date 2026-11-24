@@ -65,6 +65,11 @@ def _asistentes(reunion: dict[str, Any], propios: Set[str]) -> list[dict[str, st
     return list(por_clave.values())
 
 
+def claves_asistentes(reunion: dict[str, Any], propios: Set[str]) -> frozenset[str]:
+    """Quiénes asisten, sin el usuario y sin orden: el correo o, si falta, el nombre."""
+    return frozenset((a["correo"] or a["nombre"] or "").lower() for a in _asistentes(reunion, propios))
+
+
 def _mismo_nombre(declarado: str, asistente: dict[str, str | None]) -> bool:
     """Coinciden al menos dos palabras: un nombre de pila suelto no basta (BUG-2026-10-19-02)."""
     nombre = asistente["nombre"] or _nombre_desde_correo(asistente["correo"] or "")
