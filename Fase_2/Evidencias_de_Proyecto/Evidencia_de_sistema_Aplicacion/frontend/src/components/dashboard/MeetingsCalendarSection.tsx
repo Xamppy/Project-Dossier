@@ -7,6 +7,7 @@ import PrimaryButton from "@/components/PrimaryButton";
 import UiAlert from "@/components/ui/UiAlert";
 import { useCalendarEvents, type ProviderState } from "@/hooks/useCalendarEvents";
 import { useCalendarProvidersConfigured } from "@/hooks/useCalendarProvidersConfigured";
+import type { TranslateFn } from "@/i18n";
 import { calendarUiLabels, fillLabel } from "@/i18n/calendar-ui-labels";
 import { initialViewForWidth, type CalendarEventModel } from "@/lib/calendar-events";
 import {
@@ -15,6 +16,7 @@ import {
   fetchGoogleIntegrationStartAsJson,
   fetchMicrosoftIntegrationStartAsJson,
   getStoredAccessToken,
+  NON_JSON_RESPONSE_MESSAGE,
   type CalendarIncompleteReason,
   type CalendarProvider,
 } from "@/lib/dossier-api";
@@ -34,8 +36,12 @@ const INCOMPLETE_KEY = {
   error_proveedor: "incompleteError",
 } as const satisfies Record<CalendarIncompleteReason, string>;
 
-/** Los mensajes internos de red no se enseñan al usuario. */
-function usableDetail(message: string): string {
+/**
+ * Texto de un error de la API para el usuario: el aviso de servidor no disponible se
+ * traduce y los mensajes internos de red no se enseñan.
+ */
+function usableDetail(message: string, t: TranslateFn): string {
+  if (message === NON_JSON_RESPONSE_MESSAGE) return t("errors.server_unavailable");
   return !message || message === "NETWORK" || message.startsWith("__dossier") ? "" : message;
 }
 
@@ -94,7 +100,9 @@ export default function MeetingsCalendarSection() {
       window.location.assign(authorize_url);
     } catch (e) {
       setConnecting(null);
-      setConnectErr(e instanceof DossierApiError ? e.message : t("automation.calendar_load_error"));
+      setConnectErr(
+        (e instanceof DossierApiError && usableDetail(e.message, t)) || t("automation.calendar_load_error"),
+      );
     }
   }
 
@@ -105,7 +113,7 @@ export default function MeetingsCalendarSection() {
     } catch (e) {
       setDiagnose({
         loading: false,
-        text: e instanceof DossierApiError ? e.message : t("overview.calendar_diagnose_error"),
+        text: (e instanceof DossierApiError && usableDetail(e.message, t)) || t("overview.calendar_diagnose_error"),
       });
     }
   }
@@ -210,7 +218,7 @@ export default function MeetingsCalendarSection() {
       ) : null}
 
       {PROVIDERS.filter((p) => states[p].status === "error").map((p) => {
-        const detail = usableDetail(states[p].error?.message ?? "");
+        const detail = usableDetail(states[p].error?.message ?? "", t);
         return (
           <UiAlert key={p} variant="warning" role="alert" className="flex flex-wrap items-center gap-3">
             <span>

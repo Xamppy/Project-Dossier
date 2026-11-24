@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTranslator } from "@/i18n";
 import { clearCalendarEventsCache } from "@/lib/calendar-events-cache";
 import { findJobForEvent, isEventJobActive } from "@/lib/calendar-jobs";
-import { DossierApiError, persistAuthToken } from "@/lib/dossier-api";
+import { DossierApiError, NON_JSON_RESPONSE_MESSAGE, persistAuthToken } from "@/lib/dossier-api";
 import type { CalendarEventosRangoResponse } from "@/lib/dossier-api";
 import MeetingsCalendarSection from "./MeetingsCalendarSection";
 
@@ -181,6 +181,15 @@ describe("MeetingsCalendarSection", () => {
     const antes = fetchRango.mock.calls.length;
     await user.click(within(alerta).getByRole("button", { name: "Reintentar" }));
     await waitFor(() => expect(fetchRango.mock.calls.length).toBeGreaterThan(antes));
+  });
+
+  it("si la respuesta no fue JSON (backend reiniciándose) la alerta no muestra HTML", async () => {
+    porProveedor(rechazo(502, NON_JSON_RESPONSE_MESSAGE), () => respuesta([reunionM]));
+    render(<MeetingsCalendarSection />);
+
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent(createTranslator("es")("errors.server_unavailable"));
+    expect(alerta.textContent).not.toContain("<");
   });
 
   it("proveedor desconectado se distingue de un error (CA5)", async () => {

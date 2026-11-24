@@ -4,7 +4,7 @@
  */
 import type { TranslateFn } from "@/i18n";
 import type { TranslationKey } from "@/i18n/types";
-import type { DossierApiError } from "@/lib/dossier-api";
+import { type DossierApiError, NON_JSON_RESPONSE_MESSAGE } from "@/lib/dossier-api";
 import {
   finalizeBackendUserMessage,
   isTechnicalBackendMessage,
@@ -47,6 +47,8 @@ const EXACT_API_MESSAGE: Record<string, TranslationKey> = {
     "backend.error_insufficient_credits",
   "Job no encontrado.": "backend.error_job_not_found",
   "Locale no soportado.": "backend.error_locale_unsupported",
+  // En español coincide con el catálogo, así que translateApiError no lo distingue.
+  [NON_JSON_RESPONSE_MESSAGE]: "errors.server_unavailable",
 };
 
 const PREFIX_API: { prefix: string; key: TranslationKey }[] = [

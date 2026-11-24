@@ -1040,6 +1040,7 @@ const messages = {
   "errors.rate_limited": "Zu viele Versuche. Warte {seconds} Sekunden und versuche es erneut.",
   "errors.generation_failed": "Der Bericht konnte nicht erstellt werden. Bitte später erneut versuchen.",
   "errors.service_unavailable": "Ein Datendienst ist vorübergehend nicht verfügbar.",
+  "errors.server_unavailable": "Der Server ist gerade nicht erreichbar. Bitte in ein paar Sekunden erneut versuchen.",
   "common.loading": "Wird geladen…",
   "gen.step.starting": "Anfrage vorbereiten und validieren",
   "gen.step.corporate": "Daten aus UK- und US-öffentlichen Registern abrufen",

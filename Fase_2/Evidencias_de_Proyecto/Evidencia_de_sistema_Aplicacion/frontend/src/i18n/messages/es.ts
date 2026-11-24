@@ -406,6 +406,7 @@ const messages = {
   "errors.rate_limited": "Demasiados intentos. Espera {seconds} segundos y vuelve a intentarlo.",
   "errors.generation_failed": "No se pudo generar el informe. Inténtalo de nuevo más tarde.",
   "errors.service_unavailable": "Un servicio de datos no está disponible temporalmente.",
+  "errors.server_unavailable": "El servidor no está disponible en este momento. Reintenta en unos segundos.",
   "common.clear": "Limpiar",
   "common.loading": "Cargando…",
   "common.at_company": "en",

@@ -22,6 +22,22 @@ export function getApiBaseUrl(): string {
 /** Marca interna: página HTTPS + API en http (el navegador bloquea el fetch). */
 const FETCH_FAILED_MIXED_CONTENT = "__dossier_fetch_mixed_content__";
 
+/**
+ * Mensaje cuando la respuesta no es JSON. Ocurre sobre todo si el backend se está
+ * reiniciando: el proxy entrega `/api/*` al frontend y llega la página 404 de Next.js.
+ * Se traduce con la clave `errors.server_unavailable`.
+ */
+export const NON_JSON_RESPONSE_MESSAGE =
+  "El servidor no está disponible en este momento. Reintenta en unos segundos.";
+
+/**
+ * Cuerpo que se guarda cuando la respuesta no es JSON. El texto original queda en `raw`,
+ * solo para depurar: nunca se usa como mensaje para el usuario.
+ */
+function nonJsonBody(text: string): { detail: string; raw: string } {
+  return { detail: NON_JSON_RESPONSE_MESSAGE, raw: text.slice(0, 500) };
+}
+
 export type AuthUser = {
   id: string;
   email: string;
@@ -361,7 +377,7 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
 
   if (!res.ok) {
@@ -441,7 +457,7 @@ export async function fetchAuthMe(): Promise<AuthUser> {
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -526,7 +542,7 @@ export async function patchAuthUserPreferences(
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -579,7 +595,7 @@ export async function patchMyPassword(payload: ChangePasswordPayload): Promise<v
     try {
       parsed = text ? JSON.parse(text) : null;
     } catch {
-      parsed = { detail: text.slice(0, 500) };
+      parsed = nonJsonBody(text);
     }
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
     throw new DossierApiError(res.status, msg, parsed);
@@ -618,7 +634,7 @@ export async function deleteMyAccount(payload: DeleteAccountPayload): Promise<vo
     try {
       parsed = text ? JSON.parse(text) : null;
     } catch {
-      parsed = { detail: text.slice(0, 500) };
+      parsed = nonJsonBody(text);
     }
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
     throw new DossierApiError(res.status, msg, parsed);
@@ -700,7 +716,7 @@ async function getJsonWithAuth<T>(path: string): Promise<T> {
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -789,7 +805,7 @@ async function patchJsonWithAuth<T>(
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -942,7 +958,7 @@ export async function deleteAdminUser(userId: string): Promise<void> {
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
   throw new DossierApiError(res.status, msg, parsed);
@@ -1124,7 +1140,7 @@ async function postJsonWithAuth<T>(path: string, body: unknown, signal?: AbortSi
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
 
   if (!res.ok) {
@@ -1211,7 +1227,7 @@ export async function fetchCorporateCompanySearch(
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -1383,7 +1399,7 @@ export async function fetchDossiersFromApi(limit = 50): Promise<DossiersListResp
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -1414,7 +1430,7 @@ export async function fetchDossierFolderById(
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -1443,7 +1459,7 @@ export async function fetchDossierById(dossierId: string): Promise<DossierDetail
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -1472,7 +1488,7 @@ export async function fetchOrgMembers(): Promise<{ items: OrgMemberItem[] }> {
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -1501,7 +1517,7 @@ export async function fetchOrgMembersForManagement(): Promise<{ items: OrgMember
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -1541,7 +1557,7 @@ export async function deleteOrgMember(userId: string): Promise<void> {
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
   throw new DossierApiError(res.status, msg, parsed);
@@ -1569,7 +1585,7 @@ export async function fetchOrgInvites(): Promise<{
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -1606,7 +1622,7 @@ export async function revokeOrgInvite(inviteId: string): Promise<void> {
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
   throw new DossierApiError(res.status, msg, parsed);
@@ -1626,7 +1642,7 @@ export async function fetchOrgInvitePreview(token: string): Promise<OrgInvitePre
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -1654,7 +1670,7 @@ export async function fetchMyPendingInvites(): Promise<{ items: OrgInvitePreview
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -1709,7 +1725,7 @@ export async function createDossierShare(
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -1739,7 +1755,7 @@ export async function deleteDossierShare(dossierId: string, userId: string): Pro
     try {
       parsed = text ? JSON.parse(text) : null;
     } catch {
-      parsed = { detail: text.slice(0, 500) };
+      parsed = nonJsonBody(text);
     }
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
     throw new DossierApiError(res.status, msg, parsed);
@@ -1768,7 +1784,7 @@ export async function deleteDossierFromApi(dossierId: string): Promise<void> {
     try {
       parsed = JSON.parse(text);
     } catch {
-      parsed = { detail: text.slice(0, 500) };
+      parsed = nonJsonBody(text);
     }
   }
   if (!res.ok) {
@@ -1799,7 +1815,7 @@ export async function deleteDossierFolderFromApi(folderId: string): Promise<void
     try {
       parsed = JSON.parse(text);
     } catch {
-      parsed = { detail: text.slice(0, 500) };
+      parsed = nonJsonBody(text);
     }
   }
   if (!res.ok) {
@@ -1834,7 +1850,7 @@ export async function fetchMicrosoftIntegrationStartAsJson(): Promise<CalendarOA
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -1870,7 +1886,7 @@ export async function fetchGoogleIntegrationStartAsJson(): Promise<CalendarOAuth
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -1934,7 +1950,7 @@ export async function disconnectCalendarIntegration(
     try {
       parsed = text ? JSON.parse(text) : null;
     } catch {
-      parsed = { detail: text.slice(0, 500) };
+      parsed = nonJsonBody(text);
     }
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
     throw new DossierApiError(res.status, msg, parsed);
@@ -1969,7 +1985,7 @@ export async function fetchCalendarDiagnostico(
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -2037,7 +2053,7 @@ export async function fetchOutlookCalendarEventos(options?: {
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -2097,7 +2113,7 @@ export async function fetchCalendarEventosPorIntervalo(
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -2147,7 +2163,7 @@ export async function fetchGoogleCalendarEventos(options?: {
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -2273,7 +2289,7 @@ export async function fetchGenerarDossiersDesdeCalendario(options?: {
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -2328,7 +2344,7 @@ export async function fetchGenerarDossiersDesdeGoogleCalendar(options?: {
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -2592,7 +2608,7 @@ async function postCalendarGenerarDossiers(
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -2687,7 +2703,7 @@ export async function fetchDossierGenerationJobs(options?: {
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -2718,7 +2734,7 @@ export async function fetchDossierGenerationJob(
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -2781,7 +2797,7 @@ export async function fetchCalendarAutomationStatus(): Promise<CalendarAutomatio
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";
@@ -2824,7 +2840,7 @@ export async function patchCalendarAutomationSettings(
   try {
     parsed = text ? JSON.parse(text) : null;
   } catch {
-    parsed = { detail: text.slice(0, 500) };
+    parsed = nonJsonBody(text);
   }
   if (!res.ok) {
     const msg = parseFastApiDetail(parsed) || res.statusText || "HTTP_ERROR";

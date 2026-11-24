@@ -1033,6 +1033,7 @@ const messages = {
   "errors.rate_limited": "Troppi tentativi. Attendi {seconds} secondi e riprova.",
   "errors.generation_failed": "Impossibile generare il report. Riprova più tardi.",
   "errors.service_unavailable": "Un servizio dati non è temporaneamente disponibile.",
+  "errors.server_unavailable": "Il server non è disponibile al momento. Riprova tra qualche secondo.",
   "common.loading": "Caricamento…",
   "gen.step.starting": "Preparare e validare la richiesta",
   "gen.step.corporate": "Recuperare dati da registri pubblici UK e USA",

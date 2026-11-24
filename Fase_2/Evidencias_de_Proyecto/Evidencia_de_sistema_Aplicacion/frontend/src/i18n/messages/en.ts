@@ -403,6 +403,7 @@ const messages = {
   "errors.rate_limited": "Too many attempts. Wait {seconds} seconds and try again.",
   "errors.generation_failed": "The report could not be generated. Please try again later.",
   "errors.service_unavailable": "A data service is temporarily unavailable.",
+  "errors.server_unavailable": "The server is unavailable right now. Try again in a few seconds.",
   "common.clear": "Clear",
   "common.loading": "Loading…",
   "common.at_company": "at",

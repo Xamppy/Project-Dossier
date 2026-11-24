@@ -1038,6 +1038,7 @@ const messages = {
   "errors.rate_limited": "Trop de tentatives. Patientez {seconds} secondes puis réessayez.",
   "errors.generation_failed": "Le rapport n'a pas pu être généré. Veuillez réessayer plus tard.",
   "errors.service_unavailable": "Un service de données est temporairement indisponible.",
+  "errors.server_unavailable": "Le serveur est indisponible pour le moment. Réessayez dans quelques secondes.",
   "common.loading": "Chargement…",
   "gen.step.starting": "Préparer et valider votre demande",
   "gen.step.corporate": "Récupérer les données des registres publics UK et US",

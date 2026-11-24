@@ -1024,6 +1024,7 @@ const messages = {
   "errors.rate_limited": "Muitas tentativas. Aguarde {seconds} segundos e tente novamente.",
   "errors.generation_failed": "Não foi possível gerar o relatório. Tente novamente mais tarde.",
   "errors.service_unavailable": "Um serviço de dados está temporariamente indisponível.",
+  "errors.server_unavailable": "O servidor não está disponível no momento. Tente novamente em alguns segundos.",
   "common.loading": "A carregar…",
   "depth.requires_pro": "Requer plano Pro ou Enterprise",
   "gen.step.starting": "Preparar e validar o seu pedido",

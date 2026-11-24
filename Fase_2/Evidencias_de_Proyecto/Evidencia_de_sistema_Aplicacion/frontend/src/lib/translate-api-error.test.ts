@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createTranslator } from "@/i18n";
 import { SUPPORTED_LOCALES } from "@/i18n/types";
-import { DossierApiError } from "@/lib/dossier-api";
+import { DossierApiError, NON_JSON_RESPONSE_MESSAGE } from "@/lib/dossier-api";
 import { translateApiErrorMessage } from "@/lib/translate-backend-message";
 
 function passwordError(field = "password") {
@@ -72,5 +72,14 @@ describe("tope de dossiers a la vez", () => {
     expect(message).toContain("3");
     expect(message).not.toContain("CONCURRENT");
     expect(message).not.toBe("errors.concurrent_dossier_limit");
+  });
+});
+
+describe("servidor no disponible (respuesta que no es JSON)", () => {
+  it.each(SUPPORTED_LOCALES)("muestra un aviso propio y traducido en %s", (locale) => {
+    const t = createTranslator(locale);
+    const message = translateApiErrorMessage(new DossierApiError(502, NON_JSON_RESPONSE_MESSAGE), t);
+    expect(message).toBe(t("errors.server_unavailable"));
+    expect(message).not.toBe(t("errors.server_generic"));
   });
 });

@@ -1,6 +1,6 @@
 import type { TranslateFn } from "@/i18n";
 import type { TranslationKey } from "@/i18n/types";
-import type { DossierApiError } from "@/lib/dossier-api";
+import { type DossierApiError, NON_JSON_RESPONSE_MESSAGE } from "@/lib/dossier-api";
 import { toPublicErrorMessage } from "@/lib/public-error-message";
 
 type ApiErrorDetail = { code?: string; domain?: string; retry_after?: number; limit?: number };
@@ -16,6 +16,8 @@ const LEGACY_API_MESSAGES: Record<string, TranslationKey> = {
     "settings.members.error_corporate_email",
   "Las invitaciones solo están disponibles para organizaciones de empresa.":
     "settings.members.error_invites_workspace_only",
+  // La respuesta no era JSON: casi siempre el backend reiniciándose detrás del proxy.
+  [NON_JSON_RESPONSE_MESSAGE]: "errors.server_unavailable",
 };
 
 // Campos que fijan una contraseña nueva (registro y cambio); el backend aplica el límite de bcrypt.
