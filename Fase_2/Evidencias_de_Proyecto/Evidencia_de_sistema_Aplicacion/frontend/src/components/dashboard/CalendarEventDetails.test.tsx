@@ -90,9 +90,20 @@ describe("CalendarEventDetails · contenido", () => {
     expect(screen.queryByText(/10:00\s*[–-]\s*\d/)).toBeNull();
   });
 
-  it("descripción vacía avisa de cómo completarla", () => {
+  it("descripción vacía muestra un aviso corto, sin instrucciones de formato", () => {
     setup(evento({ descripcion: "" }));
-    expect(screen.getByText(createTranslator("es")("overview.calendar_description_empty"))).toBeInTheDocument();
+    expect(screen.getByText("Sin descripción en el calendario.")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["en", "No description in the calendar."],
+    ["en-gb", "No description in the calendar."],
+    ["pt", "Sem descrição no calendário."],
+    ["it", "Nessuna descrizione nel calendario."],
+    ["fr", "Pas de description dans le calendrier."],
+    ["de", "Keine Beschreibung im Kalender."],
+  ] as const)("el aviso de descripción vacía es igual de corto en %s", (locale, texto) => {
+    expect(createTranslator(locale)("overview.calendar_description_empty")).toBe(texto);
   });
 });
 

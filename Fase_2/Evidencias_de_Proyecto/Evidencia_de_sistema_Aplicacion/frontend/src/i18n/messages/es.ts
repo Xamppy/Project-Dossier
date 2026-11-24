@@ -583,8 +583,7 @@ const messages = {
   "overview.microsoft_when": "Cuándo",
   "overview.microsoft_participants": "Participantes",
   "overview.calendar_description": "Descripción",
-  "overview.calendar_description_empty":
-    "Sin descripción en el calendario. Añade en Outlook «Empresa: …» y «Contacto:» / «Contacto 1:» en el cuerpo del evento.",
+  "overview.calendar_description_empty": "Sin descripción en el calendario.",
   "overview.calendar_description_no_contact":
     "No se detecta contacto en la descripción (usa «Contacto:» o «Contacto 1:», «Contacto 2:»…); solo se generará el dossier de empresa.",
   "calendar.guide.summary": "Guía de formatos",

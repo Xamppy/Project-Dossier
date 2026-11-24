@@ -605,8 +605,7 @@ const messages = {
   "overview.google_when": "When",
   "overview.google_participants": "Participantes",
   "overview.calendar_description": "Description",
-  "overview.calendar_description_empty":
-    "No description on this event. Add «Company: …» and «Contact:» / «Contact 1:» in the event body in your calendar.",
+  "overview.calendar_description_empty": "No description in the calendar.",
   "overview.calendar_description_no_contact":
     "No contact detected in the description (use «Contact:» or «Contact 1:», «Contact 2:»…); only the company dossier will be generated.",
   "calendar.guide.summary": "Format guide",

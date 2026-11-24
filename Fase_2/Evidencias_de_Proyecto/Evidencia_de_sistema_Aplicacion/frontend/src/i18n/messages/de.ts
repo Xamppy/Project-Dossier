@@ -1060,8 +1060,7 @@ const messages = {
   "overview.google_when": "Wann",
   "overview.google_participants": "Teilnehmer",
   "overview.calendar_description": "Beschreibung",
-  "overview.calendar_description_empty":
-    "Keine Beschreibung bei diesem Termin. «Firma: …» und «Kontakt:» / «Kontakt 1:» im Kalender-Event ergänzen.",
+  "overview.calendar_description_empty": "Keine Beschreibung im Kalender.",
   "overview.calendar_description_no_contact":
     "Kein Kontakt in der Beschreibung («Kontakt:» oder «Kontakt 1:», «Kontakt 2:»…); nur Firmen-Dossier wird erstellt.",
   "overview.google_include_past": "Kürzlich vergangene Termine einbeziehen",

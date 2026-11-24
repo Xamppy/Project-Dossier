@@ -6,6 +6,22 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-23 · sin ID · Aviso corto de reunión sin descripción · DG (agente)
+
+**Hecho.** En el panel de la reunión, el aviso de descripción vacía queda en «Sin descripción en el
+calendario.» y su equivalente en los demás catálogos (`overview.calendar_description_empty`). Ya no
+explica el formato «Empresa:» / «Contacto:».
+
+**Pruebas.** Primero en rojo (7): `CalendarEventDetails.test.tsx`. Vitest completo: 877 en verde;
+eslint de lo tocado y `tsc` sin hallazgos. No se vio en el navegador.
+
+**Lo que hay que saber.**
+- `en-gb` no define la clave: la hereda de `en`.
+- Los catálogos siguen en CRLF en `main`: no cambies su fin de línea en un commit funcional, porque el
+  diff pasa a miles de líneas (`git diff --ignore-space-at-eol` lo evita al revisar).
+
+**Pendiente.** Revisión del segundo integrante.
+
 ### 2026-11-23 · UX-CAL-03 · Reuniones con varias personas: se elige de quién es el dossier · DG (agente)
 
 **Hecho.** Una reunión con varias personas ya no se genera sola (queda `skipped` con el motivo, sin

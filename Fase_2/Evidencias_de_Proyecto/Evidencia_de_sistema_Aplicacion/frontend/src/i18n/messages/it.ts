@@ -1053,8 +1053,7 @@ const messages = {
   "overview.google_when": "Quando",
   "overview.google_participants": "Partecipanti",
   "overview.calendar_description": "Descrizione",
-  "overview.calendar_description_empty":
-    "Nessuna descrizione su questo evento. Aggiungi «Azienda: …» e «Contatto:» / «Contatto 1:» nel corpo dell'evento.",
+  "overview.calendar_description_empty": "Nessuna descrizione nel calendario.",
   "overview.calendar_description_no_contact":
     "Nessun contatto rilevato nella descrizione («Contatto:» o «Contatto 1:», «Contatto 2:»…); verrà generato solo il dossier azienda.",
   "overview.google_include_past": "Includi eventi passati recenti",

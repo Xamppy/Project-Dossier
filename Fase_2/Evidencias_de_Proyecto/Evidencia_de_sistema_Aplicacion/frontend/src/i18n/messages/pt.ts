@@ -1048,8 +1048,7 @@ const messages = {
   "overview.google_when": "Quando",
   "overview.google_participants": "Participantes",
   "overview.calendar_description": "Descrição",
-  "overview.calendar_description_empty":
-    "Sem descrição neste evento. Adicione «Empresa: …» e «Contacto:» / «Contacto 1:» no corpo do evento no calendário.",
+  "overview.calendar_description_empty": "Sem descrição no calendário.",
   "overview.calendar_description_no_contact":
     "Não foi detetado contacto na descrição (use «Contacto:» ou «Contacto 1:», «Contacto 2:»…); apenas será gerado o dossiê de empresa.",
   "overview.google_oauth_ok": "Google Calendar ligado com sucesso.",
