@@ -356,13 +356,22 @@ const messages = {
   "detail.enrichment_profiles_found": "Se encontró información en registros públicos ({count} perfil/es).",
   "detail.warn_pdl_profile_linkedin": "Se encontró un perfil (LinkedIn: {linkedin}).",
   "detail.warn_pdl_profile_no_linkedin": "Se encontró un perfil (sin LinkedIn en la respuesta).",
-  "detail.warn_pdl_rate_limit": "Límite de solicitudes alcanzado. Espera un momento y reintenta.",
+  "detail.warn_pdl_rate_limit":
+    "No se pudo completar la consulta de registros de esta persona: el proveedor de datos recibió demasiadas solicitudes. Espera un momento y vuelve a generar el dossier.",
   "detail.warn_pdl_no_profile":
     "No se encontró información adicional sobre esta persona. Añade más información o revisa que el nombre completo sea correcto para mayor exactitud.",
   "detail.warn_pdl_contact_in_match":
     "El email y teléfono se incluyen en el match cuando existen; no hay paso «reveal» aparte.",
-  "detail.warn_pdl_auth": "Error de autenticación del proveedor de datos. Contacta al administrador.",
-  "detail.warn_pdl_credits": "Créditos agotados o pago requerido en tu cuenta del proveedor de datos.",
+  "detail.warn_pdl_auth":
+    "No se pudo completar la consulta de registros de esta persona: el proveedor de datos rechazó el acceso. Avisa al administrador.",
+  "detail.warn_pdl_credits":
+    "No se pudo completar la consulta de registros de esta persona: se agotaron los créditos del proveedor de datos. Avisa al administrador.",
+  "detail.warn_pdl_config":
+    "No se pudo completar la consulta de registros de esta persona: el proveedor de datos no está configurado. Avisa al administrador.",
+  "detail.warn_pdl_timeout":
+    "No se pudo completar la consulta de registros de esta persona: el proveedor de datos tardó demasiado en responder. Vuelve a intentarlo más tarde.",
+  "detail.warn_pdl_error":
+    "No se pudo completar la consulta de registros de esta persona: el proveedor de datos respondió con un error. Vuelve a intentarlo más tarde.",
   "detail.show_raw_json": "Ver JSON en bruto",
   "detail.hide_raw_json": "Ocultar JSON en bruto",
   "detail.api_pipeline_sources": "Pipeline, fuentes y agentes",

@@ -336,13 +336,22 @@ const messages = {
   "detail.enrichment_profiles_found": "PDL a trouvé {count} profil(s).",
   "detail.warn_pdl_profile_linkedin": "PDL a trouvé un profil (LinkedIn : {linkedin}).",
   "detail.warn_pdl_profile_no_linkedin": "PDL a trouvé un profil (pas de LinkedIn dans la réponse).",
-  "detail.warn_pdl_rate_limit": "PDL a répondu 429 (limite de débit). Attendez et réessayez.",
+  "detail.warn_pdl_rate_limit":
+    "La consultation des registres de cette personne n'a pas pu aboutir : le fournisseur de données a reçu trop de demandes. Patientez un instant et générez à nouveau le dossier.",
   "detail.warn_pdl_no_profile":
     "Aucun profil vérifiable trouvé. Essayez e-mail professionnel, LinkedIn ou acronyme d'entreprise.",
   "detail.warn_pdl_contact_in_match":
     "PDL inclut e-mail/téléphone dans le match s'ils existent ; il n'y a pas d'étape « reveal » séparée.",
-  "detail.warn_pdl_auth": "Erreur d'authentification du fournisseur de données. Contactez l'administrateur.",
-  "detail.warn_pdl_credits": "PDL a répondu 402 : crédits épuisés ou paiement requis sur votre compte.",
+  "detail.warn_pdl_auth":
+    "La consultation des registres de cette personne n'a pas pu aboutir : le fournisseur de données a refusé l'accès. Prévenez l'administrateur.",
+  "detail.warn_pdl_credits":
+    "La consultation des registres de cette personne n'a pas pu aboutir : les crédits du fournisseur de données sont épuisés. Prévenez l'administrateur.",
+  "detail.warn_pdl_config":
+    "La consultation des registres de cette personne n'a pas pu aboutir : le fournisseur de données n'est pas configuré. Prévenez l'administrateur.",
+  "detail.warn_pdl_timeout":
+    "La consultation des registres de cette personne n'a pas pu aboutir : le fournisseur de données a mis trop de temps à répondre. Réessayez plus tard.",
+  "detail.warn_pdl_error":
+    "La consultation des registres de cette personne n'a pas pu aboutir : le fournisseur de données a renvoyé une erreur. Réessayez plus tard.",
   "detail.show_raw_json": "Afficher le JSON brut",
   "detail.hide_raw_json": "Masquer le JSON brut",
   "detail.api_pipeline_sources": "Pipeline, sources et agents",

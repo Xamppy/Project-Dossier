@@ -18,6 +18,7 @@ import {
   type DossierDetailResponse,
   type PersonResearchApiResponse,
 } from "@/lib/dossier-api";
+import { personEnrichmentNotice } from "@/lib/person-enrichment-notice";
 import { buildPersonResearchHref } from "@/lib/person-research-from-dossier";
 import { readDossierView } from "@/lib/dossier-modules";
 import { stripHtmlToPlainLine } from "@/lib/strip-html";
@@ -40,23 +41,9 @@ function reportBodyIsPresent(body: string): boolean {
   return Boolean(t) && !EMPTY_REPORT_MARKERS.has(t);
 }
 
-/** Oculta avisos de éxito o duplicados del mensaje principal (sin mencionar PDL). */
-function personEnrichmentWarningsForDisplay(
-  warnings: string[],
-  profilesCount: number | null,
-): string[] {
-  const filtered = warnings.filter((w) => {
-    const lower = w.toLowerCase();
-    if (lower.includes("pdl encontró perfil")) return false;
-    if (profilesCount === 0) {
-      if (lower.includes("pdl no devolvió")) return false;
-      if (lower.includes("no se encontró perfil verificable")) return false;
-      if (lower.includes("no se encontró un perfil verificable")) return false;
-      if (lower.includes("no se encontró información adicional")) return false;
-    }
-    return true;
-  });
-  return [...new Set(filtered)];
+/** Oculta avisos de éxito o duplicados (sin mencionar PDL). */
+function personEnrichmentWarningsForDisplay(warnings: string[]): string[] {
+  return [...new Set(warnings.filter((w) => !w.toLowerCase().includes("pdl encontró perfil")))];
 }
 
 type Props = {
@@ -165,9 +152,15 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
       ? o.profile_urls.filter((u): u is string => typeof u === "string")
       : [];
     if (profilesCount === null && warnings.length === 0 && urls.length === 0) return null;
+    const filters = o.filters_applied && typeof o.filters_applied === "object" ? o.filters_applied : {};
+    const source = (filters as Record<string, unknown>).research_source;
+    const researchSource = typeof source === "string" ? source : null;
+    // «Web pública» no consulta registros: no hay nada que informar.
+    if (researchSource === "gemini_web") return null;
     return {
       profilesCount,
-      warnings: personEnrichmentWarningsForDisplay(warnings, profilesCount),
+      notice: personEnrichmentNotice({ researchSource, profilesCount, warnings }),
+      warnings: personEnrichmentWarningsForDisplay(warnings),
       urls,
     };
   }, [dossier.dossier_data]);
@@ -407,7 +400,7 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
       ) : null}
 
       {isPersonPipeline && lushaDiagnostics ? (
-        lushaDiagnostics.profilesCount === 0 ? (
+        lushaDiagnostics.notice ? (
           <p
             className="mb-6 rounded-xl border px-4 py-3 text-sm ui-text-warning leading-relaxed"
             role="status"
@@ -416,7 +409,7 @@ export default function CorporateDossierDetailView({ dossier }: Props) {
               backgroundColor: "var(--bg-surface)",
             }}
           >
-            {t("detail.enrichment_no_profiles")}
+            {t(lushaDiagnostics.notice)}
           </p>
         ) : (
           <div

@@ -309,13 +309,22 @@ const messages = {
   "detail.enrichment_profiles_found": "PDL encontrou {count} perfil(is).",
   "detail.warn_pdl_profile_linkedin": "PDL encontrou um perfil (LinkedIn: {linkedin}).",
   "detail.warn_pdl_profile_no_linkedin": "PDL encontrou um perfil (sem LinkedIn na resposta).",
-  "detail.warn_pdl_rate_limit": "PDL respondeu 429 (limite de taxa). Aguarde e tente novamente.",
+  "detail.warn_pdl_rate_limit":
+    "Não foi possível concluir a consulta de registos desta pessoa: o fornecedor de dados recebeu demasiados pedidos. Aguarde um momento e gere o dossier novamente.",
   "detail.warn_pdl_no_profile":
     "Não foi encontrado perfil verificável. Tente email corporativo, LinkedIn ou acrónimo da empresa.",
   "detail.warn_pdl_contact_in_match":
     "PDL inclui email/telefone no match quando existem; não há passo «reveal» separado.",
-  "detail.warn_pdl_auth": "Erro de autenticação do fornecedor de dados. Contacte o administrador.",
-  "detail.warn_pdl_credits": "PDL respondeu 402: créditos esgotados ou pagamento necessário na conta.",
+  "detail.warn_pdl_auth":
+    "Não foi possível concluir a consulta de registos desta pessoa: o fornecedor de dados recusou o acesso. Avise o administrador.",
+  "detail.warn_pdl_credits":
+    "Não foi possível concluir a consulta de registos desta pessoa: esgotaram-se os créditos do fornecedor de dados. Avise o administrador.",
+  "detail.warn_pdl_config":
+    "Não foi possível concluir a consulta de registos desta pessoa: o fornecedor de dados não está configurado. Avise o administrador.",
+  "detail.warn_pdl_timeout":
+    "Não foi possível concluir a consulta de registos desta pessoa: o fornecedor de dados demorou demasiado a responder. Tente novamente mais tarde.",
+  "detail.warn_pdl_error":
+    "Não foi possível concluir a consulta de registos desta pessoa: o fornecedor de dados respondeu com um erro. Tente novamente mais tarde.",
   "detail.show_raw_json": "Mostrar JSON bruto",
   "detail.hide_raw_json": "Ocultar JSON bruto",
   "detail.api_pipeline_sources": "Pipeline, fontes e agentes",

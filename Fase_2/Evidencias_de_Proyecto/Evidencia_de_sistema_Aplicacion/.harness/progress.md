@@ -6,6 +6,30 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-24 · sin ID · El aviso amarillo del dossier de persona dice la causa real · DG (agente)
+
+**Hecho.** El detalle mostraba «No se encontró información adicional» siempre que había 0 perfiles.
+Ahora «Web pública» no muestra aviso (nunca consulta PDL), PDL sin coincidencias conserva el de siempre
+y PDL con falla muestra el motivo: acceso, configuración, créditos, límite, espera o error. El backend
+emite un texto público por causa (`PDL_FAILURE_WARNINGS`); el detalle del proveedor ya no llega al
+navegador. Seis catálogos (`en-gb` hereda). Sin cambio de esquema ni del formulario de búsqueda.
+
+**Pruebas.** Primero en rojo: `test_pdl_aviso_sin_perfiles.py`, `person-enrichment-notice.test.ts` y
+`CorporateDossierDetailView.test.tsx`. Backend contra Postgres: 2.057 en verde y 2 omitidas; Vitest: 910.
+ruff (`src` y la prueba nueva), mypy, eslint, `tsc` y build sin errores. No se vio en el navegador.
+
+**Lo que hay que saber.**
+- PDL responde 404 en `person/search` cuando no hay filas, y 400 en `person/enrich` con pocos datos:
+  ninguno es una falla. Antes, créditos agotados en enrich (402) más ese 404 se leía como «no hay
+  información».
+- El frontend reconoce los avisos por su texto exacto. Si cambias `PDL_FAILURE_WARNINGS`, cambia
+  también `translate-pdl-warning.ts` y su prueba.
+- `translateBackendWarning` descartaba un aviso cuyo texto en español coincide con el del servidor. Se
+  corrigió para las fallas de PDL; los demás avisos de PDL siguen igual.
+- Los dossiers guardados antes también muestran el motivo: se reconocen los textos antiguos.
+
+**Pendiente.** Revisión del segundo integrante.
+
 ### 2026-11-23 · sin ID · La sincronización ya no regenera lo fallido ni lo borrado · DG (agente)
 
 **Hecho.** `sync_calendar_events_for_integration` ya no reprograma cada minuto un evento `failed` ni uno

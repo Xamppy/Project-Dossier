@@ -335,14 +335,22 @@ const messages = {
   "detail.enrichment_profiles_found": "PDL ha trovato {count} profilo/i.",
   "detail.warn_pdl_profile_linkedin": "PDL ha trovato un profilo (LinkedIn: {linkedin}).",
   "detail.warn_pdl_profile_no_linkedin": "PDL ha trovato un profilo (nessun LinkedIn nella risposta).",
-  "detail.warn_pdl_rate_limit": "PDL ha risposto 429 (limite di frequenza). Attendi e riprova.",
+  "detail.warn_pdl_rate_limit":
+    "Non è stato possibile completare la consultazione dei registri di questa persona: il fornitore di dati ha ricevuto troppe richieste. Attendi un momento e genera di nuovo il dossier.",
   "detail.warn_pdl_no_profile":
     "Nessun profilo verificabile trovato. Prova email aziendale, LinkedIn o acronimo dell'azienda.",
   "detail.warn_pdl_contact_in_match":
     "PDL include email/telefono nel match se disponibili; non c'è un passaggio « reveal » separato.",
-  "detail.warn_pdl_auth": "Errore di autenticazione del fornitore dati. Contatta l'amministratore.",
+  "detail.warn_pdl_auth":
+    "Non è stato possibile completare la consultazione dei registri di questa persona: il fornitore di dati ha negato l'accesso. Avvisa l'amministratore.",
   "detail.warn_pdl_credits":
-    "PDL ha risposto 402: crediti esauriti o pagamento richiesto sull'account.",
+    "Non è stato possibile completare la consultazione dei registri di questa persona: i crediti del fornitore di dati sono esauriti. Avvisa l'amministratore.",
+  "detail.warn_pdl_config":
+    "Non è stato possibile completare la consultazione dei registri di questa persona: il fornitore di dati non è configurato. Avvisa l'amministratore.",
+  "detail.warn_pdl_timeout":
+    "Non è stato possibile completare la consultazione dei registri di questa persona: il fornitore di dati ha impiegato troppo tempo a rispondere. Riprova più tardi.",
+  "detail.warn_pdl_error":
+    "Non è stato possibile completare la consultazione dei registri di questa persona: il fornitore di dati ha risposto con un errore. Riprova più tardi.",
   "detail.show_raw_json": "Mostra JSON grezzo",
   "detail.hide_raw_json": "Nascondi JSON grezzo",
   "detail.api_pipeline_sources": "Pipeline, fonti e agenti",

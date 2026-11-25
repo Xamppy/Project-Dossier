@@ -1,15 +1,18 @@
 """Búsqueda de perfiles de persona vía People Data Labs."""
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import requests
 
 from dossier.schemas.person_research import PersonResearchRequest
-from dossier.services.pdl_client import PdlApiError, PdlClient, pdl_error_message
+from dossier.services.pdl_client import PdlApiError, PdlClient
 from dossier.services.pdl_contact_parse import pdl_people_from_search, pdl_person_from_enrich
 from dossier.services.pdl_search import build_pdl_enrich_strategies, build_pdl_search_sql
 from dossier.services.person_profile_lookup import extract_profile_urls
+
+logger = logging.getLogger(__name__)
 
 
 def _person_to_profile(person: dict[str, Any]) -> dict[str, Any]:
@@ -96,6 +99,39 @@ WARN_NO_PERSON_ENRICHMENT = (
     "Añade más información o revisa que el nombre completo sea correcto para mayor exactitud."
 )
 
+_FALLA = "No se pudo completar la consulta de registros de esta persona: el proveedor de datos "
+
+# Aviso público por ``reason_code``: el detalle del dossier lo traduce por su texto exacto
+# (frontend/src/lib/translate-pdl-warning.ts). Sin nombres de variables ni texto del proveedor.
+PDL_FAILURE_WARNINGS: dict[str, str] = {
+    "upstream_auth_failed": _FALLA + "rechazó el acceso. Avisa al administrador.",
+    "configuration_missing": _FALLA + "no está configurado. Avisa al administrador.",
+    "provider_quota": (
+        "No se pudo completar la consulta de registros de esta persona: "
+        "se agotaron los créditos del proveedor de datos. Avisa al administrador."
+    ),
+    "provider_rate_limit": (
+        _FALLA + "recibió demasiadas solicitudes. Espera un momento y vuelve a generar el dossier."
+    ),
+    "provider_timeout": _FALLA + "tardó demasiado en responder. Vuelve a intentarlo más tarde.",
+    "provider_error": _FALLA + "respondió con un error. Vuelve a intentarlo más tarde.",
+}
+
+# 400: pocos datos para buscar; 404: sin coincidencias. Ninguno es una falla del proveedor.
+_STATUS_SIN_FALLA = frozenset({400, 404})
+
+
+def _aviso_sin_perfiles(attempts: list[dict[str, Any]]) -> str:
+    """Por qué PDL no aportó perfiles: una falla real o que no hay coincidencias."""
+    fallas = [
+        int(a["http_status"])
+        for a in attempts
+        if "http_status" in a and a["http_status"] not in _STATUS_SIN_FALLA
+    ]
+    if fallas:
+        return PDL_FAILURE_WARNINGS[pdl_failure_reason(fallas)]
+    return WARN_NO_PERSON_ENRICHMENT
+
 
 def fetch_pdl_profiles(
     req: PersonResearchRequest,
@@ -119,8 +155,9 @@ def fetch_pdl_profiles(
 
     try:
         client = PdlClient()
-    except ValueError as e:
-        warnings.append(str(e))
+    except ValueError:
+        logger.warning("PDL sin configurar: se omite la consulta de registros", exc_info=True)
+        warnings.append(PDL_FAILURE_WARNINGS["configuration_missing"])
         progress.stage("person.pdl_enrich", "skipped", "configuration_missing")
         progress.stage("person.pdl_search", "skipped", "configuration_missing")
         return profiles, attempts, warnings
@@ -145,7 +182,7 @@ def fetch_pdl_profiles(
                 "provider": "pdl",
             })
             if e.status == 401:
-                warnings.append(pdl_error_message(e))
+                warnings.append(PDL_FAILURE_WARNINGS["upstream_auth_failed"])
                 enrich.fallar("upstream_auth_failed")
                 progress.stage("person.pdl_search", "skipped", "upstream_auth_failed")
                 return profiles, attempts, warnings
@@ -240,10 +277,10 @@ def fetch_pdl_profiles(
                 })
                 if e.status != 404:  # 404 en search: sin resultados, no un fallo
                     search.fallidos.append(e.status)
-                if e.status == 401 or e.status == 402:
-                    warnings.append(pdl_error_message(e))
-                elif e.status == 404:
-                    continue
+                if e.status in (401, 402):
+                    aviso = PDL_FAILURE_WARNINGS[pdl_failure_reason([e.status])]
+                    if aviso not in warnings:
+                        warnings.append(aviso)
             except Exception as e:
                 search.fallar(exception_reason(e))
                 raise
@@ -255,13 +292,7 @@ def fetch_pdl_profiles(
     if profiles:
         pass  # éxito: no añadir aviso en UI (profiles_count basta)
     elif attempts:
-        failed = [a for a in attempts if "http_status" in a]
-        if failed and all(a.get("http_status") in (401, 402) for a in failed):
-            warnings.append(pdl_error_message(PdlApiError(int(failed[0]["http_status"]), str(failed[0].get("error") or ""))))
-        elif failed and any(a.get("http_status") == 429 for a in failed):
-            warnings.append("Límite de solicitudes alcanzado. Espera un momento y reintenta.")
-        else:
-            warnings.append(WARN_NO_PERSON_ENRICHMENT)
+        warnings = [_aviso_sin_perfiles(attempts)]
 
     if req.reveal_contact_details:
         warnings.append(

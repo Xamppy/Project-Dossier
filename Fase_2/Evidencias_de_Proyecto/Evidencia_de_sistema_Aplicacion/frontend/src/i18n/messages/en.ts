@@ -355,13 +355,22 @@ const messages = {
   "detail.enrichment_profiles_found": "Public records matched {count} profile(s).",
   "detail.warn_pdl_profile_linkedin": "A profile was found (LinkedIn: {linkedin}).",
   "detail.warn_pdl_profile_no_linkedin": "A profile was found (no LinkedIn in the response).",
-  "detail.warn_pdl_rate_limit": "Rate limit reached. Wait a moment and try again.",
+  "detail.warn_pdl_rate_limit":
+    "The records lookup for this person could not be completed: the data provider received too many requests. Wait a moment and generate the dossier again.",
   "detail.warn_pdl_no_profile":
     "No additional information was found about this person. Add more details or double-check the full name for better accuracy.",
   "detail.warn_pdl_contact_in_match":
     "Email and phone are included in the match when available; there is no separate reveal step.",
-  "detail.warn_pdl_auth": "Data provider authentication error. Contact your administrator.",
-  "detail.warn_pdl_credits": "Credits exhausted or payment required on your data provider account.",
+  "detail.warn_pdl_auth":
+    "The records lookup for this person could not be completed: the data provider denied access. Let your administrator know.",
+  "detail.warn_pdl_credits":
+    "The records lookup for this person could not be completed: the data provider ran out of credits. Let your administrator know.",
+  "detail.warn_pdl_config":
+    "The records lookup for this person could not be completed: the data provider is not set up. Let your administrator know.",
+  "detail.warn_pdl_timeout":
+    "The records lookup for this person could not be completed: the data provider took too long to respond. Please try again later.",
+  "detail.warn_pdl_error":
+    "The records lookup for this person could not be completed: the data provider returned an error. Please try again later.",
   "detail.show_raw_json": "Show raw JSON",
   "detail.hide_raw_json": "Hide raw JSON",
   "detail.api_pipeline_sources": "Pipeline, sources & agents",

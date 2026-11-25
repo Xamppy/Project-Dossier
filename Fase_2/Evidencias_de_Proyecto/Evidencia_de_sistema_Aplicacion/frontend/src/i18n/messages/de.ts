@@ -338,14 +338,22 @@ const messages = {
   "detail.enrichment_profiles_found": "PDL hat {count} Profil(e) gefunden.",
   "detail.warn_pdl_profile_linkedin": "PDL hat ein Profil gefunden (LinkedIn: {linkedin}).",
   "detail.warn_pdl_profile_no_linkedin": "PDL hat ein Profil gefunden (kein LinkedIn in der Antwort).",
-  "detail.warn_pdl_rate_limit": "PDL antwortete mit 429 (Rate-Limit). Bitte warten und erneut versuchen.",
+  "detail.warn_pdl_rate_limit":
+    "Die Registerabfrage zu dieser Person konnte nicht abgeschlossen werden: Der Datenanbieter hat zu viele Anfragen erhalten. Warten Sie einen Moment und erstellen Sie das Dossier erneut.",
   "detail.warn_pdl_no_profile":
     "Kein verifizierbares Profil gefunden. Firmen-E-Mail, LinkedIn oder Unternehmensakronym versuchen.",
   "detail.warn_pdl_contact_in_match":
     "PDL enthält E-Mail/Telefon im Treffer, wenn vorhanden; es gibt keinen separaten «Reveal»-Schritt.",
-  "detail.warn_pdl_auth": "Authentifizierungsfehler beim Datenanbieter. Wenden Sie sich an den Administrator.",
+  "detail.warn_pdl_auth":
+    "Die Registerabfrage zu dieser Person konnte nicht abgeschlossen werden: Der Datenanbieter hat den Zugriff verweigert. Informieren Sie den Administrator.",
   "detail.warn_pdl_credits":
-    "PDL antwortete mit 402: Credits aufgebraucht oder Zahlung auf dem Konto erforderlich.",
+    "Die Registerabfrage zu dieser Person konnte nicht abgeschlossen werden: Das Guthaben beim Datenanbieter ist aufgebraucht. Informieren Sie den Administrator.",
+  "detail.warn_pdl_config":
+    "Die Registerabfrage zu dieser Person konnte nicht abgeschlossen werden: Der Datenanbieter ist nicht eingerichtet. Informieren Sie den Administrator.",
+  "detail.warn_pdl_timeout":
+    "Die Registerabfrage zu dieser Person konnte nicht abgeschlossen werden: Der Datenanbieter hat zu lange für die Antwort gebraucht. Bitte versuchen Sie es später erneut.",
+  "detail.warn_pdl_error":
+    "Die Registerabfrage zu dieser Person konnte nicht abgeschlossen werden: Der Datenanbieter hat mit einem Fehler geantwortet. Bitte versuchen Sie es später erneut.",
   "detail.show_raw_json": "Rohes JSON anzeigen",
   "detail.hide_raw_json": "Rohes JSON ausblenden",
   "detail.api_pipeline_sources": "Pipeline, Quellen und Agenten",

@@ -10,7 +10,7 @@ import {
   isTechnicalBackendMessage,
   toPublicErrorMessage,
 } from "@/lib/public-error-message";
-import { translatePdlWarning } from "@/lib/translate-pdl-warning";
+import { pdlFailureKey, translatePdlWarning } from "@/lib/translate-pdl-warning";
 
 import { translateApiError } from "@/lib/translate-api-error";
 
@@ -82,7 +82,7 @@ export function translateDossierStatusMessage(
   if (!raw?.trim()) return null;
   const msg = raw.trim();
   // Un estado conocido se traduce siempre, aunque en español coincida con el texto del servidor.
-  const exact = EXACT_STATUS[msg];
+  const exact = EXACT_STATUS[msg] ?? pdlFailureKey(msg);
   if (exact) return t(exact);
   const translated = translateKnownStatus(msg, t);
   return finalizeBackendUserMessage(msg, translated, t, "status");
@@ -92,6 +92,10 @@ export function translateDossierStatusMessage(
 export function translateBackendWarning(warning: string, t: TranslateFn): string {
   const w = warning.trim();
   if (!w) return w;
+
+  // Una falla conocida se traduce siempre, aunque en español coincida con el texto del servidor.
+  const failure = pdlFailureKey(w);
+  if (failure) return t(failure);
 
   const pdl = translatePdlWarning(w, t);
   if (pdl !== w) return pdl;
