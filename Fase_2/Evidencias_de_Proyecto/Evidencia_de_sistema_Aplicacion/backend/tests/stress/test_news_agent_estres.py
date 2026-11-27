@@ -116,3 +116,63 @@ def test_degradacion_ambos_proveedores_caidos_no_rompe_el_agente(monkeypatch):
 
     assert resultado.mentions == []
     assert len(resultado.failed_providers) == 2
+
+
+# --------------------------------------------------------------------------
+# CHORE-2026-11-27-01: GDELT saturado con muchos dossiers a la vez
+# --------------------------------------------------------------------------
+
+
+def test_concurrencia_el_turno_de_gdelt_deja_pasar_una_sola_consulta(monkeypatch):
+    """Veinte búsquedas simultáneas: una sale a GDELT, las demás se omiten sin provocar 429."""
+    llamadas = []
+
+    class Respuesta:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"articles": []}
+
+    def fake_get(*a, **k):
+        llamadas.append(1)
+        time.sleep(0.05)
+        return Respuesta()
+
+    monkeypatch.setattr(cliente.requests, "get", fake_get)
+
+    def buscar(_):
+        try:
+            cliente.search_gdelt_articles("Acme")
+            return "ok"
+        except cliente.LimiteProveedorNoticias:
+            return "omitida"
+
+    with ThreadPoolExecutor(max_workers=20) as pool:
+        estados = list(pool.map(buscar, range(20)))
+
+    assert len(llamadas) == 1
+    assert estados.count("ok") == 1
+    assert estados.count("omitida") == 19
+
+
+def test_concurrencia_gdelt_caido_queda_en_pausa_sin_romper_los_dossiers(monkeypatch):
+    llamadas = []
+
+    def caido(q, *, limite=10):
+        llamadas.append(1)
+        raise ProveedorNoticiasError("Error al consultar GDELT: ConnectTimeout")
+
+    monkeypatch.setattr(cliente, "search_gdelt_articles", caido)
+    monkeypatch.setattr(cliente, "search_newsapi_articles", lambda q, *, limite=10: [])
+
+    with ThreadPoolExecutor(max_workers=30) as pool:
+        resultados = list(pool.map(lambda _: collect_press_mentions("Ana Perez"), range(30)))
+    antes = len(llamadas)
+    collect_press_mentions("Ana Perez")
+
+    assert len(resultados) == 30
+    assert all(r.mentions == [] for r in resultados)
+    assert len(llamadas) == antes, "tras los fallos, GDELT debía quedar en pausa"

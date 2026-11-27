@@ -96,6 +96,22 @@ def limites_de_tasa_limpios():
 
 
 @pytest.fixture(autouse=True)
+def prensa_sin_estado_entre_pruebas():
+    """CHORE-2026-11-27-01: la pausa de fuentes y el turno de GDELT viven en memoria del proceso.
+
+    Sin esto, una prueba que hace fallar GDELT dos veces lo dejaría en pausa para las
+    siguientes, y una que consulta GDELT ocuparía el turno de la próxima.
+    """
+    from dossier.news import agent, client
+
+    agent.reiniciar_pausas()
+    client.reiniciar_turno_gdelt()
+    yield
+    agent.reiniciar_pausas()
+    client.reiniciar_turno_gdelt()
+
+
+@pytest.fixture(autouse=True)
 def sin_red(request, monkeypatch):
     """Ninguna prueba sale a la red real (pero sí permite loopback).
 
