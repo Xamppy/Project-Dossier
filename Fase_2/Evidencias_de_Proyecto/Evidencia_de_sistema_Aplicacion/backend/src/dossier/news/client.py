@@ -8,6 +8,7 @@ procedencia completa (S3.4) es tarea del agente de noticias, no de este modulo.
 from __future__ import annotations
 
 import os
+import threading
 import time
 from typing import Any
 
@@ -18,10 +19,20 @@ NEWSAPI_SEARCH_URL = "https://newsapi.org/v2/everything"
 
 DEFAULT_TIMEOUT = 20
 
-# GDELT pide no más de una consulta cada 5 s por IP y responde 429 si se excede.
-GDELT_ESPERA_LIMITE_SEG = 5.5
+# CHORE-2026-11-27-01: GDELT saturado tardaba 7 s en aceptar la conexión y 12-25 s en el TLS.
+# (conexión, lectura) por separado: con un solo número, ``requests`` lo aplica a cada fase y la
+# espera real llegaba a sumar varias veces ese valor. Ambos caben en el plazo total de la prensa
+# (``agent.TIEMPO_ESPERA_PROVEEDOR_SEG``).
+GDELT_TIMEOUT = (3.0, 6.0)
+
+# GDELT pide no más de una consulta cada 5 s por IP y responde 429 si se excede. El turno se
+# lleva en todo el proceso (varios dossiers a la vez comparten la IP): una consulta antes de
+# tiempo se omite sin salir a la red, en vez de esperar o provocar el 429.
+GDELT_INTERVALO_SEG = 5.0
 # Reemplazable en las pruebas.
-_esperar = time.sleep
+_reloj = time.monotonic
+_candado_turno_gdelt = threading.Lock()
+_ultima_consulta_gdelt: float | None = None
 
 
 class ProveedorNoticiasError(RuntimeError):
@@ -30,6 +41,24 @@ class ProveedorNoticiasError(RuntimeError):
 
 class LimiteProveedorNoticias(ProveedorNoticiasError):
     """El proveedor rechazó la consulta por exceso de pedidos (HTTP 429)."""
+
+
+def reiniciar_turno_gdelt() -> None:
+    """Olvida la última consulta a GDELT (pruebas)."""
+    global _ultima_consulta_gdelt
+    with _candado_turno_gdelt:
+        _ultima_consulta_gdelt = None
+
+
+def _tomar_turno_gdelt() -> bool:
+    """``True`` y ocupa el turno si pasó el intervalo desde la última consulta; si no, ``False``."""
+    global _ultima_consulta_gdelt
+    with _candado_turno_gdelt:
+        ahora = _reloj()
+        if _ultima_consulta_gdelt is not None and ahora - _ultima_consulta_gdelt < GDELT_INTERVALO_SEG:
+            return False
+        _ultima_consulta_gdelt = ahora
+        return True
 
 
 def search_gdelt_articles(query: str, *, limite: int = 10) -> list[dict[str, Any]]:
@@ -49,14 +78,15 @@ def search_gdelt_articles(query: str, *, limite: int = 10) -> list[dict[str, Any
         "timespan": "30d",
         "maxrecords": str(max(1, min(limite, 250))),
     }
+    if not _tomar_turno_gdelt():
+        raise LimiteProveedorNoticias(
+            f"GDELT se omite: hubo otra consulta hace menos de {GDELT_INTERVALO_SEG:g} s"
+        )
     try:
-        resp = requests.get(GDELT_SEARCH_URL, params=params, timeout=DEFAULT_TIMEOUT)
+        resp = requests.get(GDELT_SEARCH_URL, params=params, timeout=GDELT_TIMEOUT)
         if resp.status_code == 429:
-            # Límite de GDELT por IP: se espera el intervalo que pide y se reintenta una vez.
-            _esperar(GDELT_ESPERA_LIMITE_SEG)
-            resp = requests.get(GDELT_SEARCH_URL, params=params, timeout=DEFAULT_TIMEOUT)
-            if resp.status_code == 429:
-                raise LimiteProveedorNoticias("GDELT rechazó la consulta por exceso de pedidos (429)")
+            # Sin reintento: esperar el intervalo y volver a pedir no cabe en el plazo de la prensa.
+            raise LimiteProveedorNoticias("GDELT rechazó la consulta por exceso de pedidos (429)")
         resp.raise_for_status()
         data = resp.json()
     except ProveedorNoticiasError:

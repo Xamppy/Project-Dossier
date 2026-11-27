@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
+import time
 import unicodedata
 from collections.abc import Iterable, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -26,10 +28,24 @@ from dossier.schemas.dossier_executive_payload import PressMention, SourceCitati
 
 logger = logging.getLogger(__name__)
 
-# Tiempo maximo de espera por proveedor. Un poco por encima del timeout HTTP
-# del cliente (DEFAULT_TIMEOUT=20s): si la red responde, el cliente ya corto
-# antes; esto solo protege contra un proveedor colgado en la propia llamada.
-TIEMPO_ESPERA_PROVEEDOR_SEG = 25.0
+# Plazo total para todas las fuentes de una consulta, no uno por fuente (CHORE-2026-11-27-01).
+# Con 25 s, la etapa de prensa se quedaba en el tope en 7 de 9 dossiers de persona porque GDELT,
+# saturado, no alcanzaba a responder; NewsAPI responde en menos de 1 s. Un poco por encima del
+# timeout de GDELT (``client.GDELT_TIMEOUT``: 3 s para conectar, 6 s para leer).
+TIEMPO_ESPERA_PROVEEDOR_SEG = 8.0
+
+# Pausa de una fuente que falla seguido: tras ``FALLOS_PARA_PAUSAR`` caídas o plazos agotados
+# consecutivos, no se consulta durante ``PAUSA_FUENTE_SEG`` y cada dossier sigue con las demás
+# sin esperarla. Un límite del proveedor (429, o el turno de GDELT) no cuenta: no es una caída.
+FALLOS_PARA_PAUSAR = 2
+PAUSA_FUENTE_SEG = 600.0
+_MOTIVOS_DE_CAIDA = frozenset({"provider_error", "provider_timeout"})
+# Reemplazable en las pruebas. El plazo de cada consulta usa ``time.monotonic`` directamente.
+_reloj = time.monotonic
+_candado_pausas = threading.Lock()
+_fallos_seguidos: dict[str, int] = {}
+_ultimo_motivo: dict[str, str] = {}
+_pausada_hasta: dict[str, float] = {}
 
 # Resumen que arma el sistema cuando la fuente no trae bajada (GDELT). Solo repite el medio
 # y el titular: no prueba que la nota hable del sujeto, así que no cuenta para homónimos.
@@ -185,6 +201,45 @@ def reservar_consulta(clave: str, limite_diario: int | None, *, motor: Any) -> b
     return reservar(clave, limite_diario, motor)
 
 
+def reiniciar_pausas() -> None:
+    """Olvida los fallos y las pausas de todas las fuentes (pruebas)."""
+    with _candado_pausas:
+        _fallos_seguidos.clear()
+        _ultimo_motivo.clear()
+        _pausada_hasta.clear()
+
+
+def _motivo_de_pausa(clave: str) -> str | None:
+    """Motivo del último fallo si la fuente está en pausa; ``None`` si se puede consultar."""
+    with _candado_pausas:
+        hasta = _pausada_hasta.get(clave)
+        if hasta is None:
+            return None
+        if _reloj() >= hasta:
+            del _pausada_hasta[clave]
+            _fallos_seguidos[clave] = 0
+            return None
+        return _ultimo_motivo.get(clave, "provider_error")
+
+
+def _anotar_respuesta(clave: str, motivo: str | None) -> None:
+    """Una respuesta reinicia la cuenta; una caída la suma y, al llegar al tope, pausa la fuente."""
+    if motivo is not None and motivo not in _MOTIVOS_DE_CAIDA:
+        return
+    with _candado_pausas:
+        if motivo is None:
+            _fallos_seguidos[clave] = 0
+            return
+        _fallos_seguidos[clave] = _fallos_seguidos.get(clave, 0) + 1
+        _ultimo_motivo[clave] = motivo
+        if _fallos_seguidos[clave] >= FALLOS_PARA_PAUSAR and clave not in _pausada_hasta:
+            _pausada_hasta[clave] = _reloj() + PAUSA_FUENTE_SEG
+            logger.warning(
+                "Fuente de prensa %s en pausa %d s tras %d fallos seguidos",
+                clave, int(PAUSA_FUENTE_SEG), _fallos_seguidos[clave],
+            )
+
+
 def fuentes_por_defecto(limite: int = 10) -> list[FuentePrensa]:
     """Sin ajustes del administrador: las fuentes activas por defecto que tienen su clave."""
     from dossier.news.proveedores.registro import proveedores_instalados
@@ -219,8 +274,9 @@ def collect_press_mentions(
 
     Sin ``fuentes`` usa las activas por defecto con su clave (``fuentes_por_defecto``).
     Consulta en paralelo (llamadas HTTP independientes; en serie se suman las latencias).
-    Si una falla o supera ``timeout_seg``, se registra en ``failed_providers`` y se sigue
-    con las demás; no se propaga la excepcion. Si fallan todas, el resultado queda vacio en
+    ``timeout_seg`` es el plazo total de todas las fuentes. Si una falla, no responde dentro
+    del plazo o está en pausa por fallar seguido, se registra en ``failed_providers`` y se
+    sigue con las demás; no se propaga la excepcion. Si fallan todas, el resultado queda vacio en
     vez de romper la generacion del dossier: es preferible un dossier sin noticias a uno
     bloqueado por un proveedor caido (criterio del ADR 0004).
     """
@@ -237,6 +293,17 @@ def collect_press_mentions(
 
     a_consultar: list[FuentePrensa] = []
     for fuente in elegidas:
+        p = fuente.proveedor
+        motivo_pausa = _motivo_de_pausa(p.clave)
+        if motivo_pausa is not None:
+            # Antes de reservar su cupo diario: una fuente en pausa no se consulta ni se cobra.
+            resultado.failed_providers.append(
+                FalloProveedor(provider=p.clave, error="omitida: en pausa por fallar seguido", motivo=motivo_pausa)
+            )
+            resultado.fuentes.append(
+                ResultadoFuente(p.clave, p.nombre, p.tipo_fuente, "error", 0, datetime.now(UTC), motivo=motivo_pausa)
+            )
+            continue
         if _puede_consultar(fuente):
             a_consultar.append(fuente)
         else:
@@ -254,6 +321,7 @@ def collect_press_mentions(
         executor.submit(f.proveedor.buscar, subject_query, limite=max(1, f.limite)): f for f in a_consultar
     }
 
+    fin = time.monotonic() + timeout_seg
     crudos: list[tuple[ArticuloNoticia, SourceCitation]] = []
     for futuro, fuente in futuros.items():
         p = fuente.proveedor
@@ -261,7 +329,7 @@ def collect_press_mentions(
         motivo = "provider_error"
         articulos: list[ArticuloNoticia] = []
         try:
-            articulos = futuro.result(timeout=timeout_seg)
+            articulos = futuro.result(timeout=max(0.0, fin - time.monotonic()))
         except FutureTimeoutError:
             error, motivo = "tiempo de espera agotado", "provider_timeout"
         except LimiteProveedorNoticias as exc:
@@ -271,6 +339,7 @@ def collect_press_mentions(
         except Exception as exc:  # noqa: BLE001 - proveedor externo: cualquier fallo se reporta, no se propaga
             error = f"{type(exc).__name__}: {exc}"
         ahora = datetime.now(UTC)
+        _anotar_respuesta(p.clave, motivo if error is not None else None)
         if error is not None:
             logger.warning("Fuente de prensa %s falló: %s", p.clave, error[:300])
             resultado.failed_providers.append(FalloProveedor(provider=p.clave, error=error, motivo=motivo))

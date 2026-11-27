@@ -117,21 +117,12 @@ def test_busca_en_newsapi_forma_inesperada_es_error(monkeypatch, respuesta_fija)
 
 
 # --------------------------------------------------------------------------
-# GDELT limita a una consulta cada 5 s por IP: ante 429 se reintenta una vez
+# GDELT limita a una consulta cada 5 s por IP: un 429 no se reintenta
 # --------------------------------------------------------------------------
 
 
-def test_gdelt_429_espera_y_reintenta_una_vez(monkeypatch, respuesta_fija):
-    respuestas = [respuesta_fija({}, status=429), respuesta_fija({"articles": [{"url": "u", "title": "t"}]})]
-    esperas: list[float] = []
-    monkeypatch.setattr(client.requests, "get", lambda *a, **k: respuestas.pop(0))
-    monkeypatch.setattr(client, "_esperar", esperas.append)
-
-    assert search_gdelt_articles("Acme") == [{"url": "u", "title": "t"}]
-    assert esperas == [client.GDELT_ESPERA_LIMITE_SEG]
-
-
-def test_gdelt_429_dos_veces_es_un_limite_del_proveedor(monkeypatch, respuesta_fija):
+def test_gdelt_429_es_un_limite_sin_esperar_ni_reintentar(monkeypatch, respuesta_fija):
+    """CHORE-2026-11-27-01: esperar 5,5 s y reintentar no cabe en el plazo de la prensa (8 s)."""
     llamadas = []
 
     def fake_get(*a, **k):
@@ -139,10 +130,9 @@ def test_gdelt_429_dos_veces_es_un_limite_del_proveedor(monkeypatch, respuesta_f
         return respuesta_fija({}, status=429)
 
     monkeypatch.setattr(client.requests, "get", fake_get)
-    monkeypatch.setattr(client, "_esperar", lambda s: None)
     with pytest.raises(client.LimiteProveedorNoticias):
         search_gdelt_articles("Acme")
-    assert len(llamadas) == 2
+    assert len(llamadas) == 1
 
 
 def test_newsapi_429_es_un_limite_del_proveedor_sin_reintento(monkeypatch, respuesta_fija):
@@ -157,3 +147,63 @@ def test_newsapi_429_es_un_limite_del_proveedor_sin_reintento(monkeypatch, respu
     with pytest.raises(client.LimiteProveedorNoticias):
         search_newsapi_articles("Acme")
     assert len(llamadas) == 1
+
+
+# --------------------------------------------------------------------------
+# CHORE-2026-11-27-01: GDELT saturado (7 s para conectar, 12-25 s de TLS)
+# --------------------------------------------------------------------------
+
+
+def test_gdelt_separa_el_timeout_de_conexion_y_de_lectura(monkeypatch, respuesta_fija):
+    recibidos = []
+
+    def fake_get(url, params=None, timeout=None):
+        recibidos.append(timeout)
+        return respuesta_fija({"articles": []})
+
+    monkeypatch.setattr(client.requests, "get", fake_get)
+    search_gdelt_articles("Acme")
+
+    conexion, lectura = recibidos[0]
+    assert conexion <= 3
+    assert lectura <= 6
+
+
+def test_gdelt_no_consulta_de_nuevo_antes_del_intervalo_por_ip(monkeypatch, respuesta_fija):
+    """Una segunda consulta antes de 5 s provocaría el 429: se omite sin tocar la red."""
+    ahora = [1000.0]
+    llamadas = []
+
+    def fake_get(*a, **k):
+        llamadas.append(1)
+        return respuesta_fija({"articles": []})
+
+    monkeypatch.setattr(client.requests, "get", fake_get)
+    monkeypatch.setattr(client, "_reloj", lambda: ahora[0])
+
+    search_gdelt_articles("Acme")
+    ahora[0] += client.GDELT_INTERVALO_SEG - 0.5
+    with pytest.raises(client.LimiteProveedorNoticias):
+        search_gdelt_articles("Acme")
+    assert len(llamadas) == 1
+
+    ahora[0] += 1.0
+    search_gdelt_articles("Acme")
+    assert len(llamadas) == 2
+
+
+def test_gdelt_un_fallo_de_red_tambien_ocupa_el_turno(monkeypatch, respuesta_fija):
+    """El intervalo cuenta desde que se pidió, haya respondido GDELT o no."""
+    ahora = [1000.0]
+
+    def caido(*a, **k):
+        raise client.requests.ConnectTimeout("sin respuesta")
+
+    monkeypatch.setattr(client.requests, "get", caido)
+    monkeypatch.setattr(client, "_reloj", lambda: ahora[0])
+
+    with pytest.raises(ProveedorNoticiasError):
+        search_gdelt_articles("Acme")
+    ahora[0] += 1.0
+    with pytest.raises(client.LimiteProveedorNoticias):
+        search_gdelt_articles("Acme")

@@ -74,3 +74,36 @@ def test_agente_sin_news_api_key_no_consulta_newsapi(monkeypatch, respuesta_fija
     assert len(resultado.mentions) == 1
     assert resultado.failed_providers == []
     assert resultado.query_context["providers_queried"] == ["gdelt_news"]
+
+
+def test_gdelt_saturado_se_pausa_y_newsapi_sigue_entregando(monkeypatch, respuesta_fija):
+    """CHORE-2026-11-27-01: con GDELT sin aceptar conexiones, tras dos fallos deja de consultarse."""
+    import dossier.news.agent as agente
+
+    monkeypatch.setenv("NEWS_API_KEY", "clave-de-prueba")
+    ahora = [1000.0]
+    monkeypatch.setattr(client, "_reloj", lambda: ahora[0])
+    monkeypatch.setattr(agente, "_reloj", lambda: ahora[0])
+    llamadas_gdelt = []
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        if url == client.GDELT_SEARCH_URL:
+            llamadas_gdelt.append(timeout)
+            raise client.requests.ConnectTimeout("GDELT no aceptó la conexión")
+        return respuesta_fija(
+            {"articles": [{"url": "https://newsapi.ejemplo.com/nota", "title": "Nota NewsAPI",
+                            "source": {"name": "NewsAPI Medio"}, "description": "desc",
+                            "publishedAt": "2026-09-10T10:00:00Z"}]}
+        )
+
+    monkeypatch.setattr(client.requests, "get", fake_get)
+
+    resultados = []
+    for _ in range(3):
+        resultados.append(collect_press_mentions('"Ana Perez" "Acme"'))
+        ahora[0] += 6.0  # más que el intervalo de GDELT: el turno no es lo que lo omite
+
+    assert len(llamadas_gdelt) == 2
+    assert all(t == client.GDELT_TIMEOUT for t in llamadas_gdelt)
+    assert all(len(r.mentions) == 1 for r in resultados)
+    assert [f.estado for f in resultados[2].fuentes if f.clave == "gdelt_news"] == ["error"]
