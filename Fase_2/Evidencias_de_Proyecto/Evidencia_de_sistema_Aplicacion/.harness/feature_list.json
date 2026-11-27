@@ -2608,6 +2608,25 @@
       ],
       "notes": "Hallado en UX-ADMIN-01 (2026-11-11). Si el proceso caía a mitad de una generación, el trabajo quedaba running: el aviso no terminaba y el usuario podía quedar sin cupo. Arreglo aprobado por FD: latido heartbeat_at cada 30 s y barrido al arrancar y cada 60 s que marca failed los que no tienen latido en 180 s. Sin créditos que devolver: se cobran al guardar el dossier.",
       "owner_session": "FD (agente)"
+    },
+    {
+      "id": "CHORE-2026-11-27-01",
+      "sprint": 4,
+      "title": "Acotar la espera de la prensa cuando GDELT está saturado",
+      "status": "claimed",
+      "owner": "DG",
+      "area": "backend",
+      "activity": "A3",
+      "objective": "OE2",
+      "gap": null,
+      "due": "2026-11-30",
+      "depends_on": [],
+      "blocks": [],
+      "trello": null,
+      "branch": null,
+      "evidence": [],
+      "notes": "Registrada el 2026-11-27 tras medir la latencia de los dossiers de persona: en 7 de 9 la etapa person.press_search tarda exactamente 25 s (TIEMPO_ESPERA_PROVEEDOR_SEG) y casi siempre sin resultados. NewsAPI responde en 0,4 s; GDELT tarda 7 s en aceptar la conexión TCP y 12-25 s en el TLS (servidor saturado), y responde 429 aun con 6 s entre consultas. Las 4 menciones guardadas vienen de NewsAPI. Alcance: timeout de conexión y lectura por separado, plazo total para todas las fuentes, pausa de una fuente que falla seguido y espaciado de GDELT en todo el proceso. Fuera de alcance: caché de prensa y correr la prensa en paralelo con PDL.",
+      "owner_session": "DG (agente)"
     }
   ]
 }
