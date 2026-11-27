@@ -6,6 +6,43 @@ Cada sesión que toca el repositorio deja una entrada. El formato está en
 [handoff.md](handoff.md), sección 5. Las cuatro secciones importan, pero **«Lo que hay que
 saber»** es la que ahorra horas: es lo que descubriste y no está escrito en ningún otro lado.
 
+### 2026-11-27 · CHORE-2026-11-27-01 · La prensa ya no frena el dossier cuando GDELT está saturado · DG (agente)
+
+**Hecho.** La búsqueda de prensa tiene un plazo total de 8 s para todas las fuentes (antes, 25 s por
+fuente). GDELT usa 3 s para conectar y 6 s para leer, no reintenta un 429 y lleva el turno de 1 consulta
+cada 5 s en todo el proceso: la consulta antes de tiempo se omite sin salir a la red. Una fuente que
+falla dos veces seguidas (error o plazo agotado) queda en pausa 10 minutos: no se consulta ni se cobra
+y el registro de fuentes la muestra con el motivo del último fallo. Sin cambio de esquema, de API ni de
+textos de interfaz (los motivos son los de siempre). Guía actualizada: `docs/tecnica/agregar-fuente-noticias.md`.
+
+**Pruebas.** Primero en rojo: `test_news_agent_plazos.py` (nueva), `test_news_client.py`,
+`integration/test_news_agent_integration.py` y `stress/test_news_agent_estres.py`. Suite backend sin
+Postgres: 1544 en verde y 528 omitidas; ruff y mypy sin hallazgos. Contra los proveedores reales, con
+una consulta neutra: la prensa tarda 3,3 s con GDELT caído y 0,5-1 s cuando ya está en pausa; NewsAPI
+entrega igual sus 10 menciones. No se generó un dossier completo con esta rama.
+
+**Lo que hay que saber.**
+- Diagnóstico del 2026-11-27: GDELT tardaba 7 s en aceptar la conexión TCP y 12-25 s en el TLS, y
+  respondía 429 aun con 6 s entre consultas. Desde la misma red, NewsAPI, OpenAI y Google completan el
+  TLS en 0,1-0,2 s. En 7 de 9 dossiers de persona la prensa se quedaba en 25 s; las 4 menciones
+  guardadas en la base vienen de NewsAPI, ninguna de GDELT.
+- `requests` aplica un `timeout` de un solo número a cada fase (conexión, lectura), no al total. Por eso
+  `timeout=20` más el reintento tras 429 (5,5 s) podía pasar de 45 s, y el hilo seguía vivo después de
+  que el agente dejara de esperarlo. Se borraron `test_gdelt_429_espera_y_reintenta_una_vez` y
+  `test_gdelt_429_dos_veces_es_un_limite_del_proveedor`: el requisito cambió (un 429 ya no se reintenta);
+  los reemplaza `test_gdelt_429_es_un_limite_sin_esperar_ni_reintentar`.
+- La pausa y el turno de GDELT viven en memoria del proceso. `tests/conftest.py` los limpia antes y
+  después de cada prueba (`prensa_sin_estado_entre_pruebas`); una prueba que llame dos veces a GDELT
+  necesita avanzar `client._reloj`.
+- Un 429 o el turno omitido no cuentan como fallo para la pausa: si contaran, dos dossiers seguidos
+  dejarían GDELT apagado 10 minutos sin que estuviera caído.
+- Un timeout de `requests` llega como `ProveedorNoticiasError` y se anota `provider_error`; solo el
+  plazo del agente da `provider_timeout`.
+- La plantilla `_plantilla.py` sigue con 20 s; la guía pide bajarlo.
+
+**Pendiente.** Revisión del segundo integrante. Fuera de alcance: caché de prensa por consulta y correr
+la prensa en paralelo con PDL. La rama de medición del LLM (CHORE-2026-11-25-01) no está en `main`.
+
 ### 2026-11-24 · sin ID · El aviso amarillo del dossier de persona dice la causa real · DG (agente)
 
 **Hecho.** El detalle mostraba «No se encontró información adicional» siempre que había 0 perfiles.

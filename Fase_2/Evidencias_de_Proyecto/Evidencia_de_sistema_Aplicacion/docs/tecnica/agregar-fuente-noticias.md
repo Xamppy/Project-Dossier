@@ -11,7 +11,13 @@ el sistema:
 
 1. Elige las fuentes según los ajustes del administrador: activa, empresas o personas,
    profundidad mínima, planes y si su clave está configurada.
-2. Las consulta **en paralelo**, cada una con un tiempo máximo (25 s) y su máximo de noticias.
+2. Las consulta **en paralelo**, con un **plazo total de 8 s para todas** y el máximo de noticias
+   de cada una. Una fuente que no responde dentro del plazo se anota como fallida y el dossier
+   sigue con las demás.
+   Si una fuente falla **dos veces seguidas** (error o plazo agotado), queda **en pausa 10 minutos**:
+   no se consulta ni se cobra, y el registro de fuentes del dossier la muestra con el motivo del
+   último fallo. Un límite del proveedor (429) no cuenta como fallo. Constantes en
+   `news/agent.py`: `TIEMPO_ESPERA_PROVEEDOR_SEG`, `FALLOS_PARA_PAUSAR`, `PAUSA_FUENTE_SEG`.
 3. Respeta el **límite diario** de cada fuente (sin carreras entre dossiers simultáneos).
 4. Junta los resultados, elimina duplicados y **filtra homónimos**.
 5. Pasa las menciones a la IA como datos externos (nunca como instrucciones) y las muestra en la
@@ -63,7 +69,12 @@ Reglas:
   mensaje **sin la clave ni la respuesta completa**. El sistema lo anota y sigue con las demás.
 - **La clave va en una cabecera**, nunca en la URL: las URL quedan en los logs. Usa
   `self.clave_api()`, que la lee del entorno y avisa si falta.
-- Pon un `timeout` en la llamada HTTP (la plantilla usa 20 s).
+- Pon un `timeout` en la llamada HTTP, separando conexión y lectura para que quepa en el plazo
+  de 8 s: GDELT usa `(3.0, 6.0)`. Con un solo número, `requests` lo aplica a cada fase y la
+  espera real puede sumar varias veces ese valor. La plantilla todavía trae 20 s: bájalo.
+- Si la API limita consultas por IP, no esperes ni reintentes dentro de la llamada: lanza
+  `LimiteProveedorNoticias`. GDELT (1 consulta cada 5 s) lleva el turno en todo el proceso y
+  omite la consulta antes de tiempo sin salir a la red (`client.GDELT_INTERVALO_SEG`).
 - Una nota sin título o sin URL se descarta.
 
 ### 4. Configura la clave en el servidor

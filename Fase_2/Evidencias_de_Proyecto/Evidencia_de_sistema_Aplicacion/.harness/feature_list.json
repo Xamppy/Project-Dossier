@@ -2623,8 +2623,12 @@
       "depends_on": [],
       "blocks": [],
       "trello": null,
-      "branch": null,
-      "evidence": [],
+      "branch": "fix/CHORE-2026-11-27-01-prensa-gdelt",
+      "evidence": [
+        "backend/tests/test_news_agent_plazos.py, test_news_client.py, integration/test_news_agent_integration.py y stress/test_news_agent_estres.py: primero en rojo",
+        "Suite backend sin Postgres: 1544 passed, 528 skipped; ruff y mypy sin hallazgos",
+        "Contra GDELT y NewsAPI reales (consulta neutra): la prensa baja de 25 s a 3,3 s, y a 0,5-1 s con GDELT en pausa"
+      ],
       "notes": "Registrada el 2026-11-27 tras medir la latencia de los dossiers de persona: en 7 de 9 la etapa person.press_search tarda exactamente 25 s (TIEMPO_ESPERA_PROVEEDOR_SEG) y casi siempre sin resultados. NewsAPI responde en 0,4 s; GDELT tarda 7 s en aceptar la conexión TCP y 12-25 s en el TLS (servidor saturado), y responde 429 aun con 6 s entre consultas. Las 4 menciones guardadas vienen de NewsAPI. Alcance: timeout de conexión y lectura por separado, plazo total para todas las fuentes, pausa de una fuente que falla seguido y espaciado de GDELT en todo el proceso. Fuera de alcance: caché de prensa y correr la prensa en paralelo con PDL.",
       "owner_session": "DG (agente)"
     }
